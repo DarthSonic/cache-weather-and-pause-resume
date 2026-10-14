@@ -1,0 +1,15 @@
+{
+  "name": "cache-wetter",
+  "owner": { "name": "Sven Moderow", "url": "https://github.com/DarthSonic" },
+  "metadata": {
+    "description": "cache-wetter: a band above the Claude Code prompt with the prompt-cache countdown, context weather, a Compact button and a Pause / Resume button."
+  },
+  "plugins": [
+    {
+      "name": "cache-wetter",
+      "source": "./",
+      "description": "Prompt-cache countdown, cache hit rate, context weather with the auto-compact threshold, Compact and Pause / Resume buttons above the prompt. German and English.",
+      "category": "mod"
+    }
+  ]
+}

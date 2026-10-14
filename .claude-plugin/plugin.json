@@ -1,0 +1,26 @@
+{
+  "name": "cache-wetter",
+  "version": "0.4.0",
+  "description": "A band above the Claude Code prompt: prompt-cache countdown, cache hit rate, context weather with the auto-compact threshold, a Compact button and a Pause / Resume button that has Claude finish running work, save its state and wait. German and English.",
+  "author": { "name": "Sven Moderow", "url": "https://github.com/DarthSonic" },
+  "homepage": "https://github.com/DarthSonic/cache-wetter",
+  "repository": "https://github.com/DarthSonic/cache-wetter",
+  "license": "MIT",
+  "keywords": ["mod", "prompt-cache", "context", "compact", "pause"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "auto follows Claude Code's language setting, then the locale (on Windows the system language); de or en pin it.",
+      "default": "auto",
+      "options": ["auto", "de", "en"]
+    },
+    "askAboveMinutes": {
+      "type": "number",
+      "title": "Pause: ask above (minutes)",
+      "description": "When a task is likely to run longer than this many minutes at a pause, Claude asks whether to stop it now and restart it after resuming, or to let it finish.",
+      "default": 5
+    }
+  }
+}

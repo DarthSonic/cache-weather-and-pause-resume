@@ -1,0 +1,5 @@
+# Laid by Claude Code beside a mod it hot-reloads; regenerated, never edited.
+.claude-plugin/types/
+tsconfig.json
+node_modules/
+*.log
