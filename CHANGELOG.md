@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — 2026-10-14
+
+For the plugin directory's review:
+
+- Starts no program any more: a transcript over 3.5 MiB is not read (its tail was read by `tail` or PowerShell); the
+  lifetime last seen stands, and a resumed session takes the time of its last response from the session start.
+- Reads no Claude Code settings any more (they can hold keys and helper commands): `language: auto` follows the locale
+  variables, then the system locale.
+- The paths of the files it touches are spelled out in each call, under the home folder.
+- The READMEs say what the mod does on your machine: the prompts and rows it hands Claude, `/compact`, the files it
+  reads and writes, the variables it reads, and what each hook changes.
+- An icon.
+
 ## 0.4.0 — 2026-10-14
 
 - German and English: the band, the toasts and the texts Claude gets follow the new `language` option (`auto`, `de`,

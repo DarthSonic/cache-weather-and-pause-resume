@@ -89,7 +89,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows Claude Code's `language` setting, then `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
+| `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
 
 Set them with `/plugin configure cache-wetter@cache-wetter`, or in `~/.claude/settings.json`:
@@ -111,11 +111,43 @@ together with it in either order.
 ## Where the values come from
 
 - **Cache lifetime (5 min / 1 h):** from the session's transcript, which records every cache write split by lifetime
-  (`ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`); the latest write that wrote anything decides. For a
-  transcript over 3.5 MiB only its last 40 lines are read. On a model switch the switch's own report decides; until the
-  first reading, the last session's value is shown with `?`.
-- **Hit rate and time of the last response:** from every model request of the main conversation.
+  (`ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`); the latest write that wrote anything decides. A
+  transcript over 3.5 MiB is not read. On a model switch the switch's own report decides; until the first reading, the
+  last session's value is shown with `?`.
+- **Hit rate and time of the last response:** from every model request of the main conversation; in a resumed session,
+  until its first request, from the session start's report of how long ago the last response was.
 - **Context and threshold:** `$.session.usage()`; the threshold from the local estimate (no API request).
+
+## What the mod does on your machine
+
+cache-wetter makes no network requests of its own and starts no programs. What it hands Claude enters the conversation
+like anything else you send:
+
+| What | When | Exactly |
+| --- | --- | --- |
+| a prompt in your name | you press **Pause** while Claude is idle | the pause request: fixed text from [`hooks/pause.ts`](hooks/pause.ts), with your `askAboveMinutes` |
+| a prompt in your name | you press **Resume** | “continue” (in German „weitermachen“) |
+| a row in the conversation | you press **Pause** while Claude works, or **Resume** | the pause request; a fixed note that the pause is over, with its length in minutes |
+| a note added to your prompt | a pause is requested or on, or you type “pause” or “continue” | a fixed note (the request, “the session is paused”, “the pause is over”); the text you typed is never changed, and no prompt is held back |
+| the slash command `/compact` | you press **Compact** while Claude works, or in the desktop app | queued like a typed `/compact`; otherwise the button compacts through the session's own compaction call |
+| the Stop hook's answer | Claude stops before it read the pause request | Claude goes on once, with the pause request as the reason |
+
+No file content, transcript text or setting goes into these texts.
+
+**Files.** The mod writes one file, `~/.claude/cache-wetter/state.json` (below), and no other: no settings,
+instructions, hooks or build files. It reads that file, the session's transcript when it is at most 3.5 MiB (for the
+cache lifetime and the time of the last response), and the file names — not the contents — in `~/.claude/projects/*/`,
+to drop the pauses of deleted sessions.
+
+**Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is) and `LC_ALL` / `LC_MESSAGES`
+/ `LANG` (the language). It reads no Claude Code settings and no credentials.
+
+**Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above. Every other hook only reads and
+passes its event on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
+`classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime),
+`turn.step` and `session.measure` (token counts), `turn.start`, `turn.complete`, `session.end`, and
+`session.compact`, after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
+band and stacks the bands of other mods beneath it.
 
 ## State file
 

@@ -1,6 +1,6 @@
 {
   "name": "cache-wetter",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A band above the Claude Code prompt: prompt-cache countdown, cache hit rate, context weather with the auto-compact threshold, a Compact button and a Pause / Resume button that has Claude finish running work, save its state and wait. German and English.",
   "author": { "name": "Sven Moderow", "url": "https://github.com/DarthSonic" },
   "homepage": "https://github.com/DarthSonic/cache-wetter",
@@ -12,7 +12,7 @@
     "language": {
       "type": "string",
       "title": "Language",
-      "description": "auto follows Claude Code's language setting, then the locale (on Windows the system language); de or en pin it.",
+      "description": "auto follows the locale (on Windows the system language); de or en pin it.",
       "default": "auto",
       "options": ["auto", "de", "en"]
     },

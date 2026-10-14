@@ -54,12 +54,12 @@ const stop = (status?: string, session_id = 'sess-1') => ({
 
 // The user's disk as the engine reaches it: a map of files, under a home folder the environment names. The home is
 // spelled as on Windows; where that is no absolute path (Linux, macOS) the engine puts the working directory in front,
-// so the hooks key a path from the home on.
+// so the hooks key a path from the home on, with forward slashes (the mod's own spelling under the home).
 const HOME = 'C:\\Users\\test'
-const STATE = 'C:\\Users\\test\\.claude\\cache-wetter\\state.json'
+const STATE = 'C:/Users/test/.claude/cache-wetter/state.json'
 const key = (path: string): string => {
   const at = path.indexOf(HOME)
-  return at >= 0 ? path.slice(at) : path
+  return (at >= 0 ? path.slice(at) : path).replaceAll('\\', '/')
 }
 function disk(on: On, seed: Record<string, string> = {}): Record<string, string> {
   const files: Record<string, string> = { ...seed }
@@ -76,11 +76,11 @@ function disk(on: On, seed: Record<string, string> = {}): Record<string, string>
   })
   // A folder lists what the map holds beneath it: the next path segment, a file where nothing follows.
   on('fs.list', ($, e) => {
-    const prefix = `${key(e.path)}\\`
+    const prefix = `${key(e.path)}/`
     const seen = new Map<string, 'file' | 'dir'>()
     for (const path of Object.keys(files)) {
       if (!path.startsWith(prefix)) continue
-      const rest = path.slice(prefix.length).split('\\')
+      const rest = path.slice(prefix.length).split('/')
       const name = rest[0] ?? ''
       seen.set(name, rest.length > 1 ? 'dir' : seen.get(name) ?? 'file')
     }
@@ -91,7 +91,7 @@ function disk(on: On, seed: Record<string, string> = {}): Record<string, string>
   return files
 }
 
-const PROJECTS = 'C:\\Users\\test\\.claude\\projects'
+const PROJECTS = 'C:/Users/test/.claude/projects'
 
 describe('the pause words', () => {
   test('resume and pause are read off whole messages, in either language', async () => {
@@ -131,7 +131,7 @@ describe('the pause words', () => {
     expect(isResume(resumeText('en'))).toBe(true)
   })
 
-  test('the language is read off settings and locales', async () => {
+  test('the language is read off the option and locales', async () => {
     expect(langOf('de-DE')).toBe('de')
     expect(langOf('de_DE.UTF-8')).toBe('de')
     expect(langOf('German')).toBe('de')
@@ -323,8 +323,8 @@ describe('the pause across a restart', () => {
     const paused = { alive: 1_000_000, gone: 2_000_000, current: 3_000_000 }
     const files = disk(on, {
       [STATE]: JSON.stringify({ pausedSessions: paused, isCollapsed: true }),
-      [`${PROJECTS}\\C--repo\\alive.jsonl`]: '{}',
-      [`${PROJECTS}\\C--other\\unrelated.jsonl`]: '{}',
+      [`${PROJECTS}/C--repo/alive.jsonl`]: '{}',
+      [`${PROJECTS}/C--other/unrelated.jsonl`]: '{}',
     })
     engine(on)
 
@@ -347,6 +347,20 @@ describe('the pause across a restart', () => {
     await $.classic.SessionStart({ source: 'startup', session_id: 'c' })
     await clock.advance(10_000)
     expect(JSON.parse(files[STATE] ?? '{}').pausedSessions).toEqual(paused)
+  })
+
+  test('a resumed session counts the cache down from its last response, read off the start', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 10_000_000 })
+    disk(on)
+    engine(on)
+    on('classic.PostModelSwitch', () => ({}))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+
+    await $.classic.SessionStart({ source: 'resume', session_id: 'sess-3', seconds_since_last_response: 120 })
+    await $.classic.PostModelSwitch({ cache_ttl: '1h' })
+    expect(await ui.find({ type: 'Text', text: /^Cache 58 m/ })).toBeDefined()
+    await ui.unmount()
   })
 
   test('the folded band is kept on disk too', DE, async ($, on) => {

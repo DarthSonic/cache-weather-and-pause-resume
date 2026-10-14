@@ -87,7 +87,7 @@ Ein Mod, der im Terminal für den Benutzer-Bereich installiert wurde, lädt auch
 
 | Option | Standard | Wirkung |
 | --- | --- | --- |
-| `language` | `auto` | `de` oder `en` für Leiste, Meldungen und die Texte an Claude. `auto` folgt Claudes Einstellung `language`, dann `LC_ALL` / `LC_MESSAGES` / `LANG`, dann der Systemsprache (unter Windows, wo `LANG` meist leer ist). |
+| `language` | `auto` | `de` oder `en` für Leiste, Meldungen und die Texte an Claude. `auto` folgt `LC_ALL` / `LC_MESSAGES` / `LANG`, dann der Systemsprache (unter Windows, wo `LANG` meist leer ist). |
 | `askAboveMinutes` | `5` | Ab welcher Restlaufzeit eines laufenden Tasks Claude bei einer Pause nachfragt. |
 
 Setzen mit `/plugin configure cache-wetter@cache-wetter` oder in `~/.claude/settings.json`:
@@ -110,11 +110,43 @@ zusammen.
 ## Woher die Werte kommen
 
 - **Cache-Laufzeit (5 min / 1 h):** aus dem Transkript der Sitzung, das jede Cache-Schreibung getrennt nach Laufzeit
-  meldet (`ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`); die letzte, die etwas schrieb, entscheidet. Ist das
-  Transkript größer als 3,5 MiB, liest der Mod nur seine letzten 40 Zeilen. Bei einem Modellwechsel entscheidet dessen
-  Meldung; bis zur ersten Ablesung gilt der Wert der letzten Sitzung, mit `?`.
-- **Trefferquote und Zeitpunkt der letzten Antwort:** aus jeder Modellanfrage der Hauptunterhaltung.
+  meldet (`ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`); die letzte, die etwas schrieb, entscheidet. Ein
+  Transkript über 3,5 MiB liest der Mod nicht. Bei einem Modellwechsel entscheidet dessen Meldung; bis zur ersten
+  Ablesung gilt der Wert der letzten Sitzung, mit `?`.
+- **Trefferquote und Zeitpunkt der letzten Antwort:** aus jeder Modellanfrage der Hauptunterhaltung; in einer
+  fortgesetzten Sitzung bis zur ersten Anfrage aus der Meldung des Sitzungsstarts, wie lange die letzte Antwort her ist.
 - **Kontext und Schwelle:** `$.session.usage()`; die Schwelle aus der lokalen Schätzung (keine API-Anfrage).
+
+## Was der Mod auf deinem Rechner tut
+
+cache-wetter stellt selbst keine Netzwerk-Anfragen und startet keine Programme. Was er Claude übergibt, kommt wie alles,
+was du schickst, in die Unterhaltung:
+
+| Was | Wann | Genau |
+| --- | --- | --- |
+| ein Prompt in deinem Namen | du drückst **Pause**, während Claude ruht | die Pause-Bitte: fester Text aus [`hooks/pause.ts`](hooks/pause.ts), mit deinem `askAboveMinutes` |
+| ein Prompt in deinem Namen | du drückst **Weitermachen** | „weitermachen“ (auf Englisch “continue”) |
+| eine Zeile in der Unterhaltung | du drückst **Pause**, während Claude arbeitet, oder **Weitermachen** | die Pause-Bitte; ein fester Hinweis, dass die Pause vorbei ist, mit ihrer Dauer in Minuten |
+| ein Hinweis an deinem Prompt | eine Pause ist angefordert oder läuft, oder du tippst „pausieren“ oder „weitermachen“ | ein fester Hinweis (die Bitte, „die Sitzung ist pausiert“, „die Pause ist beendet“); dein getippter Text bleibt unverändert, und kein Prompt wird zurückgehalten |
+| der Slash-Befehl `/compact` | du drückst **Compact**, während Claude arbeitet, oder in der Desktop-App | eingereiht wie ein getipptes `/compact`; sonst verdichtet der Knopf über den eigenen Compact-Aufruf der Sitzung |
+| die Antwort des Stop-Hooks | Claude hält an, bevor es die Pause-Bitte gelesen hat | Claude macht einmal weiter, mit der Pause-Bitte als Grund |
+
+In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung.
+
+**Dateien.** Der Mod schreibt genau eine Datei, `~/.claude/cache-wetter/state.json` (unten), und keine andere: keine
+Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das Transkript der Sitzung, wenn es höchstens
+3,5 MiB groß ist (für Cache-Laufzeit und Zeitpunkt der letzten Antwort), und die Dateinamen — nicht die Inhalte — in
+`~/.claude/projects/*/`, um die Pausen gelöschter Sitzungen zu streichen.
+
+**Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt) und `LC_ALL` /
+`LC_MESSAGES` / `LANG` (die Sprache). Er liest keine Einstellungen von Claude Code und keine Zugangsdaten.
+
+**Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle. Jeder andere Hook liest nur und
+reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
+Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
+Cache-Laufzeit), `turn.step` und `session.measure` (Token-Zahlen), `turn.start`, `turn.complete`, `session.end` und
+`session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das Modell nicht liest. Der Hook auf
+`ui.render` zeichnet die Leiste und stapelt die Leisten anderer Mods darunter.
 
 ## Zustandsdatei
 

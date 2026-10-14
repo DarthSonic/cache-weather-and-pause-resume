@@ -35,7 +35,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.4.0'
+const CODE_VERSION = '0.5.0'
 
 const lastResponseAt = atom({ plugin: 'cache-wetter', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-wetter', key: 'ttl' } as const, null)
@@ -58,39 +58,32 @@ const language = atom({ plugin: 'cache-wetter', key: 'language' } as const, null
 // The language before session.start has read the settings: the option, else the runtime's locale. Set by `register`.
 let fallbackLang: Lang = 'en'
 
-// What outlives a session (paused sessions by id, the folded band, the cache lifetime last seen) lives in one file
-// under the user's .claude folder, not in `$.store`: the store is keyed by how the mod was loaded (handed in by the
+// What outlives a session (paused sessions by id, the folded band, the cache lifetime last seen) lives in one file,
+// ~/.claude/cache-wetter/state.json, not in `$.store`: the store is keyed by how the mod was loaded (handed in by the
 // desktop app „inline“, or by the CLI's own loader), so a pause kept there was gone after a restart that loaded the
-// mod the other way (2026-10-13).
-const STATE_FILE = ['.claude', 'cache-wetter', 'state.json']
-const PROJECTS_DIR = ['.claude', 'projects']
+// mod the other way (2026-10-13). Each call spells its path out under the home folder, so the source shows which
+// files the mod touches.
 const PAUSED_KEEP = 20
 // The pruning waits so it never holds up the session's start.
 const PRUNE_AFTER_MS = 10_000
 
 type Persisted = { ttlMinutes?: number; isCollapsed?: boolean; pausedSessions?: Record<string, number>; codeVersion?: string }
 
-// $.fs.read refuses files over 4 MiB; a long session's transcript is larger, so its tail is read by a host command.
+// $.fs.read refuses files over 4 MiB: a longer transcript is not read, and the values remembered stand. (The mod
+// starts no program to read its end.)
 const FS_READ_LIMIT = 3.5 * 1024 * 1024
-const TAIL_LINES = 40
 
 async function tick($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
   await update($, now, () => at)
 }
 
-// The mod's language: the `language` option, else Claude Code's own `language` setting, else the locale variables,
-// else the runtime's locale (on Windows the system language; LANG is unset there), else English.
+// The mod's language: the `language` option, else the locale variables, else the runtime's locale (on Windows the
+// system language; LANG is unset there), else English. Claude Code's settings are not read: they can hold keys and
+// helper commands, and the mod needs none of that.
 async function detectLang($: EngineInterface, option: unknown): Promise<Lang> {
   const chosen = langOf(option)
   if (chosen !== null) return chosen
-  try {
-    const settings = (await $.settings.read()) as Record<string, unknown>
-    const setting = langOf(settings.language)
-    if (setting !== null) return setting
-  } catch {
-    // No settings: the locale decides.
-  }
   try {
     const fromEnv =
       langOf(await $.env.get('LC_ALL')) ?? langOf(await $.env.get('LC_MESSAGES')) ?? langOf(await $.env.get('LANG'))
@@ -125,30 +118,11 @@ async function refreshThreshold($: EngineInterface): Promise<void> {
   await update($, threshold, () => next)
 }
 
-// The tail of the transcript: the whole file when small enough, else its last lines from a host command.
-async function readTranscriptTail($: EngineInterface, path: string): Promise<string | null> {
+// The session's transcript, when small enough for one read.
+async function readTranscript($: EngineInterface, path: string): Promise<string | null> {
   try {
     const stat = await $.fs.stat(path)
-    if (stat.size <= FS_READ_LIMIT) return await $.fs.read(path)
-  } catch {
-    return null
-  }
-  const isWindows = (await $.env.get('OS')) === 'Windows_NT'
-  const argv = isWindows
-    ? [
-        'powershell.exe',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        `Get-Content -LiteralPath $env:CACHE_WETTER_TRANSCRIPT -Tail ${TAIL_LINES} -Encoding UTF8`,
-      ]
-    : ['tail', '-n', String(TAIL_LINES), path]
-  try {
-    const { exitCode, stdout } = await $.process.run(argv, {
-      env: { CACHE_WETTER_TRANSCRIPT: path },
-      timeoutMs: 15_000,
-    })
-    return exitCode === 0 ? stdout : null
+    return stat.size <= FS_READ_LIMIT ? await $.fs.read(path) : null
   } catch {
     return null
   }
@@ -162,7 +136,7 @@ async function detectFromTranscript($: EngineInterface): Promise<void> {
 
   const path = await read($, transcriptPath)
   if (!path) return
-  const text = await readTranscriptTail($, path)
+  const text = await readTranscript($, path)
   if (!text) return
 
   const minutes = ttlFromTranscript(text)
@@ -189,20 +163,15 @@ async function queueCompact($: EngineInterface): Promise<void> {
 
 // ── What outlives a session ───────────────────────────────────────────────────────────────────────────────────────
 
-// A path under the user's home folder, spelled with the home folder's own separator.
-async function underHome($: EngineInterface, parts: readonly string[]): Promise<string | null> {
+// The user's home folder without a trailing separator. The paths under it go with forward slashes, which Windows
+// takes as well.
+async function homeDir($: EngineInterface): Promise<string | null> {
   try {
     const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
-    if (!home) return null
-    const sep = home.includes('\\') ? '\\' : '/'
-    return [home.replace(/[\\/]+$/, ''), ...parts].join(sep)
+    return home ? home.replace(/[\\/]+$/, '') : null
   } catch {
     return null
   }
-}
-
-async function stateFilePath($: EngineInterface): Promise<string | null> {
-  return underHome($, STATE_FILE)
 }
 
 // Drops the remembered pauses of sessions that are gone: no transcript `<id>.jsonl` in any project folder (the session
@@ -212,15 +181,14 @@ async function prunePausedSessions($: EngineInterface): Promise<void> {
   const keep = await read($, sessionId)
   const ids = Object.keys(paused).filter(id => id !== keep)
   if (ids.length === 0) return
-  const projects = await underHome($, PROJECTS_DIR)
-  if (projects === null) return
-  const sep = projects.includes('\\') ? '\\' : '/'
+  const home = await homeDir($)
+  if (home === null) return
   const transcripts = new Set<string>()
   try {
-    const dirs = (await $.fs.list(projects)).filter(entry => entry.kind === 'dir')
+    const dirs = (await $.fs.list(`${home}/.claude/projects`)).filter(entry => entry.kind === 'dir')
     if (dirs.length === 0) return
     for (const dir of dirs) {
-      for (const entry of await $.fs.list(`${projects}${sep}${dir.name}`)) {
+      for (const entry of await $.fs.list(`${home}/.claude/projects/${dir.name}`)) {
         if (entry.kind === 'file' && entry.name.endsWith('.jsonl')) transcripts.add(entry.name.slice(0, -'.jsonl'.length))
       }
     }
@@ -238,11 +206,11 @@ async function prunePausedSessions($: EngineInterface): Promise<void> {
 }
 
 async function readPersisted($: EngineInterface): Promise<Persisted> {
-  const path = await stateFilePath($)
-  if (path === null) return {}
+  const home = await homeDir($)
+  if (home === null) return {}
   try {
-    if (!(await $.fs.exists(path))) return {}
-    const value: unknown = JSON.parse(await $.fs.read(path))
+    if (!(await $.fs.exists(`${home}/.claude/cache-wetter/state.json`))) return {}
+    const value: unknown = JSON.parse(await $.fs.read(`${home}/.claude/cache-wetter/state.json`))
     return value !== null && typeof value === 'object' ? (value as Persisted) : {}
   } catch {
     return {}
@@ -251,10 +219,11 @@ async function readPersisted($: EngineInterface): Promise<Persisted> {
 
 // Read, change, write: another session may have written in between, so each write starts from the file.
 async function writePersisted($: EngineInterface, change: (p: Persisted) => Persisted): Promise<void> {
-  const path = await stateFilePath($)
-  if (path === null) return
+  const home = await homeDir($)
+  if (home === null) return
   try {
-    await $.fs.write(path, `${JSON.stringify(change(await readPersisted($)), null, 2)}\n`)
+    const text = `${JSON.stringify(change(await readPersisted($)), null, 2)}\n`
+    await $.fs.write(`${home}/.claude/cache-wetter/state.json`, text)
   } catch {
     // Not writable: the value lives in this session's state alone.
   }
@@ -452,6 +421,13 @@ export const register: Register = (on, options) => {
     // /clear the id is a new one, whose pause (none) is restored.
     await update($, sessionId, () => e.session_id)
     await restorePause($, e.session_id)
+    // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
+    const seconds = e.seconds_since_last_response
+    if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
+      const at = await $.clock.now()
+      await update($, lastResponseAt, () => at - seconds * 1000)
+      await update($, now, () => at)
+    }
     // Once per session start, a little later: remembered pauses of deleted sessions go.
     $.clock.after(PRUNE_AFTER_MS, () => {
       void prunePausedSessions($).catch(() => undefined)
