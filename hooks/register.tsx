@@ -35,7 +35,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.6.0'
+const CODE_VERSION = '0.6.1'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)

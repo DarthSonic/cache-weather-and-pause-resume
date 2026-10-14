@@ -95,7 +95,7 @@ export function lastResponseFromTranscript(text: string): number | null {
 }
 
 /** 412300 → "412.300" (German thousands) or "412,300" (English). */
-export function formatTokens(n: number | undefined | null, lang: Lang): string {
+export function groupDigits(n: number | undefined | null, lang: Lang): string {
   if (n === undefined || n === null) return '?'
   return Math.round(n)
     .toString()
@@ -109,19 +109,19 @@ export function formatTokens(n: number | undefined | null, lang: Lang): string {
  */
 export function compactionLines(
   messages: readonly { role: string; text: string }[],
-  tokensBefore: number | undefined,
-  tokensAfter: number | undefined,
+  countBefore: number | undefined,
+  countAfter: number | undefined,
   lang: Lang,
 ): string[] {
   const summary =
     messages.find(m => m.role === 'user' && /continued from a previous conversation/i.test(m.text))?.text ??
     messages[0]?.text ??
     ''
-  const tokens = `${formatTokens(tokensBefore, lang)} → ${formatTokens(tokensAfter, lang)}`
+  const counts = `${groupDigits(countBefore, lang)} → ${groupDigits(countAfter, lang)}`
   const head =
     lang === 'de'
-      ? `🗜️ Compact: ${tokens} Tokens · Zusammenfassung, mit der Claude weitermacht:`
-      : `🗜️ Compact: ${tokens} tokens · the summary Claude carries on with:`
+      ? `🗜️ Compact: ${counts} Tokens · Zusammenfassung, mit der Claude weitermacht:`
+      : `🗜️ Compact: ${counts} tokens · the summary Claude carries on with:`
   const chunks = chunkSummary(summary)
   if (chunks.length === 0) return [head, lang === 'de' ? '(keine Zusammenfassung im Ergebnis)' : '(no summary in the result)']
   return [head, ...chunks.map((chunk, i) => (chunks.length > 1 ? `(${i + 1}/${chunks.length}) ${chunk}` : chunk))]

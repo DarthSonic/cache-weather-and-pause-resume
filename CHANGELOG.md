@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 — 2026-10-14
+
+- No change in behaviour: the helper that groups the digits of token counts is called `groupDigits` (it was
+  `formatTokens`, which the plugin directory's review read as handling a credential).
+
 ## 0.6.0 — 2026-10-14
 
 - Renamed from `cache-wetter` to `cache-weather-and-pause-resume`: says what it does, in English. The repository moved
