@@ -9,9 +9,7 @@ Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt 
 warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf und einem Knopf
 **Pause / Weitermachen**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt.
 
-```
-Cache 42 m ████████████████░░░░   Hits 99 %   ☀️   Ctx 41 % / Max 83 %   [Compact]   [⏸ Pause]   ▾
-```
+![Die Leiste von cache-wetter in der Claude-Desktop-App: Cache noch 60 Minuten, Hits 100 %, Gewitter bei 87 % einer Schwelle von 97 %, Compact hervorgehoben, der Pause-Knopf](docs/band.png)
 
 ## Was die Leiste zeigt
 
@@ -130,6 +128,11 @@ kostet keine Token.
 
 Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.295** und **2.1.296**. Die
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
+
+Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,
+`classic.PostModelSwitch` und `session.compact` nur für Plugins, die die Organisation in den verwalteten Einstellungen
+nennt. Eine selbst installierte Kopie sieht dann nie, dass Claude anhält: die Pause bleibt bei „Pause angefordert“, die
+Cache-Laufzeit wird nicht aus dem Transkript gelesen, und nach `/compact` erscheint keine Zusammenfassung.
 
 ## Entwicklung
 

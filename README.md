@@ -9,9 +9,7 @@ A [Claude Code](https://code.claude.com) mod: one slim band directly above the p
 prompt cache still is and how full the context is, with a **Compact** button and a **Pause / Resume** button that has
 Claude finish what is running, save its state and wait.
 
-```
-Cache 42 m ████████████████░░░░   Hits 99 %   ☀️   Ctx 41 % / Max 83 %   [Compact]   [⏸ Pause]   ▾
-```
+![The cache-wetter band in the Claude desktop app: cache 60 minutes left, hits 100 %, a storm at 87 % of a 97 % threshold, Compact highlighted, the Pause button](docs/band.png)
 
 *Wetter* is German for weather: the band forecasts when your context is about to storm into an auto-compact.
 
@@ -130,6 +128,11 @@ nothing. Only the mod reads the file — it never reaches the model and costs no
 
 Claude Code with mods (function-hook plugins), early access, checked with **2.1.295** and **2.1.296**. The mod API
 moves between releases; the CI runs validation and the tests against a pinned version.
+
+Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,
+`classic.PostModelSwitch` and `session.compact` run only for plugins the organization lists in managed settings. A
+self-installed copy then never sees Claude stop, so the pause stays at “Pause requested”, the cache lifetime is not
+read off the transcript, and no summary is logged after `/compact`.
 
 ## Development
 

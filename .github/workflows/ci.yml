@@ -15,5 +15,5 @@ jobs:
           node-version: 22
       # The mod API is early access and moves between releases: test against the version the mod was last checked with.
       - run: npm install -g @anthropic-ai/claude-code@2.1.296
-      - run: claude plugin validate .
+      - run: claude plugin validate --strict .
       - run: claude plugin test .
