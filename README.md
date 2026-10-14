@@ -1,5 +1,8 @@
 # cache-wetter
 
+[![CI](https://github.com/DarthSonic/cache-wetter/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-wetter/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 *Deutsch: [README.de.md](README.de.md)*
 
 A [Claude Code](https://code.claude.com) mod: one slim band directly above the prompt that tells you how warm the
