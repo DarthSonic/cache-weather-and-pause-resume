@@ -149,6 +149,8 @@ they do not depend on the machine's locale. A change reaches your own sessions a
 
 cache-wetter is based on an idea by Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
 
+Written with Claude Code (Claude Opus 5.5); reviewed, tested and maintained by Sven Moderow.
+
 ## License
 
 [MIT](LICENSE) © 2026 Sven Moderow

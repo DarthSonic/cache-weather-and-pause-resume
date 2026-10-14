@@ -150,6 +150,8 @@ Sitzung.
 
 cache-wetter basiert auf einer Idee von Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
 
+Geschrieben mit Claude Code (Claude Opus 5.5); geprüft, getestet und gepflegt von Sven Moderow.
+
 ## Lizenz
 
 [MIT](LICENSE) © 2026 Sven Moderow
