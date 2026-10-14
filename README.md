@@ -32,11 +32,14 @@ You can also type: “pause” pauses, “continue” resumes (in German “paus
 | --- | --- |
 | **Cache** | Minutes left (`m`) of the prompt cache since the last response, with 20 cells that run empty; green, yellow in the last quarter, red in the last tenth, “expired” at 0. Redrawn every minute. |
 | **Hits** | The share of the last response's input tokens that came from the cache. |
-| **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. |
+| **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
 | **Ctx / Max** | Context fill in percent and the auto-compact threshold (`*`: the fallback of 83 %, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
-| **⏸ Pause / ▶ Resume** | Asks Claude to pause the session, and carries on (below). Also shown when the band is folded. |
+| **⏸ Pause / ▶ Resume** | Asks Claude to pause the session, and carries on (below). Also shown when the band is folded. In a terminal `❚❚ Pause` and `► Resume`. |
 | **▾ / ▸** | Folds the band to weather, cache time, Ctx and the pause button. Remembered across sessions. |
+
+A terminal gets narrow signs instead of emoji: terminals count an emoji's width in their own way (some one column,
+Claude Code two), and the band would keep leftovers of an earlier frame. The desktop app draws the emoji.
 
 After `/compact` (or the button) the mod writes the token count before and after and the summary Claude carries on
 with as log lines, which the model does not read.

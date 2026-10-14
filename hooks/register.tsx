@@ -11,8 +11,10 @@ import {
   compactionLines,
   hitRate,
   lastResponseFromTranscript,
+  pauseSigns,
   remainingMinutes,
   remainingShare,
+  terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
   weather,
@@ -35,7 +37,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.6.2'
+const CODE_VERSION = '0.7.0'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -574,6 +576,11 @@ export const register: Register = (on, options) => {
     const share = remainingShare(last, life?.minutes ?? null, at)
     const sky = weather(fill?.percent ?? null, limit.percent)
     const isStorm = sky === '⛈️'
+    // A terminal gets narrow signs: an emoji's width differs between terminals and Claude Code (see terminalWeather).
+    const isTerminal = e.surface === 'terminal'
+    const signs = pauseSigns(isTerminal)
+    const terminalSky = terminalWeather(sky)
+    const skyText = isTerminal ? <Text color={terminalSky.tone}>{terminalSky.sign}</Text> : <Text>{sky}</Text>
     const fillText = fill?.percent === null || fill?.percent === undefined ? '–' : `${fill.percent} %`
 
     const cacheText =
@@ -590,20 +597,19 @@ export const register: Register = (on, options) => {
     const phase = await read($, pausePhase)
     let pause
     if (phase === 'running') {
-      pause = <Button key="pause" label={t.pause} onPress={() => requestPause($, askAbove)} />
+      pause = <Button key="pause" label={`${signs.pause} ${t.pause}`} onPress={() => requestPause($, askAbove)} />
     } else if (phase === 'pausing') {
       const left = await read($, pauseTasksLeft)
       pause = (
         <Text color="warning" wrap="truncate-end">
-          {t.pauseRequested}
-          {t.tasksLeft(left)}
+          {`${signs.requested} ${t.pauseRequested}${t.tasksLeft(left)}`}
         </Text>
       )
     } else {
       const since = sinceText(await read($, pausedAt), at, lang)
       pause = (
         <Box flexDirection="row" gap={1}>
-          <Button key="resume" label={t.resume} variant="primary" onPress={() => requestResume($)} />
+          <Button key="resume" label={`${signs.resume} ${t.resume}`} variant="primary" onPress={() => requestResume($)} />
           <Text color="success">{t.paused(since)}</Text>
         </Box>
       )
@@ -638,7 +644,7 @@ export const register: Register = (on, options) => {
     if (collapsed) {
       return withBelow(
         <Box flexDirection="row" gap={2}>
-          <Text>{sky}</Text>
+          {skyText}
           <Text color={tone} wrap="truncate-end">
             {cacheText}
           </Text>
@@ -680,13 +686,12 @@ export const register: Register = (on, options) => {
     return withBelow(
       <Box flexDirection="row" gap={2}>
         <Text color={tone} wrap="truncate-end">
-          {cacheText}
-          {ttlNote} {share === null ? '' : cacheBar(share)}
+          {`${cacheText}${ttlNote}${share === null ? '' : ` ${cacheBar(share)}`}`}
         </Text>
         <Text>
           {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
         </Text>
-        <Text>{sky}</Text>
+        {skyText}
         <Text>
           {t.ctx} {fillText} / {t.max} {limit.percent} %{limit.isFallback ? '*' : ''}
         </Text>

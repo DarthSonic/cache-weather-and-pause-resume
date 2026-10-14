@@ -50,6 +50,23 @@ export function hitRate(usage: {
   return total > 0 ? usage.cache_read_input_tokens / total : null
 }
 
+/**
+ * The weather as a terminal draws it: narrow signs without emoji presentation, in the weather's colour. Terminals count
+ * an emoji's width their own way (the desktop app's terminal one column where Claude Code counts two), and the band then
+ * keeps the rest of an earlier frame; these signs take one column everywhere (2026-10-14).
+ */
+export function terminalWeather(sky: Weather): { sign: string; tone: 'warning' | 'suggestion' | 'error' } {
+  // Theme colours, so light and dark themes both read: a yellow sun, light-blue rain, a red storm.
+  if (sky === '☀️') return { sign: '☼', tone: 'warning' }
+  if (sky === '🌧️') return { sign: '≋', tone: 'suggestion' }
+  return { sign: '↯', tone: 'error' }
+}
+
+/** The signs of the pause button: emoji where the desktop app draws the band, narrow signs in a terminal. */
+export function pauseSigns(isTerminal: boolean): { pause: string; resume: string; requested: string } {
+  return isTerminal ? { pause: '❚❚', resume: '►', requested: '❚❚' } : { pause: '⏸', resume: '▶', requested: '⏳' }
+}
+
 /** Sunny up to half the threshold, rain up to 80 % of it, a storm above. */
 export function weather(contextPercent: number | null, thresholdPercent: number): Weather {
   const ratio = (contextPercent ?? 0) / thresholdPercent

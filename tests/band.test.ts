@@ -9,8 +9,10 @@ import {
   compactionLines,
   hitRate,
   lastResponseFromTranscript,
+  pauseSigns,
   remainingMinutes,
   remainingShare,
+  terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
   weather,
@@ -56,6 +58,13 @@ describe('the session readings', () => {
     expect(weather(50, 83)).toBe('🌧️')
     expect(weather(67, 83)).toBe('⛈️')
     expect(weather(null, 83)).toBe('☀️')
+    expect(terminalWeather('☀️')).toEqual({ sign: '☼', tone: 'warning' })
+    expect(terminalWeather('🌧️')).toEqual({ sign: '≋', tone: 'suggestion' })
+    expect(terminalWeather('⛈️')).toEqual({ sign: '↯', tone: 'error' })
+    // One code point each, none an emoji: every terminal draws them one column wide.
+    for (const sign of ['☼', '≋', '↯', '❚', '►']) expect([...sign].length).toBe(1)
+    expect(pauseSigns(true)).toEqual({ pause: '❚❚', resume: '►', requested: '❚❚' })
+    expect(pauseSigns(false)).toEqual({ pause: '⏸', resume: '▶', requested: '⏳' })
     expect(thresholdPercent(830_000, 1_000_000)).toBe(83)
     expect(thresholdPercent(undefined, 1_000_000)).toBeNull()
   })
@@ -156,6 +165,24 @@ describe('the band', () => {
       await ui.press({ key: 'toggle' })
       await ui.unmount()
     }
+  })
+
+  test('a terminal gets narrow signs without emoji, the desktop app its emoji', async ($, on) => {
+    mock.store(on)
+    nothingBeneath(on)
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('❚❚ Pause')
+    expect((await terminal.find({ type: 'Text', text: /^☼$/ }))?.props.color).toBe('warning')
+    expect(await terminal.find({ type: 'Text', text: /️|[☀🌧⛈⏸⏳▶]/u })).toBeUndefined()
+    await terminal.press({ key: 'toggle' })
+    expect(await terminal.find({ type: 'Text', text: /^☼$/ })).toBeDefined()
+    await terminal.press({ key: 'toggle' })
+    await terminal.unmount()
+
+    const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸ Pause')
+    expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()
+    await desktop.unmount()
   })
 
   test('the band of another mod beneath (a progress bar) stays visible under ours, folded or not', async ($, on) => {

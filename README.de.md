@@ -32,11 +32,15 @@ Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf E
 | --- | --- |
 | **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort, mit 20 Kästchen, die leerlaufen; grün, im letzten Viertel gelb, in den letzten 10 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. |
 | **Hits** | Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam. |
-| **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. |
+| **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx / Max** | Füllung des Kontexts in Prozent und die Auto-Compact-Schwelle (`*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
-| **⏸ Pause / ▶ Weitermachen** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). Auch zugeklappt sichtbar. |
+| **⏸ Pause / ▶ Weitermachen** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). Auch zugeklappt sichtbar. Im Terminal `❚❚ Pause` und `► Weitermachen`. |
 | **▾ / ▸** | Klappt die Leiste auf Wetter, Cache-Restzeit, Ctx und den Pause-Knopf zu. Bleibt über Sitzungen erhalten. |
+
+Im Terminal zeigt die Leiste schmale Zeichen statt Emoji: Terminals zählen die Breite eines Emoji auf ihre eigene Art
+(manche eine Spalte, Claude Code zwei), und die Leiste behielte sonst Reste eines früheren Bilds. Die Desktop-App
+zeichnet die Emoji.
 
 Nach `/compact` (oder dem Knopf) schreibt der Mod die Tokens vorher und nachher und die Zusammenfassung, mit der Claude
 weitermacht, als Log-Zeilen, die das Modell nicht liest.

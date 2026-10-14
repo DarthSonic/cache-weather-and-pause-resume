@@ -213,6 +213,25 @@ describe('the pause button', () => {
     }
   })
 
+  test('in a terminal the pause signs are narrow (❚❚, ►), in the desktop app emoji (⏸, ⏳, ▶)', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 1_000_000 })
+    mock.session(on)
+    engine(on)
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('❚❚ Pause')
+    await terminal.press({ key: 'pause' })
+    expect(await terminal.find({ type: 'Text', text: /^❚❚ Pause angefordert$/ })).toBeDefined()
+    const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    expect(await desktop.find({ type: 'Text', text: /^⏳ Pause angefordert$/u })).toBeDefined()
+
+    await $.classic.Stop(stop())
+    expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('► Weitermachen')
+    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶ Weitermachen')
+    await terminal.unmount()
+    await desktop.unmount()
+  })
+
   test('typed „pausieren“ and „weitermachen“ work like the button', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 5_000_000 })

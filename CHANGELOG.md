@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — 2026-10-14
+
+- In a terminal the band uses narrow signs instead of emoji: ☼ / ≋ / ↯ for the weather, in yellow, light blue and red,
+  `❚❚ Pause`, `► Resume` and `❚❚ Pause requested`. Terminals count an emoji's width in their own way: the terminal
+  in the Claude desktop app counted ☀️ and ⏳ as one column where Claude Code counts two, and the band kept leftovers
+  of an earlier frame (`HitsC–`, `Max 897%*`); Windows Terminal drew ⏸ over the space after it.
+  The desktop app keeps the emoji.
+- No stray space after the cache time when no cache bar follows.
+
 ## 0.6.2 — 2026-10-14
 
 - No change in behaviour. For the plugin directory: the listing fields `icon`, `documentationUrl` and `supportUrl` in
