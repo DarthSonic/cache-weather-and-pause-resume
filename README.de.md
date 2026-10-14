@@ -11,6 +11,21 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
 
 ![Die Leiste in der Claude-Desktop-App: Cache noch 60 Minuten, Hits 100 %, Gewitter bei 87 % einer Schwelle von 97 %, Compact hervorgehoben, der Pause-Knopf](docs/band.png)
 
+## Beispiele
+
+1. **Weggehen, während ein langer Lauf läuft.** Claude hat eine Testsuite im Hintergrund laufen, und du musst los.
+   Drück **⏸ Pause**: Claude startet nichts Neues, lässt den Lauf zu Ende laufen (oder fragt dich vorher, mit der
+   Restlaufzeit, wenn er länger als 5 Minuten braucht), hält den Stand fest und meldet „Pausiert“. Zurück am Platz
+   drückst du **▶ Weitermachen**, und Claude macht dort weiter, auch nach einem Neustart der App.
+2. **Zurück sein, bevor der Cache abläuft.** Die Leiste zählt den Prompt-Cache ab der letzten Antwort herunter, etwa
+   `Cache 12 m`. Schickst du deine nächste Nachricht, bevor dort „abgelaufen“ steht, liest die Anfrage die Unterhaltung
+   aus dem Cache, statt alles neu zu schreiben und zu bezahlen; **Hits** zeigt, wie viel aus dem Cache kam.
+3. **Verdichten, wann es dir passt.** Das Wetter wird ⛈️, wenn der Kontext der Auto-Compact-Schwelle nahekommt
+   (`Ctx 87 % / Max 97 %`). Drück **Compact** zwischen zwei Aufgaben, statt ein Auto-Compact mitten in eine geraten zu
+   lassen; danach schreibt die Leiste die Zusammenfassung ins Log, mit der Claude weitermacht.
+
+Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf Englisch “pause” und “continue”).
+
 ## Was die Leiste zeigt
 
 | Teil | Was er zeigt |
@@ -184,6 +199,11 @@ Die Tests (`tests/`) laufen im Test-Kit von Claude Code auf den Oberflächen Ter
 fest, damit sie nicht von der Locale des Rechners abhängen. Eine Änderung erreicht die eigenen Sitzungen nach einer
 höheren Version in `.claude-plugin/plugin.json`, `claude plugin update cache-weather-and-pause-resume@darthsonic` und einer neuen
 Sitzung.
+
+## Hilfe
+
+Fragen, Fehler und Ideen: [GitHub-Issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). Der
+Mod braucht kein Konto und keine Beispieldaten: installieren und eine Sitzung öffnen.
 
 ## Danksagung
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2 — 2026-10-14
+
+- No change in behaviour. For the plugin directory: the listing fields `icon`, `documentationUrl` and `supportUrl` in
+  `plugin.json`; the READMEs open with three examples and name GitHub issues for support; a test helper called `key`
+  is called `fromHome` (the review read the name as a credential).
+
 ## 0.6.1 — 2026-10-14
 
 - No change in behaviour: the helper that groups the digits of token counts is called `groupDigits` (it was

@@ -11,6 +11,21 @@ Claude finish what is running, save its state and wait.
 
 ![The band in the Claude desktop app: cache 60 minutes left, hits 100 %, a storm at 87 % of a 97 % threshold, Compact highlighted, the Pause button](docs/band.png)
 
+## Examples
+
+1. **Step away while a long run is going.** Claude has a test suite running in the background and you need to leave.
+   Press **⏸ Pause**: Claude starts nothing new, lets the run finish (or asks you first, with its remaining time, when
+   it will take longer than 5 minutes), notes where it stands and reports “Paused”. Back at your desk, press
+   **▶ Resume** and Claude carries on from there, even after the app was restarted.
+2. **Come back before the cache runs out.** The band counts down the prompt cache since the last response, say
+   `Cache 12 m`. Send your next message before it reaches “expired”, and the request reads the conversation from the
+   cache instead of paying to write all of it again; **Hits** shows how much came from the cache.
+3. **Compact when it suits you.** The weather turns ⛈️ as the context nears the auto-compact threshold (`Ctx 87 % /
+   Max 97 %`). Press **Compact** between two tasks instead of letting an auto-compact cut into one; the band then logs
+   the summary Claude carries on with.
+
+You can also type: “pause” pauses, “continue” resumes (in German “pausieren” and „weitermachen“).
+
 ## What the band shows
 
 | Part | What it shows |
@@ -181,6 +196,11 @@ claude plugin test .
 The tests (`tests/`) run in Claude Code's own test kit on the terminal and desktop surfaces and pin the language, so
 they do not depend on the machine's locale. A change reaches your own sessions after a version bump in
 `.claude-plugin/plugin.json`, `claude plugin update cache-weather-and-pause-resume@darthsonic` and a new session.
+
+## Support
+
+Questions, bugs and ideas: [GitHub issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). The
+mod needs no account and no sample data: install it and open a session.
 
 ## Credits
 
