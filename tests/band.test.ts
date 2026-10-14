@@ -9,6 +9,7 @@ import {
   compactionLines,
   hitRate,
   lastResponseFromTranscript,
+  lifetimeFromResume,
   pauseSigns,
   remainingMinutes,
   remainingShare,
@@ -65,6 +66,15 @@ describe('the session readings', () => {
     for (const sign of ['☼', '≋', '↯', '❚', '►']) expect([...sign].length).toBe(1)
     expect(pauseSigns(true)).toEqual({ pause: '❚❚', resume: '►', requested: '❚❚' })
     expect(pauseSigns(false)).toEqual({ pause: '⏸', resume: '▶', requested: '⏳' })
+  })
+
+  test('a resumed session tells the lifetime only when its last response is 5 to 60 minutes old', async () => {
+    expect(lifetimeFromResume(1200, false)).toBe(60)
+    expect(lifetimeFromResume(1200, true)).toBe(5)
+    expect(lifetimeFromResume(200, false)).toBeNull()
+    expect(lifetimeFromResume(4000, true)).toBeNull()
+    expect(lifetimeFromResume(1200, undefined)).toBeNull()
+    expect(lifetimeFromResume(undefined, false)).toBeNull()
     expect(thresholdPercent(830_000, 1_000_000)).toBe(83)
     expect(thresholdPercent(undefined, 1_000_000)).toBeNull()
   })

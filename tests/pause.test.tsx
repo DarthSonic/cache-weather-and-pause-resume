@@ -284,6 +284,20 @@ describe('the pause button', () => {
     await ui.unmount()
   })
 
+  test('a subagent’s turn does not count as Claude working: the request goes as a prompt (Claude Code 2.1.299)', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 9_000_000 })
+    const session = mock.session(on)
+    const prompts = engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+
+    await $.turn.start({ text: '', turnId: 'sub-1', agentId: 'agent-1' } as { text: string; turnId: string })
+    await ui.press({ key: 'pause' })
+    expect(prompts.at(-1)?.text).toContain('die Sitzung zu pausieren')
+    expect(session.appended().length).toBe(0)
+    await ui.unmount()
+  })
+
   test('mid-turn, a turn interrupted before it read the request hands it to the next prompt whole', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 9_000_000 })
@@ -389,6 +403,86 @@ describe('the pause across a restart', () => {
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await ui.press({ key: 'toggle' })
     expect(JSON.parse(files[STATE] ?? '{}').isCollapsed).toBe(true)
+    await ui.unmount()
+  })
+})
+
+describe('the cache lifetime', () => {
+  const HOUR = 3_600_000
+  const ONE_HOUR_WRITE =
+    '{"type":"assistant","timestamp":"2026-10-12T08:00:00.000Z","message":{"usage":{"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":1624}}}}'
+
+  test('a start after /compact or /clear takes the lifetime last seen: confirmed within a day, without „?“', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 100 * HOUR })
+    disk(on, { [STATE]: JSON.stringify({ ttlMinutes: 60, ttlConfirmedAt: 99 * HOUR }) })
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    expect(await ui.find({ type: 'Text', text: /^Cache \?$/ })).toBeDefined()
+    await $.classic.SessionStart({ source: 'compact', session_id: 'c1' })
+    expect(await ui.find({ type: 'Text', text: /^Cache –$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('one last confirmed more than a day ago keeps its „?“', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 100 * HOUR })
+    disk(on, { [STATE]: JSON.stringify({ ttlMinutes: 60, ttlConfirmedAt: 70 * HOUR }) })
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'clear', session_id: 'c2' })
+    expect(await ui.find({ type: 'Text', text: /^Cache – \(1 h\?\)$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a lifetime read off the transcript is kept on disk as confirmed', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 100 * HOUR })
+    const files = disk(on, { [`${PROJECTS}/C--repo/t1.jsonl`]: `${ONE_HOUR_WRITE}\n` })
+    on('fs.stat', () => ({ value: { kind: 'file', size: 200, mtimeMs: 0, isLink: false } }))
+    engine(on)
+    await $.classic.Stop({
+      stop_hook_active: false,
+      session_id: 't1',
+      transcript_path: 'C:\\Users\\test\\.claude\\projects\\C--repo\\t1.jsonl',
+      background_tasks: [],
+    })
+    const saved = JSON.parse(files[STATE] ?? '{}')
+    expect(saved.ttlMinutes).toBe(60)
+    expect(saved.ttlConfirmedAt).toBe(100 * HOUR)
+  })
+
+  test('a resumed session tells the lifetime: not likely expired after 20 minutes means 1 h', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 100 * HOUR })
+    const files = disk(on)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({
+      source: 'resume',
+      session_id: 'r1',
+      seconds_since_last_response: 1200,
+      prompt_cache_likely_expired: false,
+    })
+    expect(await ui.find({ type: 'Text', text: /^Cache 40 m / })).toBeDefined()
+    expect(JSON.parse(files[STATE] ?? '{}').ttlConfirmedAt).toBe(100 * HOUR)
+    await ui.unmount()
+  })
+
+  test('… and likely expired after 20 minutes means 5 m', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 100 * HOUR })
+    const files = disk(on)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({
+      source: 'resume',
+      session_id: 'r2',
+      seconds_since_last_response: 1200,
+      prompt_cache_likely_expired: true,
+    })
+    expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen/ })).toBeDefined()
+    expect(JSON.parse(files[STATE] ?? '{}').ttlMinutes).toBe(5)
     await ui.unmount()
   })
 })

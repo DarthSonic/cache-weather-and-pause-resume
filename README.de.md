@@ -137,8 +137,12 @@ zusammen.
 
 - **Cache-Laufzeit (5 min / 1 h):** aus dem Transkript der Sitzung, das jede Cache-Schreibung getrennt nach Laufzeit
   meldet (`ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`); die letzte, die etwas schrieb, entscheidet. Ein
-  Transkript über 3,5 MiB liest der Mod nicht. Bei einem Modellwechsel entscheidet dessen Meldung; bis zur ersten
-  Ablesung gilt der Wert der letzten Sitzung, mit `?`.
+  Transkript über 3,5 MiB liest der Mod nicht (seit Claude Code 2.1.300 hält ein Transkript auch den System-Prompt und
+  die Tools jeder Anfrage fest, eine lange Sitzung kommt also früh dorthin). Bei einem Modellwechsel entscheidet dessen
+  Meldung, und der Start einer fortgesetzten Sitzung verrät sie, wenn die letzte Antwort 5 bis 60 Minuten her ist (ob
+  Claude Code den Cache als wahrscheinlich abgelaufen meldet). Bis zu einer eigenen Ablesung zeigt eine Sitzung die
+  zuletzt gesehene Laufzeit: ohne Zusatz, wenn eine Sitzung sie am letzten Tag gelesen hat (sie folgt der Einstellung
+  deines Kontos, nicht der Sitzung), sonst mit `?`.
 - **Trefferquote und Zeitpunkt der letzten Antwort:** aus jeder Modellanfrage der Hauptunterhaltung; in einer
   fortgesetzten Sitzung bis zur ersten Anfrage aus der Meldung des Sitzungsstarts, wie lange die letzte Antwort her ist.
 - **Kontext und Schwelle:** `$.session.usage()`; die Schwelle aus der lokalen Schätzung (keine API-Anfrage).
@@ -184,7 +188,7 @@ kostet keine Token.
 
 ## Voraussetzungen
 
-Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.295** und **2.1.296**. Die
+Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.295** (Desktop-App) und **2.1.299** (CLI). Die
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
 
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,

@@ -67,6 +67,16 @@ export function pauseSigns(isTerminal: boolean): { pause: string; resume: string
   return isTerminal ? { pause: '❚❚', resume: '►', requested: '❚❚' } : { pause: '⏸', resume: '▶', requested: '⏳' }
 }
 
+/**
+ * The lifetime a resumed session's start tells, or null: Claude Code reports the cache as likely expired exactly when
+ * the last response is older than the lifetime, so a last response between 5 and 60 minutes old decides it.
+ */
+export function lifetimeFromResume(seconds: unknown, isLikelyExpired: unknown): 5 | 60 | null {
+  if (typeof seconds !== 'number' || typeof isLikelyExpired !== 'boolean') return null
+  if (seconds <= 5 * 60 || seconds >= 60 * 60) return null
+  return isLikelyExpired ? 5 : 60
+}
+
 /** Sunny up to half the threshold, rain up to 80 % of it, a storm above. */
 export function weather(contextPercent: number | null, thresholdPercent: number): Weather {
   const ratio = (contextPercent ?? 0) / thresholdPercent

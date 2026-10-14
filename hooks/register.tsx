@@ -11,6 +11,7 @@ import {
   compactionLines,
   hitRate,
   lastResponseFromTranscript,
+  lifetimeFromResume,
   pauseSigns,
   remainingMinutes,
   remainingShare,
@@ -37,7 +38,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.7.0'
+const CODE_VERSION = '0.7.1'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -69,11 +70,23 @@ const PAUSED_KEEP = 20
 // The pruning waits so it never holds up the session's start.
 const PRUNE_AFTER_MS = 10_000
 
-type Persisted = { ttlMinutes?: number; isCollapsed?: boolean; pausedSessions?: Record<string, number>; codeVersion?: string }
+type Persisted = {
+  ttlMinutes?: number
+  /** When a session last read the lifetime itself (a transcript, a model switch, a resumed session's start). */
+  ttlConfirmedAt?: number
+  isCollapsed?: boolean
+  pausedSessions?: Record<string, number>
+  codeVersion?: string
+}
 
 // $.fs.read refuses files over 4 MiB: a longer transcript is not read, and the values remembered stand. (The mod
-// starts no program to read its end.)
+// starts no program to read its end.) Since Claude Code 2.1.300 a transcript also records each request's system prompt
+// and tools, so a long session passes the limit early.
 const FS_READ_LIMIT = 3.5 * 1024 * 1024
+
+// The lifetime follows the account's setting, not the session: one a session read within the last day counts as
+// confirmed in another session that cannot read its own (a transcript over the limit), and shows without „?“.
+const CONFIRMED_FOR_MS = 24 * 60 * 60 * 1000
 
 async function tick($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
@@ -130,11 +143,35 @@ async function readTranscript($: EngineInterface, path: string): Promise<string 
   }
 }
 
+// A lifetime this session read itself: shown, and kept on disk with the time it was confirmed.
+async function settleTtl($: EngineInterface, found: Ttl): Promise<void> {
+  await update($, ttl, () => found)
+  const at = await $.clock.now()
+  await writePersisted($, p => ({ ...p, ttlMinutes: found.minutes, ttlConfirmedAt: at }))
+}
+
+// The lifetime last seen, for a session that knows none yet (a new one, or one Claude Code started over after
+// /compact or /clear): confirmed when read within the last day, else shown with „?“.
+async function applyRememberedTtl($: EngineInterface): Promise<void> {
+  if ((await read($, ttl)) !== null) return
+  const persisted = await readPersisted($)
+  const minutes = persisted.ttlMinutes
+  if (minutes !== 5 && minutes !== 60) return
+  const at = await $.clock.now()
+  const confirmedAt = persisted.ttlConfirmedAt
+  const isConfirmed = typeof confirmedAt === 'number' && at - confirmedAt <= CONFIRMED_FOR_MS
+  const guess: Ttl = { minutes, source: isConfirmed ? 'confirmed' : 'remembered' }
+  await update($, ttl, () => guess)
+}
+
+// A lifetime taken from an earlier session, which a reading in this one replaces.
+const isCarriedOver = (life: Ttl | null): boolean => life === null || life.source === 'remembered' || life.source === 'confirmed'
+
 // Reads the lifetime the session's cache writes actually use, and the last response's time when none is known yet.
 async function detectFromTranscript($: EngineInterface): Promise<void> {
   const known = await read($, ttl)
   const hasResponse = (await read($, lastResponseAt)) !== null
-  if (known && known.source !== 'remembered' && hasResponse) return
+  if (!isCarriedOver(known) && hasResponse) return
 
   const path = await read($, transcriptPath)
   if (!path) return
@@ -142,11 +179,7 @@ async function detectFromTranscript($: EngineInterface): Promise<void> {
   if (!text) return
 
   const minutes = ttlFromTranscript(text)
-  if (minutes !== null && (!known || known.source === 'remembered')) {
-    const found: Ttl = { minutes, source: 'transcript' }
-    await update($, ttl, () => found)
-    await writePersisted($, p => ({ ...p, ttlMinutes: minutes }))
-  }
+  if (minutes !== null && isCarriedOver(known)) await settleTtl($, { minutes, source: 'transcript' })
   if (!hasResponse) {
     const at = lastResponseFromTranscript(text)
     if (at !== null) await update($, lastResponseAt, prev => prev ?? at)
@@ -386,15 +419,8 @@ export const register: Register = (on, options) => {
 
     const lang = await detectLang($, options.language)
     await update($, language, () => lang)
-    const persisted = await readPersisted($)
-    if ((await read($, ttl)) === null) {
-      const remembered = persisted.ttlMinutes
-      if (remembered === 5 || remembered === 60) {
-        const guess: Ttl = { minutes: remembered, source: 'remembered' }
-        await update($, ttl, () => guess)
-      }
-    }
-    const collapsed = persisted.isCollapsed
+    await applyRememberedTtl($)
+    const collapsed = (await readPersisted($)).isCollapsed
     if (typeof collapsed === 'boolean') await update($, isCollapsed, () => collapsed)
     await update($, isCompacting, () => false)
     await update($, turnRunning, () => false)
@@ -430,6 +456,11 @@ export const register: Register = (on, options) => {
       await update($, lastResponseAt, () => at - seconds * 1000)
       await update($, now, () => at)
     }
+    // And whether the cache likely expired since, which tells the lifetime; else the one last seen. This start comes on
+    // every new start of the session (resume, /compact, /clear), where session.start does not.
+    const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
+    if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
+    await applyRememberedTtl($)
     // Once per session start, a little later: remembered pauses of deleted sessions go.
     $.clock.after(PRUNE_AFTER_MS, () => {
       void prunePausedSessions($).catch(() => undefined)
@@ -487,8 +518,9 @@ export const register: Register = (on, options) => {
     return pauseOnStop($, e.background_tasks, result, askAbove)
   }).catch(($, e, next) => next(e))
 
+  // Since Claude Code 2.1.299 turn.start also comes for subagents' turns (with `agentId`): only the main loop's counts.
   on('turn.start', async ($, e, next) => {
-    await update($, turnRunning, () => true)
+    if ((e as { agentId?: string }).agentId === undefined) await update($, turnRunning, () => true)
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -535,9 +567,7 @@ export const register: Register = (on, options) => {
 
   on('classic.PostModelSwitch', async ($, e, next) => {
     const result = await next(e)
-    const switched: Ttl = { minutes: e.cache_ttl === '5m' ? 5 : 60, source: 'model-switch' }
-    await update($, ttl, () => switched)
-    await writePersisted($, p => ({ ...p, ttlMinutes: switched.minutes }))
+    await settleTtl($, { minutes: e.cache_ttl === '5m' ? 5 : 60, source: 'model-switch' })
     await refreshThreshold($)
     return result
   }).catch(($, e, next) => next(e))

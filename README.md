@@ -135,8 +135,11 @@ together with it in either order.
 
 - **Cache lifetime (5 min / 1 h):** from the session's transcript, which records every cache write split by lifetime
   (`ephemeral_5m_input_tokens`, `ephemeral_1h_input_tokens`); the latest write that wrote anything decides. A
-  transcript over 3.5 MiB is not read. On a model switch the switch's own report decides; until the first reading, the
-  last session's value is shown with `?`.
+  transcript over 3.5 MiB is not read (since Claude Code 2.1.300 a transcript also records each request's system prompt
+  and tools, so a long session gets there early). On a model switch the switch's own report decides, and a resumed
+  session's start tells it when its last response is 5 to 60 minutes old (whether Claude Code calls the cache likely
+  expired). Until a reading of its own, a session shows the lifetime last seen: plainly when a session read it within
+  the last day (it follows your account's setting, not the session), else with `?`.
 - **Hit rate and time of the last response:** from every model request of the main conversation; in a resumed session,
   until its first request, from the session start's report of how long ago the last response was.
 - **Context and threshold:** `$.session.usage()`; the threshold from the local estimate (no API request).
@@ -181,7 +184,7 @@ nothing. Only the mod reads the file — it never reaches the model and costs no
 
 ## Requirements
 
-Claude Code with mods (function-hook plugins), early access, checked with **2.1.295** and **2.1.296**. The mod API
+Claude Code with mods (function-hook plugins), early access, checked with **2.1.295** (desktop app) and **2.1.299** (CLI). The mod API
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,

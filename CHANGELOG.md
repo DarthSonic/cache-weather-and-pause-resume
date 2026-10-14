@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.1 — 2026-10-14
+
+- The cache lifetime is back where a session cannot read its transcript (over 3.5 MiB, which since Claude Code
+  2.1.300 comes early, as a transcript also records each request's system prompt and tools):
+  - The lifetime last seen also applies when Claude Code starts the session over (`/compact`, `/clear`, a resume);
+    before, it only did at the mod's own start, and such a session showed `Cache ?`.
+  - A lifetime a session read within the last day counts as confirmed and shows without `?`; it follows the account's
+    setting, not the session. The state file keeps `ttlConfirmedAt` for it.
+  - A resumed session's start tells the lifetime when its last response is 5 to 60 minutes old: Claude Code reports
+    whether the cache likely expired.
+- Since Claude Code 2.1.299 `turn.start` also comes for subagents' turns: only the main loop's turn counts as Claude
+  working, so a press on Pause while only a subagent works goes to Claude as a prompt again.
+- CI against Claude Code 2.1.299.
+
 ## 0.7.0 — 2026-10-14
 
 - In a terminal the band uses narrow signs instead of emoji: ☼ / ≋ / ↯ for the weather, in yellow, light blue and red,

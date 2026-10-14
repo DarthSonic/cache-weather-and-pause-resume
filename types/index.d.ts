@@ -1,5 +1,12 @@
-/** The cache lifetime and where it was read: the transcript's last cache write, a model switch, or an earlier session. */
-export type Ttl = { minutes: 5 | 60; source: 'transcript' | 'model-switch' | 'remembered' }
+/**
+ * The cache lifetime and where it came from: the transcript's last cache write, a model switch, a resumed session's
+ * start, or an earlier session — `confirmed` when a session read it within the last day, `remembered` (shown with „?“)
+ * when not.
+ */
+export type Ttl = {
+  minutes: 5 | 60
+  source: 'transcript' | 'model-switch' | 'session-start' | 'confirmed' | 'remembered'
+}
 
 /** The live context window as the status line reads it. */
 export type ContextFill = { percent: number | null; tokens: number | null; window: number }
