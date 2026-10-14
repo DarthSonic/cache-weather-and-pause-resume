@@ -145,6 +145,10 @@ The tests (`tests/`) run in Claude Code's own test kit on the terminal and deskt
 they do not depend on the machine's locale. A change reaches your own sessions after a version bump in
 `.claude-plugin/plugin.json`, `claude plugin update cache-wetter@cache-wetter` and a new session.
 
+## Credits
+
+cache-wetter is based on an idea by Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
+
 ## License
 
 [MIT](LICENSE) © 2026 Sven Moderow

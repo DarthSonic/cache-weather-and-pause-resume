@@ -146,6 +146,10 @@ fest, damit sie nicht von der Locale des Rechners abhängen. Eine Änderung erre
 höheren Version in `.claude-plugin/plugin.json`, `claude plugin update cache-wetter@cache-wetter` und einer neuen
 Sitzung.
 
+## Danksagung
+
+cache-wetter basiert auf einer Idee von Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
+
 ## Lizenz
 
 [MIT](LICENSE) © 2026 Sven Moderow
