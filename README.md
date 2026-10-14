@@ -1,6 +1,6 @@
-# cache-wetter
+# cache-weather-and-pause-resume
 
-[![CI](https://github.com/DarthSonic/cache-wetter/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-wetter/actions/workflows/ci.yml)
+[![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 *Deutsch: [README.de.md](README.de.md)*
@@ -9,9 +9,7 @@ A [Claude Code](https://code.claude.com) mod: one slim band directly above the p
 prompt cache still is and how full the context is, with a **Compact** button and a **Pause / Resume** button that has
 Claude finish what is running, save its state and wait.
 
-![The cache-wetter band in the Claude desktop app: cache 60 minutes left, hits 100 %, a storm at 87 % of a 97 % threshold, Compact highlighted, the Pause button](docs/band.png)
-
-*Wetter* is German for weather: the band forecasts when your context is about to storm into an auto-compact.
+![The band in the Claude desktop app: cache 60 minutes left, hits 100 %, a storm at 87 % of a 97 % threshold, Compact highlighted, the Pause button](docs/band.png)
 
 ## What the band shows
 
@@ -61,29 +59,36 @@ How the mod tracks the state:
 - **Pressed while Claude is idle:** the request goes in as a prompt in your words.
 - **Paused** is reached once Claude stops and the Stop hook reports no background work in flight. While tasks still
   run the band counts them.
-- A pause is kept per session in `~/.claude/cache-wetter/state.json`, so a session reopened while paused (an app
+- A pause is kept per session in `~/.claude/cache-weather-and-pause-resume/state.json`, so a session reopened while paused (an app
   restart, a resumed session) shows **Resume** again. `/clear` ends the pause.
 
 ## Install
 
-At the prompt of a Claude Code session in a terminal:
+The mod is listed in the marketplace `darthsonic`, the catalog
+[DarthSonic/claude-plugins](https://github.com/DarthSonic/claude-plugins); each plugin there lives in a repository of
+its own. At the prompt of a Claude Code session in a terminal:
 
 ```
-/plugin install cache-wetter --marketplace DarthSonic/cache-wetter
+/plugin marketplace add DarthSonic/claude-plugins
+/plugin install cache-weather-and-pause-resume@darthsonic
 ```
 
-Answer `y` to add the marketplace and pick a scope (user: every project). The same from a shell:
+Pick a scope (user: every project). The same from a shell:
 
 ```
-claude plugin marketplace add DarthSonic/cache-wetter
-claude plugin install cache-wetter@cache-wetter --scope user
+claude plugin marketplace add DarthSonic/claude-plugins
+claude plugin install cache-weather-and-pause-resume@darthsonic --scope user
 ```
 
 A mod installed at the user scope from a terminal also loads in the Claude desktop app's Code tab.
 
+**Coming from `cache-wetter`** (the name up to 0.5.0): remove it first, with
+`claude plugin uninstall cache-wetter@cache-wetter` and `claude plugin marketplace remove cache-wetter`. Its state file
+(`~/.claude/cache-wetter/`) is not carried over and can be deleted.
+
 **After an update, open a new session.** The desktop app hands the mod to a session when the session starts;
 `/reload-plugins` does not swap it there. Which version a session runs is written to `codeVersion` in
-`~/.claude/cache-wetter/state.json` at every load.
+`~/.claude/cache-weather-and-pause-resume/state.json` at every load.
 
 ## Settings
 
@@ -92,18 +97,18 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
 
-Set them with `/plugin configure cache-wetter@cache-wetter`, or in `~/.claude/settings.json`:
+Set them with `/plugin configure cache-weather-and-pause-resume@darthsonic`, or in `~/.claude/settings.json`:
 
 ```json
 "pluginConfigs": {
-  "cache-wetter@cache-wetter": { "options": { "language": "en", "askAboveMinutes": 10 } }
+  "cache-weather-and-pause-resume@darthsonic": { "options": { "language": "en", "askAboveMinutes": 10 } }
 }
 ```
 
 ## Sharing the band with other mods
 
 The space above the prompt is one site with a chain of mods. A mod that returns only its own band hides every mod
-beneath it in the chain, and the load order — not the mod — decides which comes first. cache-wetter calls the rest of
+beneath it in the chain, and the load order — not the mod — decides which comes first. cache-weather-and-pause-resume calls the rest of
 the chain and stacks what comes back below its own row, with a row gap that only appears between the two. Another mod
 that does the same (for example [savvy-progress](https://github.com/JohnnyVizz/claude-kit) since 1.2.1) shows
 together with it in either order.
@@ -120,7 +125,7 @@ together with it in either order.
 
 ## What the mod does on your machine
 
-cache-wetter makes no network requests of its own and starts no programs. What it hands Claude enters the conversation
+cache-weather-and-pause-resume makes no network requests of its own and starts no programs. What it hands Claude enters the conversation
 like anything else you send:
 
 | What | When | Exactly |
@@ -134,7 +139,7 @@ like anything else you send:
 
 No file content, transcript text or setting goes into these texts.
 
-**Files.** The mod writes one file, `~/.claude/cache-wetter/state.json` (below), and no other: no settings,
+**Files.** The mod writes one file, `~/.claude/cache-weather-and-pause-resume/state.json` (below), and no other: no settings,
 instructions, hooks or build files. It reads that file, the session's transcript when it is at most 3.5 MiB (for the
 cache lifetime and the time of the last response), and the file names — not the contents — in `~/.claude/projects/*/`,
 to drop the pauses of deleted sessions.
@@ -151,7 +156,7 @@ band and stacks the bands of other mods beneath it.
 
 ## State file
 
-`~/.claude/cache-wetter/state.json` holds the paused sessions (by session id), whether the band is folded, the cache
+`~/.claude/cache-weather-and-pause-resume/state.json` holds the paused sessions (by session id), whether the band is folded, the cache
 lifetime last seen and the version last loaded. It keeps at most the 20 latest pauses, and ten seconds after a session
 starts it drops the pauses of deleted sessions (no transcript left under `~/.claude/projects/`); when in doubt it drops
 nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
@@ -175,11 +180,11 @@ claude plugin test .
 
 The tests (`tests/`) run in Claude Code's own test kit on the terminal and desktop surfaces and pin the language, so
 they do not depend on the machine's locale. A change reaches your own sessions after a version bump in
-`.claude-plugin/plugin.json`, `claude plugin update cache-wetter@cache-wetter` and a new session.
+`.claude-plugin/plugin.json`, `claude plugin update cache-weather-and-pause-resume@darthsonic` and a new session.
 
 ## Credits
 
-cache-wetter is based on an idea by Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
+cache-weather-and-pause-resume is based on an idea by Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
 
 Written with Claude Code (Claude Opus 5.5); reviewed, tested and maintained by Sven Moderow.
 

@@ -12,7 +12,7 @@ export type PausePhase = 'running' | 'pausing' | 'paused'
 
 declare module 'claude-code' {
   interface PluginState {
-    'cache-wetter': {
+    'cache-weather-and-pause-resume': {
       lastResponseAt: number | null
       ttl: Ttl | null
       hitRate: number | null

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — 2026-10-14
+
+- Renamed from `cache-wetter` to `cache-weather-and-pause-resume`: says what it does, in English. The repository moved
+  to `DarthSonic/cache-weather-and-pause-resume` (GitHub forwards the old address).
+- Installed from the marketplace `darthsonic` (`DarthSonic/claude-plugins`), the catalog of plugins that each live in a
+  repository of their own; the repository carries no marketplace of its own any more.
+- The state file moved to `~/.claude/cache-weather-and-pause-resume/state.json`; what `cache-wetter` kept is not
+  carried over.
+
 ## 0.5.0 — 2026-10-14
 
 For the plugin directory's review:

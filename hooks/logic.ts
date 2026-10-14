@@ -1,4 +1,4 @@
-// Pure helpers of the cache-wetter band: no `$`, so the tests can call them directly.
+// Pure helpers of the cache-weather-and-pause-resume band: no `$`, so the tests can call them directly.
 
 import type { Lang } from './i18n'
 

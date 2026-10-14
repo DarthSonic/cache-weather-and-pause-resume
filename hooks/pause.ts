@@ -3,7 +3,7 @@
 
 import type { Lang } from './i18n'
 
-export const PLUGIN = 'cache-wetter'
+export const PLUGIN = 'cache-weather-and-pause-resume'
 export const DEFAULT_ASK_ABOVE_MINUTES = 5
 
 /** What the „Weitermachen“ / „Resume“ button submits, as the person would type it. */

@@ -35,34 +35,34 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.5.0'
+const CODE_VERSION = '0.6.0'
 
-const lastResponseAt = atom({ plugin: 'cache-wetter', key: 'lastResponseAt' } as const, null)
-const ttl = atom({ plugin: 'cache-wetter', key: 'ttl' } as const, null)
-const lastHitRate = atom({ plugin: 'cache-wetter', key: 'hitRate' } as const, null)
-const context = atom({ plugin: 'cache-wetter', key: 'context' } as const, null)
-const threshold = atom({ plugin: 'cache-wetter', key: 'threshold' } as const, null)
-const now = atom({ plugin: 'cache-wetter', key: 'now' } as const, 0)
-const isCollapsed = atom({ plugin: 'cache-wetter', key: 'isCollapsed' } as const, false)
-const transcriptPath = atom({ plugin: 'cache-wetter', key: 'transcriptPath' } as const, null)
-const isCompacting = atom({ plugin: 'cache-wetter', key: 'isCompacting' } as const, false)
-const pausePhase = atom({ plugin: 'cache-wetter', key: 'pausePhase' } as const, 'running')
-const pauseRequestedAt = atom({ plugin: 'cache-wetter', key: 'pauseRequestedAt' } as const, null)
-const pausedAt = atom({ plugin: 'cache-wetter', key: 'pausedAt' } as const, null)
-const pauseDelivered = atom({ plugin: 'cache-wetter', key: 'pauseDelivered' } as const, true)
-const pauseTasksLeft = atom({ plugin: 'cache-wetter', key: 'pauseTasksLeft' } as const, null)
-const turnRunning = atom({ plugin: 'cache-wetter', key: 'turnRunning' } as const, false)
-const sessionId = atom({ plugin: 'cache-wetter', key: 'sessionId' } as const, null)
-const language = atom({ plugin: 'cache-wetter', key: 'language' } as const, null)
+const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
+const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
+const lastHitRate = atom({ plugin: 'cache-weather-and-pause-resume', key: 'hitRate' } as const, null)
+const context = atom({ plugin: 'cache-weather-and-pause-resume', key: 'context' } as const, null)
+const threshold = atom({ plugin: 'cache-weather-and-pause-resume', key: 'threshold' } as const, null)
+const now = atom({ plugin: 'cache-weather-and-pause-resume', key: 'now' } as const, 0)
+const isCollapsed = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCollapsed' } as const, false)
+const transcriptPath = atom({ plugin: 'cache-weather-and-pause-resume', key: 'transcriptPath' } as const, null)
+const isCompacting = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCompacting' } as const, false)
+const pausePhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pausePhase' } as const, 'running')
+const pauseRequestedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pauseRequestedAt' } as const, null)
+const pausedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pausedAt' } as const, null)
+const pauseDelivered = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pauseDelivered' } as const, true)
+const pauseTasksLeft = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pauseTasksLeft' } as const, null)
+const turnRunning = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnRunning' } as const, false)
+const sessionId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionId' } as const, null)
+const language = atom({ plugin: 'cache-weather-and-pause-resume', key: 'language' } as const, null)
 
-// The language before session.start has read the settings: the option, else the runtime's locale. Set by `register`.
+// The language before session.start has read the locale: the option, else the runtime's locale. Set by `register`.
 let fallbackLang: Lang = 'en'
 
 // What outlives a session (paused sessions by id, the folded band, the cache lifetime last seen) lives in one file,
-// ~/.claude/cache-wetter/state.json, not in `$.store`: the store is keyed by how the mod was loaded (handed in by the
-// desktop app „inline“, or by the CLI's own loader), so a pause kept there was gone after a restart that loaded the
-// mod the other way (2026-10-13). Each call spells its path out under the home folder, so the source shows which
-// files the mod touches.
+// ~/.claude/cache-weather-and-pause-resume/state.json, not in `$.store`: the store is keyed by how the mod was loaded
+// (handed in by the desktop app „inline“, or by the CLI's own loader), so a pause kept there was gone after a restart
+// that loaded the mod the other way (2026-10-13). Each call spells its path out under the home folder, so the source
+// shows which files the mod touches.
 const PAUSED_KEEP = 20
 // The pruning waits so it never holds up the session's start.
 const PRUNE_AFTER_MS = 10_000
@@ -209,8 +209,8 @@ async function readPersisted($: EngineInterface): Promise<Persisted> {
   const home = await homeDir($)
   if (home === null) return {}
   try {
-    if (!(await $.fs.exists(`${home}/.claude/cache-wetter/state.json`))) return {}
-    const value: unknown = JSON.parse(await $.fs.read(`${home}/.claude/cache-wetter/state.json`))
+    if (!(await $.fs.exists(`${home}/.claude/cache-weather-and-pause-resume/state.json`))) return {}
+    const value: unknown = JSON.parse(await $.fs.read(`${home}/.claude/cache-weather-and-pause-resume/state.json`))
     return value !== null && typeof value === 'object' ? (value as Persisted) : {}
   } catch {
     return {}
@@ -223,7 +223,7 @@ async function writePersisted($: EngineInterface, change: (p: Persisted) => Pers
   if (home === null) return
   try {
     const text = `${JSON.stringify(change(await readPersisted($)), null, 2)}\n`
-    await $.fs.write(`${home}/.claude/cache-wetter/state.json`, text)
+    await $.fs.write(`${home}/.claude/cache-weather-and-pause-resume/state.json`, text)
   } catch {
     // Not writable: the value lives in this session's state alone.
   }

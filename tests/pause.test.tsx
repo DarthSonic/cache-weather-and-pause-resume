@@ -25,12 +25,12 @@ const PAUSED_MACHINE_NOTE = pausedMachineNote('de')
 const PAUSING_NOTE = pausingNote('de')
 
 const BAND = {
-  plugin: 'cache-wetter',
+  plugin: 'cache-weather-and-pause-resume',
   component: 'AbovePrompt',
   props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160, scroll: { offset: 0, bodyRows: 10 }, view: {} },
 } as const
 
-const OWN = { kind: 'plugin', name: 'cache-wetter', asUser: true }
+const OWN = { kind: 'plugin', name: 'cache-weather-and-pause-resume', asUser: true }
 
 // What stands for the engine beneath the plugin: prompts are recorded and enter as given.
 function engine(on: On): PromptSubmitInput[] {
@@ -56,7 +56,7 @@ const stop = (status?: string, session_id = 'sess-1') => ({
 // spelled as on Windows; where that is no absolute path (Linux, macOS) the engine puts the working directory in front,
 // so the hooks key a path from the home on, with forward slashes (the mod's own spelling under the home).
 const HOME = 'C:\\Users\\test'
-const STATE = 'C:/Users/test/.claude/cache-wetter/state.json'
+const STATE = 'C:/Users/test/.claude/cache-weather-and-pause-resume/state.json'
 const key = (path: string): string => {
   const at = path.indexOf(HOME)
   return (at >= 0 ? path.slice(at) : path).replaceAll('\\', '/')
@@ -159,7 +159,7 @@ describe('the pause words', () => {
     expect(isPersonOrigin({ kind: 'sdk' })).toBe(true)
     expect(isPersonOrigin({ kind: 'task-notification' })).toBe(false)
     expect(isPersonOrigin({ kind: 'scheduled-trigger' })).toBe(false)
-    expect(isPersonOrigin({ kind: 'plugin', name: 'cache-wetter' })).toBe(true)
+    expect(isPersonOrigin({ kind: 'plugin', name: 'cache-weather-and-pause-resume' })).toBe(true)
     expect(isPersonOrigin({ kind: 'plugin', name: 'other' })).toBe(false)
   })
 })
