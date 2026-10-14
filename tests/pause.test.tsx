@@ -52,25 +52,31 @@ const stop = (status?: string, session_id = 'sess-1') => ({
   background_tasks: status === undefined ? [] : [{ id: 'b1', type: 'shell', status, description: 'Suite' }],
 })
 
-// The user's disk as the engine reaches it: a map of files, under a home folder the environment names.
+// The user's disk as the engine reaches it: a map of files, under a home folder the environment names. The home is
+// spelled as on Windows; where that is no absolute path (Linux, macOS) the engine puts the working directory in front,
+// so the hooks key a path from the home on.
 const HOME = 'C:\\Users\\test'
 const STATE = 'C:\\Users\\test\\.claude\\cache-wetter\\state.json'
+const key = (path: string): string => {
+  const at = path.indexOf(HOME)
+  return at >= 0 ? path.slice(at) : path
+}
 function disk(on: On, seed: Record<string, string> = {}): Record<string, string> {
   const files: Record<string, string> = { ...seed }
   mock.env(on, { USERPROFILE: HOME })
-  on('fs.exists', ($, e) => ({ value: e.path in files }))
+  on('fs.exists', ($, e) => ({ value: key(e.path) in files }))
   on('fs.read', ($, e) => {
-    const text = files[e.path]
+    const text = files[key(e.path)]
     if (text === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: text }
   })
   on('fs.write', ($, e) => {
-    files[e.path] = e.text
+    files[key(e.path)] = e.text
     return { value: undefined }
   })
   // A folder lists what the map holds beneath it: the next path segment, a file where nothing follows.
   on('fs.list', ($, e) => {
-    const prefix = `${e.path}\\`
+    const prefix = `${key(e.path)}\\`
     const seen = new Map<string, 'file' | 'dir'>()
     for (const path of Object.keys(files)) {
       if (!path.startsWith(prefix)) continue
