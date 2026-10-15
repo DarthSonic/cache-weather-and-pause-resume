@@ -3,3 +3,9 @@
 tsconfig.json
 node_modules/
 *.log
+
+# Operating system metadata; the plugin directory refuses a commit that carries it.
+.DS_Store
+Thumbs.db
+desktop.ini
+__MACOSX/
