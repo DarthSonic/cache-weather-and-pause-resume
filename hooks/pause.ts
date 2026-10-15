@@ -6,7 +6,7 @@ import type { Lang } from './i18n'
 export const PLUGIN = 'cache-weather-and-pause-resume'
 export const DEFAULT_ASK_ABOVE_MINUTES = 5
 
-/** What the „Weitermachen“ / „Resume“ button submits, as the person would type it. */
+/** What the „Weiter“ / „Resume“ button submits, as the person would type it. */
 export function resumeText(lang: Lang): string {
   return lang === 'de' ? 'weitermachen' : 'continue'
 }
@@ -21,7 +21,7 @@ export function pauseRequest(askAboveMinutes: number, lang: Lang): string {
       '1. Starte ab jetzt nichts Neues mehr: keine neuen Arbeitsschritte, Läufe, Agenten oder Werkzeugaufrufe dafür. Was gerade läuft, läuft zu Ende.',
       `2. Prüfe die laufenden Hintergrund-Tasks (Läufe, Agenten, Monitore, Workflows) und schätze je Task die ungefähre Restlaufzeit. Braucht einer voraussichtlich noch länger als ${minutes} (oder hat er kein absehbares Ende), frag den Menschen, als Dialog (AskUserQuestion), sofern verfügbar, und nenne je Task die Restlaufzeit: „jetzt beenden und nach ‚weitermachen‘ neu starten“ (nur anbieten, wenn der Task einen Neustart zulässt, sonst sag, warum nicht) oder „zu Ende laufen lassen“. Kürzere Tasks wartest du ohne Rückfrage ab: beende deinen Zug, du wirst bei ihrem Ende geweckt, und sichere dann auch ihr Ergebnis.`,
       '3. Sichere den aktuellen Stand nach den Regeln dieses Projekts (CLAUDE.md, Memory), so dass du nach „weitermachen“ nahtlos fortsetzen kannst: was erledigt ist, was lief, was abgebrochen wurde und mit welchem Befehl es neu startet, was als Nächstes kommt. Gibt das Projekt keine Regel vor, verwirf nichts und committe nicht ungefragt; dann hält deine Pausen-Meldung den Stand fest.',
-      '4. Melde dann kurz „Pausiert“ mit diesem Stand (keinen Übergabe-Prompt) und beende deinen Zug. Danach tust du nichts mehr, bis der Mensch „weitermachen“ schreibt oder den Knopf „Weitermachen“ drückt. Geplante Weckungen (Cron, /loop, ScheduleWakeup) führst du in der Pause nicht aus.',
+      '4. Melde dann kurz „Pausiert“ mit diesem Stand (keinen Übergabe-Prompt) und beende deinen Zug. Danach tust du nichts mehr, bis der Mensch „weitermachen“ schreibt oder den Knopf „Weiter“ drückt. Geplante Weckungen (Cron, /loop, ScheduleWakeup) führst du in der Pause nicht aus.',
     ].join('\n')
   }
   return [
@@ -127,11 +127,10 @@ export function formatMinutes(minutes: number, lang: Lang): string {
   return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')} min`
 }
 
-/** For the band, kept short: „seit 12 m“ / „for 12 m“, „seit 1 h 05 m“, „gerade eben“ / „just now“. */
+/** For the band, kept short: „seit 0 m“ / „for 0 m“, „seit 12 m“, „seit 1 h 05 m“, as the cache time reads. */
 export function sinceText(from: number | null, now: number, lang: Lang): string {
-  const minutes = minutesBetween(from, now)
+  const minutes = minutesBetween(from, now) ?? 0
   const since = lang === 'de' ? 'seit' : 'for'
-  if (minutes === null || minutes < 1) return lang === 'de' ? 'gerade eben' : 'just now'
   if (minutes < 60) return `${since} ${minutes} m`
   const h = Math.floor(minutes / 60)
   const m = minutes % 60

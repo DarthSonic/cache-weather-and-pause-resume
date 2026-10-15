@@ -44,7 +44,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.8.1'
+const CODE_VERSION = '0.8.2'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -427,7 +427,7 @@ async function rememberPause($: EngineInterface, at: number | null): Promise<voi
   await writePersisted($, p => ({ ...p, pausedSessions: withSession(p.pausedSessions, id, at) }))
 }
 
-// A session reopened while paused (the app restarted, the session resumed) shows „Weitermachen“ again.
+// A session reopened while paused (the app restarted, the session resumed) shows „Weiter“ again.
 async function restorePause($: EngineInterface, id: string): Promise<void> {
   if ((await read($, pausePhase)) !== 'running') return
   const since = (await readPersisted($)).pausedSessions?.[id]
@@ -837,7 +837,7 @@ export const register: Register = (on, options) => {
       </Box>
     )
 
-    // The pause button: „Pause“, then what Claude is finishing up, then „Weitermachen“.
+    // The pause button: „Pause“, then what Claude is finishing up, then „Weiter“.
     const phase = await read($, pausePhase)
     let pause
     if (phase === 'running') {
@@ -914,24 +914,32 @@ export const register: Register = (on, options) => {
     )
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''
+    // In the desktop app a narrow band squeezed the readings until „Hits 100 %“ broke over two lines and the cache time
+    // was cut („Cache 6…“): there they keep their width, and the weather sits closer to its numbers. A terminal lays
+    // the row out as before.
+    const keep = isTerminal ? {} : { flexShrink: 0 }
     return withBelow(
       <Box flexDirection="column">
         <Box flexDirection="row" gap={2}>
-          <Text color={tone} wrap="truncate-end">
-            {`${cacheText}${ttlNote}`}
-          </Text>
+          <Box {...keep}>
+            <Text color={tone} wrap="truncate-end">
+              {`${cacheText}${ttlNote}`}
+            </Text>
+          </Box>
           {keepWarmControl}
-          {isExpired ? null : (
-            <Text>
-              {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
-            </Text>
-          )}
-          {skyText}
-          {isExpired ? null : (
-            <Text>
-              {t.ctx} {fillText} / {t.max} {limit.percent} %{limit.isFallback ? '*' : ''}
-            </Text>
-          )}
+          <Box flexDirection="row" gap={isTerminal ? 2 : 1} {...keep}>
+            {isExpired ? null : (
+              <Text>
+                {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
+              </Text>
+            )}
+            {skyText}
+            {isExpired ? null : (
+              <Text>
+                {t.ctx} {fillText} / {t.max} {limit.percent} %{limit.isFallback ? '*' : ''}
+              </Text>
+            )}
+          </Box>
           {compact}
           {pause}
         </Box>

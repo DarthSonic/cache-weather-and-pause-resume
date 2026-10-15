@@ -7,7 +7,7 @@
 
 Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt über dem Eingabefeld. Sie zeigt, wie
 warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf, einem Knopf
-**Pause / Weitermachen**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, und einem Haken
+**Pause / Weiter**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, und einem Haken
 **Keep-warm**, der den Cache kurz vor Ablauf auffrischt.
 
 ![Die Leiste im Terminal: Cache noch 58 Minuten, Keep-warm gesetzt, Hits 98 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
@@ -19,7 +19,7 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
 1. **Weggehen, während ein langer Lauf läuft.** Claude hat eine Testsuite im Hintergrund laufen, und du musst los.
    Drück **⏸ Pause**: Claude startet nichts Neues, lässt den Lauf zu Ende laufen (oder fragt dich vorher, mit der
    Restlaufzeit, wenn er länger als 5 Minuten braucht), hält den Stand fest und meldet „Pausiert“. Zurück am Platz
-   drückst du **▶ Weitermachen**, und Claude macht dort weiter, auch nach einem Neustart der App.
+   drückst du **▶ Weiter**, und Claude macht dort weiter, auch nach einem Neustart der App.
 2. **Zurück sein, bevor der Cache abläuft.** Die Leiste zählt den Prompt-Cache ab der letzten Antwort herunter, etwa
    `Cache 12 m`. Schickst du deine nächste Nachricht, bevor dort „abgelaufen“ steht, liest die Anfrage die Unterhaltung
    aus dem Cache, statt alles neu zu schreiben und zu bezahlen; **Hits** zeigt, wie viel aus dem Cache kam.
@@ -42,7 +42,7 @@ Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf E
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx / Max** | Füllung des Kontexts in Prozent und die Auto-Compact-Schwelle (`*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
-| **⏸ Pause / ▶ Weitermachen** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). Im Terminal `❚❚ Pause` und `► Weitermachen`. |
+| **⏸ Pause / ▶ Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). Im Terminal `❚❚ Pause` und `► Weiter`. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 
 Ist der Cache abgelaufen, sind Hits, Ctx und Max bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
@@ -61,7 +61,7 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 | --- | --- | --- |
 | läuft | `⏸ Pause` | Ein Klick schickt Claude die Pause-Bitte. |
 | Pause angefordert | `⏳ Pause angefordert · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. Getipptes „weitermachen“ nimmt die Bitte zurück. |
-| pausiert | `▶ Weitermachen` · `pausiert seit 12 m` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
+| pausiert | `▶ Weiter` · `pausiert seit 12 m` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
 
 Tippen geht auch: eine Nachricht, die nur „pausieren“ (oder „pause“) ist, pausiert; eine, die mit „weitermachen“ (oder
 „continue“, „resume“) beginnt, setzt fort. Beide Sprachen werden verstanden, egal in welcher der Mod gerade spricht.
@@ -89,7 +89,7 @@ Wie der Mod den Zustand verfolgt:
 - **Pausiert** ist die Sitzung, sobald Claude anhält und der Stop-Hook keine Hintergrund-Arbeit mehr meldet. Laufen
   noch Tasks, zählt die Leiste sie.
 - Eine Pause wird je Sitzung in `~/.claude/cache-weather-and-pause-resume/state.json` gemerkt: eine pausierte Sitzung, die wieder
-  geöffnet wird (Neustart der App, fortgesetzte Sitzung), zeigt wieder **Weitermachen**. `/clear` hebt die Pause auf.
+  geöffnet wird (Neustart der App, fortgesetzte Sitzung), zeigt wieder **Weiter**. `/clear` hebt die Pause auf.
 
 ## Keep-warm
 
@@ -196,8 +196,8 @@ Unterhaltung:
 | Was | Wann | Genau |
 | --- | --- | --- |
 | ein Prompt in deinem Namen | du drückst **Pause**, während Claude ruht | die Pause-Bitte: fester Text aus [`hooks/pause.ts`](hooks/pause.ts), mit deinem `askAboveMinutes` |
-| ein Prompt in deinem Namen | du drückst **Weitermachen** | „weitermachen“ (auf Englisch “continue”) |
-| eine Zeile in der Unterhaltung | du drückst **Pause**, während Claude arbeitet, oder **Weitermachen** | die Pause-Bitte; ein fester Hinweis, dass die Pause vorbei ist, mit ihrer Dauer in Minuten |
+| ein Prompt in deinem Namen | du drückst **Weiter** | „weitermachen“ (auf Englisch “continue”) |
+| eine Zeile in der Unterhaltung | du drückst **Pause**, während Claude arbeitet, oder **Weiter** | die Pause-Bitte; ein fester Hinweis, dass die Pause vorbei ist, mit ihrer Dauer in Minuten |
 | ein Hinweis an deinem Prompt | eine Pause ist angefordert oder läuft, oder du tippst „pausieren“ oder „weitermachen“ | ein fester Hinweis (die Bitte, „die Sitzung ist pausiert“, „die Pause ist beendet“); dein getippter Text bleibt unverändert, und kein Prompt wird zurückgehalten |
 | der Slash-Befehl `/compact` | du drückst **Compact**, während Claude arbeitet, oder in der Desktop-App | eingereiht wie ein getipptes `/compact`; sonst verdichtet der Knopf über den eigenen Compact-Aufruf der Sitzung |
 | die Antwort des Stop-Hooks | Claude hält an, bevor es die Pause-Bitte gelesen hat | Claude macht einmal weiter, mit der Pause-Bitte als Grund |

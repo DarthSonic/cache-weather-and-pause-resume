@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2 — unreleased
+
+- A more compact paused band: the German button reads „Weiter“ (it still sends „weitermachen“), and the time paused
+  reads like the cache time, „pausiert seit 0 m“ / “paused for 0 m” instead of „gerade eben“ / “just now”.
+- In the desktop app the cache time, hits, weather and context keep their width in a narrow band instead of breaking
+  over two lines („Hits 100 / %“) or being cut („Cache 6…“), and the weather sits closer to its numbers. The terminal
+  is unchanged.
+
 ## 0.8.1 — 2026-10-15
 
 - For the plugin directory: a permission prompt that waits for the person is read off Claude Code's notice

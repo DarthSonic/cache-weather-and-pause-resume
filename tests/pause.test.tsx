@@ -146,10 +146,10 @@ describe('the pause words', () => {
   test('tasks, times and origins', async () => {
     expect(inFlight(undefined)).toBe(0)
     expect(inFlight([{ status: 'running' }, { status: 'pending' }, { status: 'completed' }])).toBe(2)
-    expect(sinceText(0, 30_000, 'de')).toBe('gerade eben')
+    expect(sinceText(0, 30_000, 'de')).toBe('seit 0 m')
     expect(sinceText(0, 12 * 60_000, 'de')).toBe('seit 12 m')
     expect(sinceText(0, 65 * 60_000, 'de')).toBe('seit 1 h 05 m')
-    expect(sinceText(0, 30_000, 'en')).toBe('just now')
+    expect(sinceText(0, 30_000, 'en')).toBe('for 0 m')
     expect(sinceText(0, 12 * 60_000, 'en')).toBe('for 12 m')
     expect(formatMinutes(1, 'de')).toBe('1 Minute')
     expect(formatMinutes(1, 'en')).toBe('1 minute')
@@ -165,7 +165,7 @@ describe('the pause words', () => {
 })
 
 describe('the pause button', () => {
-  test('pauses an idle session, waits for its tasks, then turns into „Weitermachen“', DE, async ($, on) => {
+  test('pauses an idle session, waits for its tasks, then turns into „Weiter“', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 1_000_000 })
     const session = mock.session(on)
@@ -203,7 +203,7 @@ describe('the pause button', () => {
       expect(prompts.at(-1)?.context).toEqual([PAUSED_MACHINE_NOTE])
       expect(await ui.find({ key: 'resume' })).toBeDefined()
 
-      // „Weitermachen“: the note goes ahead as a row of its own, then „weitermachen“ as the person's prompt.
+      // „Weiter“: the note goes ahead as a row of its own, then „weitermachen“ as the person's prompt.
       await ui.press({ key: 'resume' })
       expect(prompts.at(-1)?.text).toBe('weitermachen')
       expect(prompts.at(-1)?.origin).toEqual(OWN)
@@ -226,8 +226,8 @@ describe('the pause button', () => {
     expect(await desktop.find({ type: 'Text', text: /^⏳ Pause angefordert$/u })).toBeDefined()
 
     await $.classic.Stop(stop())
-    expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('► Weitermachen')
-    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶ Weitermachen')
+    expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('► Weiter')
+    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶ Weiter')
     await terminal.unmount()
     await desktop.unmount()
   })
@@ -316,7 +316,7 @@ describe('the pause button', () => {
 })
 
 describe('the pause across a restart', () => {
-  test('a pause is kept on disk under the session id, and „Weitermachen“ takes it off', DE, async ($, on) => {
+  test('a pause is kept on disk under the session id, and „Weiter“ takes it off', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 2_000_000 })
     mock.session(on)
@@ -334,7 +334,7 @@ describe('the pause across a restart', () => {
     await ui.unmount()
   })
 
-  test('a session that comes back while paused shows „Weitermachen“, another one „Pause“', DE, async ($, on) => {
+  test('a session that comes back while paused shows „Weiter“, another one „Pause“', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 9_000_000 })
     disk(on, { [STATE]: JSON.stringify({ pausedSessions: { 'sess-2': 3_000_000 } }) })
@@ -721,7 +721,7 @@ describe('in English', () => {
     await $.classic.Stop(stop('running'))
     expect(await ui.find({ type: 'Text', text: /1 task still running/ })).toBeDefined()
     await $.classic.Stop(stop())
-    expect(await ui.find({ type: 'Text', text: /paused just now/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /paused for 0 m/ })).toBeDefined()
 
     await ui.press({ key: 'resume' })
     expect(prompts.at(-1)?.text).toBe('continue')
