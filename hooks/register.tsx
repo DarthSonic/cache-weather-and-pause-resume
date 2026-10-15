@@ -44,7 +44,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.8.0'
+const CODE_VERSION = '0.8.1'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -321,6 +321,8 @@ const KEEP_WARM_PROMPT =
 const KEEP_WARM_CHECK_MS = 15_000
 // After a refresh that failed (an API error), the next try waits this long.
 const KEEP_WARM_RETRY_MS = 30_000
+// The notices of Claude Code (`notification_type`) that mean a dialog waits for the person.
+const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'elicitation_url_dialog'])
 
 // The module's own: a reload starts them over, and its timers go with the old module.
 let keepWarmStarted = false
@@ -678,10 +680,13 @@ export const register: Register = (on, options) => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // A permission prompt about to show: Claude waits for the person until the call has run (or was refused).
-  on('classic.PermissionRequest', async ($, e, next) => {
-    await update($, isAwaitingPerson, () => true)
-    return next(e)
+  // Claude Code's notice that a permission prompt (or an MCP server's form) waits for the person, about six seconds
+  // after it appeared: Claude waits until the call has run (or was refused). A notification decides nothing; a hook on
+  // classic.PermissionRequest could, and the plugin directory cannot tell that it leaves the answer to the person.
+  on('classic.Notification', async ($, e, next) => {
+    const result = await next(e)
+    if (WAITING_NOTICES.has(e.notification_type)) await update($, isAwaitingPerson, () => true)
+    return result
   }).catch(($, e, next) => next(e))
 
   // A question to the person waits for the answer; the answer is input of the person's and starts the idle span over.

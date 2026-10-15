@@ -499,7 +499,7 @@ describe('keep-warm', () => {
       return { value: undefined }
     })
     on('classic.PostModelSwitch', () => ({}))
-    on('classic.PermissionRequest', () => ({}))
+    on('classic.Notification', () => ({}))
     return { prompts, logs }
   }
 
@@ -597,7 +597,7 @@ describe('keep-warm', () => {
     const asked = forks(on)
     await resumed($, 0, '5m')
     await $.turn.start({ text: 'baue das Feature', turnId: 't1' })
-    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'npm test' } })
+    await $.classic.Notification({ message: 'Claude needs your permission to use Bash', notification_type: 'permission_prompt' })
 
     await clock.advance(HOUR)
     // As idle: at 4, 8, … 44 minutes, then no more.

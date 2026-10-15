@@ -1,6 +1,6 @@
 {
   "name": "cache-weather-and-pause-resume",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "A band above the Claude Code prompt: prompt-cache countdown and bar, an opt-in keep-warm that refreshes the cache before it runs out, cache hit rate, context weather with the auto-compact threshold, a Compact button and a Pause / Resume button that has Claude finish running work, save its state and wait. German and English.",
   "author": { "name": "Sven Moderow", "url": "https://github.com/DarthSonic" },
   "homepage": "https://github.com/DarthSonic/cache-weather-and-pause-resume",

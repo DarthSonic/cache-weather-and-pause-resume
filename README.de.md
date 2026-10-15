@@ -217,7 +217,7 @@ Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das 
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle. Jeder andere Hook liest nur und
 reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
-Cache-Laufzeit, und ob das Modell wechselte), `classic.PermissionRequest` (eine Berechtigungsfrage ist offen),
+Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
 `tool.call` (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
 `turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen), `turn.start`,
 `turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
@@ -238,9 +238,11 @@ Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit *
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
 
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,
-`classic.PostModelSwitch` und `session.compact` nur für Plugins, die die Organisation in den verwalteten Einstellungen
-nennt. Eine selbst installierte Kopie sieht dann nie, dass Claude anhält: die Pause bleibt bei „Pause angefordert“, die
-Cache-Laufzeit wird nicht aus dem Transkript gelesen, und nach `/compact` erscheint keine Zusammenfassung.
+`classic.Notification`, `classic.PostModelSwitch` und `session.compact` nur für Plugins, die die Organisation in den
+verwalteten Einstellungen nennt. Eine selbst installierte Kopie sieht dann nie, dass Claude anhält: die Pause bleibt bei
+„Pause angefordert“, die Cache-Laufzeit wird nicht aus dem Transkript gelesen, nach `/compact` erscheint keine
+Zusammenfassung, und Keep-warm zählt eine offene Berechtigungsfrage als Arbeit und frischt nach einem Compact oder
+Modellwechsel weiter auf, bis eine Auffrischung den Cache kalt vorfindet.
 
 ## Entwicklung
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — 2026-10-15
+
+- For the plugin directory: a permission prompt that waits for the person is read off Claude Code's notice
+  (`classic.Notification`, `permission_prompt`, about six seconds after the prompt appeared) instead of a hook on
+  `classic.PermissionRequest`, which the directory could not confirm leaves the answer to the person. MCP servers'
+  forms (`elicitation_dialog`, `elicitation_url_dialog`) count as waiting too. Keep-warm treats both as idle, as before.
+
 ## 0.8.0 — 2026-10-15
 
 - **Keep-warm**, a checkbox beside the cache time (`[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app): shortly
