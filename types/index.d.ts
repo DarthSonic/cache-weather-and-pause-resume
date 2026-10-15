@@ -17,8 +17,11 @@ export type Threshold = { percent: number; isFallback: boolean }
 /** Where the session stands: working, asked to pause and finishing up, or paused until „weitermachen“. */
 export type PausePhase = 'running' | 'pausing' | 'paused'
 
-/** Why keep-alive waits for the next request: the idle span ran out, or a refresh found the cache gone. */
-export type KeepAliveNote = 'ended' | 'missed'
+/**
+ * Why keep-warm waits for the next request: the idle span ran out, a refresh found the cache gone, or the cache is
+ * `cold` after a compaction or a switch to another model (the next request writes the new one).
+ */
+export type KeepWarmNote = 'ended' | 'missed' | 'cold'
 
 declare module 'claude-code' {
   interface PluginState {
@@ -46,15 +49,17 @@ declare module 'claude-code' {
       sessionId: string | null
       /** The language the band and the pause texts use, once session.start has read the settings. */
       language: 'de' | 'en' | null
-      /** Whether keep-alive is on: the person's choice alone, kept on disk. */
-      keepAlive: boolean
-      /** When a request last read or wrote the cache: the conversation's own, or a keep-alive refresh. */
+      /** Whether keep-warm is on: the person's choice alone, kept on disk. */
+      keepWarm: boolean
+      /** When a request last read or wrote the cache: the conversation's own, or a keep-warm refresh. */
       cacheUsedAt: number | null
-      /** The last request that was no refresh, or keep-alive switched on: the idle span counts from here. */
+      /** The last request that was no refresh, or keep-warm switched on: the idle span counts from here. */
       activeAt: number | null
-      keepAliveNote: KeepAliveNote | null
+      keepWarmNote: KeepWarmNote | null
       /** Refreshes since the last request that was none. */
-      keepAliveRefreshes: number
+      keepWarmRefreshes: number
+      /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */
+      isAwaitingPerson: boolean
     }
   }
 }

@@ -8,11 +8,11 @@
 Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt über dem Eingabefeld. Sie zeigt, wie
 warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf, einem Knopf
 **Pause / Weitermachen**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, und einem Haken
-**Keep-alive**, der den Cache kurz vor Ablauf auffrischt.
+**Keep-warm**, der den Cache kurz vor Ablauf auffrischt.
 
-![Die Leiste im Terminal: Cache noch 57 Minuten, der Haken Keep-alive, Hits 63 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
+![Die Leiste im Terminal: Cache noch 57 Minuten, der Haken Keep-warm, Hits 63 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
 
-![Die Leiste in der Claude-Desktop-App: Cache noch 57 Minuten, Keep-alive gesetzt, Hits 100 %, Sonne bei 40 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken](docs/band-desktop.png)
+![Die Leiste in der Claude-Desktop-App: Cache noch 57 Minuten, Keep-warm gesetzt, Hits 100 %, Sonne bei 40 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken](docs/band-desktop.png)
 
 ## Beispiele
 
@@ -27,7 +27,7 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
    (`Ctx 87 % / Max 97 %`). Drück **Compact** zwischen zwei Aufgaben, statt ein Auto-Compact mitten in eine geraten zu
    lassen; danach schreibt die Leiste die Zusammenfassung ins Log, mit der Claude weitermacht.
 4. **Den Cache durch einen langen Lauf oder eine Pause warm halten.** Claude wartet auf einen Build, der 70 Minuten
-   dauert, oder du bist in einer Besprechung. Setz den Haken **Keep-alive**: Kurz bevor der Cache abläuft, frischt der
+   dauert, oder du bist in einer Besprechung. Setz den Haken **Keep-warm**: Kurz bevor der Cache abläuft, frischt der
    Mod ihn auf, und die nächste Anfrage liest die Unterhaltung aus dem Cache, statt alles neu zu schreiben.
 
 Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf Englisch “pause” und “continue”).
@@ -36,8 +36,8 @@ Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf E
 
 | Teil | Was er zeigt |
 | --- | --- |
-| **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-alive; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. |
-| **Keep-alive** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; daneben, warum Keep-alive wartet, wenn es wartet. |
+| **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. |
+| **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; daneben, warum Keep-warm wartet, wenn es wartet. |
 | **Hits** | Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx / Max** | Füllung des Kontexts in Prozent und die Auto-Compact-Schwelle (`*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
@@ -91,11 +91,11 @@ Wie der Mod den Zustand verfolgt:
 - Eine Pause wird je Sitzung in `~/.claude/cache-weather-and-pause-resume/state.json` gemerkt: eine pausierte Sitzung, die wieder
   geöffnet wird (Neustart der App, fortgesetzte Sitzung), zeigt wieder **Weitermachen**. `/clear` hebt die Pause auf.
 
-## Keep-alive
+## Keep-warm
 
 Der Prompt-Cache hält die Unterhaltung 5 Minuten oder 1 Stunde, nachdem die letzte Anfrage sie gelesen hat. Ist er
 abgelaufen, schreibt die nächste Anfrage alles neu: zum 1,25-fachen (5 Minuten) oder 2-fachen (1 Stunde) des normalen
-Input-Preises, wo ein Lesen ein Zehntel davon oder weniger kostet. Mit gesetztem **Keep-alive** frischt der Mod den
+Input-Preises, wo ein Lesen ein Zehntel davon oder weniger kostet. Mit gesetztem **Keep-warm** frischt der Mod den
 Cache kurz vor Ablauf auf:
 
 - **Wann:** eine Minute vor dem Ende eines 5-Minuten-Caches, fünf Minuten vor dem Ende eines 1-Stunden-Caches.
@@ -105,12 +105,15 @@ Cache kurz vor Ablauf auf:
   kein Werkzeug aufrufen, und Frage und Antwort bleiben außerhalb der Unterhaltung. Jede Auffrischung schreibt eine
   graue Zeile: die aus dem Cache gelesenen Tokens und die Tokens der Antwort.
 - **Während Claude arbeitet** (ein langer Lauf, ein Subagent, eine angeforderte Pause): so lange es dauert.
-- **Während die Sitzung ruht oder pausiert ist:** beim 1-Stunden-Cache 8 Stunden, beim 5-Minuten-Cache 45 Minuten, ab
+- **Während die Sitzung ruht, pausiert ist oder Claude auf dich wartet** (eine Berechtigungsfrage, eine Rückfrage): beim 1-Stunden-Cache 8 Stunden, beim 5-Minuten-Cache 45 Minuten, ab
   der letzten Anfrage oder Eingabe. Dann steht in der Leiste „endete nach 8 h ohne Eingabe“, und eine Zeile erklärt
   den Grund: Eine vergessene Sitzung soll nicht weiter kosten. Deine nächste Nachricht baut den Cache neu auf, dann
-  übernimmt Keep-alive wieder.
-- **Findet eine Auffrischung den Cache schon abgelaufen** (etwa weil der Rechner schlief), wartet Keep-alive auf die
+  übernimmt Keep-warm wieder.
+- **Findet eine Auffrischung den Cache schon abgelaufen** (etwa weil der Rechner schlief), wartet Keep-warm auf die
   nächste Anfrage, statt ihn neu aufzubauen, und sagt das.
+- **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die nächste Anfrage
+  schreibt den neuen Cache, und Keep-warm wartet auf sie („wartet auf die nächste Anfrage“).
+- **Nur beantwortete Anfragen zählen:** Eine fehlgeschlagene hat nichts aus dem Cache gelesen und setzt nichts zurück.
 - **Nur du schaltest:** Der Mod setzt oder löscht den Haken nie. Er gilt für diese Sitzung: Ein Neustart oder
   Fortsetzen behält ihn, eine neue Sitzung und `/clear` starten ohne.
 
@@ -187,7 +190,7 @@ zusammen.
 ## Was der Mod auf deinem Rechner tut
 
 cache-weather-and-pause-resume startet keine Programme und stellt selbst keine Netzwerk-Anfragen, außer den Auffrischungen von
-Keep-alive, die du je Sitzung einschaltest. Was er Claude übergibt, kommt wie alles, was du schickst, in die
+Keep-warm, die du je Sitzung einschaltest. Was er Claude übergibt, kommt wie alles, was du schickst, in die
 Unterhaltung:
 
 | Was | Wann | Genau |
@@ -198,9 +201,9 @@ Unterhaltung:
 | ein Hinweis an deinem Prompt | eine Pause ist angefordert oder läuft, oder du tippst „pausieren“ oder „weitermachen“ | ein fester Hinweis (die Bitte, „die Sitzung ist pausiert“, „die Pause ist beendet“); dein getippter Text bleibt unverändert, und kein Prompt wird zurückgehalten |
 | der Slash-Befehl `/compact` | du drückst **Compact**, während Claude arbeitet, oder in der Desktop-App | eingereiht wie ein getipptes `/compact`; sonst verdichtet der Knopf über den eigenen Compact-Aufruf der Sitzung |
 | die Antwort des Stop-Hooks | Claude hält an, bevor es die Pause-Bitte gelesen hat | Claude macht einmal weiter, mit der Pause-Bitte als Grund |
-| eine Frage neben der Unterhaltung | **Keep-alive** ist gesetzt und der Cache läuft gleich ab | eine Modell-Anfrage über die Unterhaltung, so wie ihre letzte Anfrage sie geschickt hat, über den eigenen Client der Sitzung: fester Text, der um „OK“ bittet, keine Werkzeuge; die Antwort wird verworfen und bleibt außerhalb der Unterhaltung |
+| eine Frage neben der Unterhaltung | **Keep-warm** ist gesetzt und der Cache läuft gleich ab | eine Modell-Anfrage über die Unterhaltung, so wie ihre letzte Anfrage sie geschickt hat, über den eigenen Client der Sitzung: fester Text, der um „OK“ bittet, keine Werkzeuge; die Antwort wird verworfen und bleibt außerhalb der Unterhaltung |
 
-In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung. Die Anfrage von Keep-alive trägt
+In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung. Die Anfrage von Keep-warm trägt
 die Unterhaltung, die die Sitzung mit jeder Anfrage ohnehin schickt, an dieselbe API.
 
 **Dateien.** Der Mod schreibt genau eine Datei, `~/.claude/cache-weather-and-pause-resume/state.json` (unten), und keine andere: keine
@@ -214,14 +217,16 @@ Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das 
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle. Jeder andere Hook liest nur und
 reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
-Cache-Laufzeit), `turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure`
-(Token-Zahlen), `turn.start`, `turn.complete`, `session.end` und
-`session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das Modell nicht liest. Der Hook auf
+Cache-Laufzeit, und ob das Modell wechselte), `classic.PermissionRequest` (eine Berechtigungsfrage ist offen),
+`tool.call` (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
+`turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen), `turn.start`,
+`turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
+Modell nicht liest. Der Hook auf
 `ui.render` zeichnet die Leiste und stapelt die Leisten anderer Mods darunter.
 
 ## Zustandsdatei
 
-`~/.claude/cache-weather-and-pause-resume/state.json` hält die pausierten Sitzungen und die Sitzungen mit gesetztem Keep-alive (je
+`~/.claude/cache-weather-and-pause-resume/state.json` hält die pausierten Sitzungen und die Sitzungen mit gesetztem Keep-warm (je
 Sitzungs-ID), die zuletzt gesehene Cache-Laufzeit und die zuletzt geladene Fassung. Sie
 behält von beidem höchstens die 20 jüngsten, und zehn Sekunden nach einem Sitzungsstart fällt heraus, was sie von
 gelöschten Sitzungen hält (kein Transkript mehr unter `~/.claude/projects/`); im Zweifel bleibt alles stehen. Die Datei liest nur der Mod — sie gelangt nie zum Modell und
@@ -257,6 +262,8 @@ Mod braucht kein Konto und keine Beispieldaten: installieren und eine Sitzung ö
 ## Danksagung
 
 cache-weather-and-pause-resume basiert auf einer Idee von Julian Ivanov ([KI-Automatisierungs-Community](https://ki-automatisierungs-community.de/)).
+Einige Regeln von Keep-warm folgen [cachebeat](https://github.com/ARahim3/cachebeat) von ARahim3, das den Cache mit
+einem Stop-Hook warm hält, der Claude weckt.
 
 Geschrieben mit Claude Code (Claude Opus 5.5); geprüft, getestet und gepflegt von Sven Moderow.
 

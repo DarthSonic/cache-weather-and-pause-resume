@@ -69,34 +69,34 @@ export function svgBar(share: number | null): string {
   )
 }
 
-/** How long before the cache lapses keep-alive refreshes it: a minute for the five-minute cache, five for the hour's. */
-export function keepAliveLeadMs(ttlMinutes: 5 | 60): number {
+/** How long before the cache lapses keep-warm refreshes it: a minute for the five-minute cache, five for the hour's. */
+export function keepWarmLeadMs(ttlMinutes: 5 | 60): number {
   return ttlMinutes === 5 ? 60_000 : 5 * 60_000
 }
 
 /**
- * How long keep-alive goes on in a session nobody works in (paused, or quiet after its last turn), from the last
+ * How long keep-warm goes on in a session nobody works in (paused, or quiet after its last turn), from the last
  * request or input: 8 hours for the hour's cache, 45 minutes for the five-minute one, whose refreshes come twelve times
  * as often.
  */
-export function keepAliveSpanMs(ttlMinutes: 5 | 60): number {
+export function keepWarmSpanMs(ttlMinutes: 5 | 60): number {
   return ttlMinutes === 5 ? 45 * 60_000 : 8 * 60 * 60_000
 }
 
 /** The idle span as the band and the log name it: „8 h“, „45 m“. */
-export function keepAliveSpanText(ttlMinutes: 5 | 60): string {
-  const minutes = keepAliveSpanMs(ttlMinutes) / 60_000
+export function keepWarmSpanText(ttlMinutes: 5 | 60): string {
+  const minutes = keepWarmSpanMs(ttlMinutes) / 60_000
   return minutes >= 60 ? `${minutes / 60} h` : `${minutes} m`
 }
 
 /**
- * What keep-alive does now: `wait` for the refresh's time, `refresh`, or neither because the cache has `lapsed` (a
+ * What keep-warm does now: `wait` for the refresh's time, `refresh`, or neither because the cache has `lapsed` (a
  * refresh would build it afresh) or the idle span has `ended`. While Claude works there is no span.
  *
  * `cacheUsedAt` is when a request last read or wrote the cache (the conversation's own, or a refresh); `activeAt` the
  * last request or input that was no refresh, where the idle span starts.
  */
-export function keepAliveStep(s: {
+export function keepWarmStep(s: {
   cacheUsedAt: number | null
   activeAt: number | null
   ttlMinutes: 5 | 60 | null
@@ -106,8 +106,8 @@ export function keepAliveStep(s: {
   if (s.cacheUsedAt === null || s.ttlMinutes === null) return 'wait'
   const lapsesAt = s.cacheUsedAt + s.ttlMinutes * 60_000
   if (s.now >= lapsesAt) return 'lapsed'
-  if (s.now < lapsesAt - keepAliveLeadMs(s.ttlMinutes)) return 'wait'
-  if (!s.isWorking && s.now >= (s.activeAt ?? s.cacheUsedAt) + keepAliveSpanMs(s.ttlMinutes)) return 'ended'
+  if (s.now < lapsesAt - keepWarmLeadMs(s.ttlMinutes)) return 'wait'
+  if (!s.isWorking && s.now >= (s.activeAt ?? s.cacheUsedAt) + keepWarmSpanMs(s.ttlMinutes)) return 'ended'
   return 'refresh'
 }
 

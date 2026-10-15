@@ -41,12 +41,13 @@ export type Strings = {
   pausedToast: string
   sendFailed: (error: string) => string
   resumeSendFailed: (error: string) => string
-  keepAlive: string
-  keepAliveEnded: (span: string) => string
-  keepAliveMissed: string
-  keepAliveRefreshedLog: (read: string, out: string) => string
-  keepAliveEndedLog: (span: string, ttl: string) => string
-  keepAliveMissedLog: string
+  keepWarm: string
+  keepWarmEnded: (span: string) => string
+  keepWarmMissed: string
+  keepWarmCold: string
+  keepWarmRefreshedLog: (read: string, out: string) => string
+  keepWarmEndedLog: (span: string, ttl: string) => string
+  keepWarmMissedLog: string
   cacheBarAlt: (cache: string) => string
 }
 
@@ -72,14 +73,15 @@ const DE: Strings = {
   pausedToast: '⏸ Sitzung pausiert. „Weitermachen“ setzt fort.',
   sendFailed: error => `Pause: die Nachricht an Claude ließ sich nicht senden: ${error}`,
   resumeSendFailed: error => `Pause: „weitermachen“ ließ sich nicht senden: ${error}`,
-  keepAlive: 'Keep-alive',
-  keepAliveEnded: span => `endete nach ${span} ohne Eingabe`,
-  keepAliveMissed: 'Cache war schon abgelaufen',
-  keepAliveRefreshedLog: (read, out) => `↻ Keep-alive: Cache aufgefrischt (${read} Tokens aus dem Cache gelesen, ${out} Tokens Antwort)`,
-  keepAliveEndedLog: (span, ttl) =>
-    `Keep-alive: nach ${span} ohne Eingabe nicht weiter aufgefrischt. Das ist die Grenze beim ${ttl}-Cache, damit eine vergessene Sitzung kein Kontingent mehr verbraucht. Die nächste Eingabe baut den Cache neu auf, dann hält Keep-alive ihn wieder warm.`,
-  keepAliveMissedLog:
-    'Keep-alive: Der Cache war schon abgelaufen, die Auffrischung hat ihn nicht mehr erreicht. Nach der nächsten Anfrage hält Keep-alive ihn wieder warm.',
+  keepWarm: 'Keep-warm',
+  keepWarmEnded: span => `endete nach ${span} ohne Eingabe`,
+  keepWarmMissed: 'Cache war schon abgelaufen',
+  keepWarmCold: 'wartet auf die nächste Anfrage',
+  keepWarmRefreshedLog: (read, out) => `↻ Keep-warm: Cache aufgefrischt (${read} Tokens aus dem Cache gelesen, ${out} Tokens Antwort)`,
+  keepWarmEndedLog: (span, ttl) =>
+    `Keep-warm: nach ${span} ohne Eingabe nicht weiter aufgefrischt. Das ist die Grenze beim ${ttl}-Cache, damit eine vergessene Sitzung kein Kontingent mehr verbraucht. Die nächste Eingabe baut den Cache neu auf, dann hält Keep-warm ihn wieder warm.`,
+  keepWarmMissedLog:
+    'Keep-warm: Der Cache war schon abgelaufen, die Auffrischung hat ihn nicht mehr erreicht. Nach der nächsten Anfrage hält Keep-warm ihn wieder warm.',
   cacheBarAlt: cache => `Restlaufzeit des Caches: ${cache}`,
 }
 
@@ -105,14 +107,15 @@ const EN: Strings = {
   pausedToast: '⏸ Session paused. “Resume” carries on.',
   sendFailed: error => `Pause: the message to Claude could not be sent: ${error}`,
   resumeSendFailed: error => `Pause: “continue” could not be sent: ${error}`,
-  keepAlive: 'Keep-alive',
-  keepAliveEnded: span => `stopped after ${span} without input`,
-  keepAliveMissed: 'the cache had already expired',
-  keepAliveRefreshedLog: (read, out) => `↻ Keep-alive: cache refreshed (${read} tokens read from the cache, ${out} tokens of reply)`,
-  keepAliveEndedLog: (span, ttl) =>
-    `Keep-alive: no more refreshes after ${span} without input. That is the limit for the ${ttl} cache, so a forgotten session spends no more usage. The next input builds the cache afresh, and keep-alive keeps it warm again.`,
-  keepAliveMissedLog:
-    'Keep-alive: the cache had already expired, so the refresh no longer reached it. After the next request keep-alive keeps it warm again.',
+  keepWarm: 'Keep-warm',
+  keepWarmEnded: span => `stopped after ${span} without input`,
+  keepWarmMissed: 'the cache had already expired',
+  keepWarmCold: 'waiting for the next request',
+  keepWarmRefreshedLog: (read, out) => `↻ Keep-warm: cache refreshed (${read} tokens read from the cache, ${out} tokens of reply)`,
+  keepWarmEndedLog: (span, ttl) =>
+    `Keep-warm: no more refreshes after ${span} without input. That is the limit for the ${ttl} cache, so a forgotten session spends no more usage. The next input builds the cache afresh, and keep-warm keeps it warm again.`,
+  keepWarmMissedLog:
+    'Keep-warm: the cache had already expired, so the refresh no longer reached it. After the next request keep-warm keeps it warm again.',
   cacheBarAlt: cache => `Cache time left: ${cache}`,
 }
 

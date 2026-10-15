@@ -477,7 +477,7 @@ describe('the cache lifetime', () => {
   })
 })
 
-describe('keep-alive', () => {
+describe('keep-warm', () => {
   // These move the clock on by hours in steps of 15 seconds: more time than the default 5 seconds on a busy machine.
   const SLOW = { ...DE, timeoutMs: 30_000 }
   const MIN = 60_000
@@ -499,6 +499,7 @@ describe('keep-alive', () => {
       return { value: undefined }
     })
     on('classic.PostModelSwitch', () => ({}))
+    on('classic.PermissionRequest', () => ({}))
     return { prompts, logs }
   }
 
@@ -515,14 +516,14 @@ describe('keep-alive', () => {
     engine(on)
     const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await $.classic.SessionStart({ source: 'startup', session_id: 's1' })
-    expect((await terminal.find({ key: 'keep-alive' }))?.props.label).toBe('[ ] Keep-alive')
-    await terminal.press({ key: 'keep-alive' })
-    expect((await terminal.find({ key: 'keep-alive' }))?.props.label).toBe('[✓] Keep-alive')
-    expect(JSON.parse(files[STATE] ?? '{}').keepAliveSessions).toEqual({ s1: START })
+    expect((await terminal.find({ key: 'keep-warm' }))?.props.label).toBe('[ ] Keep-warm')
+    await terminal.press({ key: 'keep-warm' })
+    expect((await terminal.find({ key: 'keep-warm' }))?.props.label).toBe('[✓] Keep-warm')
+    expect(JSON.parse(files[STATE] ?? '{}').keepWarmSessions).toEqual({ s1: START })
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect((await desktop.find({ key: 'keep-alive' }))?.props.label).toBe('☑ Keep-alive')
-    await desktop.press({ key: 'keep-alive' })
-    expect(JSON.parse(files[STATE] ?? '{}').keepAliveSessions).toEqual({})
+    expect((await desktop.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Keep-warm')
+    await desktop.press({ key: 'keep-warm' })
+    expect(JSON.parse(files[STATE] ?? '{}').keepWarmSessions).toEqual({})
     await terminal.unmount()
     await desktop.unmount()
   })
@@ -530,13 +531,13 @@ describe('keep-alive', () => {
   test('a session resumed keeps its switch; another one, and the one after /clear, start without', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: START })
-    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await $.classic.SessionStart({ source: 'resume', session_id: 'k1' })
-    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toBe('[✓] Keep-alive')
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('[✓] Keep-warm')
     await $.classic.SessionStart({ source: 'clear', session_id: 'k2' })
-    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toBe('[ ] Keep-alive')
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('[ ] Keep-warm')
     await ui.unmount()
   })
 
@@ -554,7 +555,7 @@ describe('keep-alive', () => {
   test('the hour cache is refreshed five minutes before it lapses, and counts down afresh', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
-    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const asked = forks(on)
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
@@ -564,10 +565,10 @@ describe('keep-alive', () => {
     expect(asked.prompts.length).toBe(0)
     await clock.advance(MIN)
     expect(asked.prompts.length).toBe(1)
-    expect(asked.prompts[0]).toContain('keep-alive')
-    expect(asked.logs.at(-1)).toBe('↻ Keep-alive: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort)')
+    expect(asked.prompts[0]).toContain('keep-warm')
+    expect(asked.logs.at(-1)).toBe('↻ Keep-warm: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort)')
     expect(await ui.find({ type: 'Text', text: /^Cache 60 m/ })).toBeDefined()
-    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toBe('☑ Keep-alive ↻1')
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Keep-warm ↻1')
 
     await clock.advance(55 * MIN)
     expect(asked.prompts.length).toBe(2)
@@ -577,7 +578,7 @@ describe('keep-alive', () => {
   test('while Claude works there is no limit', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
-    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const asked = forks(on)
     await resumed($, 0, '5m')
@@ -588,10 +589,41 @@ describe('keep-alive', () => {
     expect(asked.prompts.length).toBe(15)
   })
 
+  test('Claude waiting for a permission prompt counts as idle, not as work', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    await resumed($, 0, '5m')
+    await $.turn.start({ text: 'baue das Feature', turnId: 't1' })
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'npm test' } })
+
+    await clock.advance(HOUR)
+    // As idle: at 4, 8, … 44 minutes, then no more.
+    expect(asked.prompts.length).toBe(11)
+  })
+
+  test('after a switch to another model there is nothing to keep warm until the next request', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await resumed($, 2 * MIN, '1h')
+    await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' })
+
+    await clock.advance(HOUR)
+    expect(asked.prompts.length).toBe(0)
+    expect(await ui.find({ type: 'Text', text: /^wartet auf die nächste Anfrage$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('the five-minute cache is refreshed a minute before it lapses, for 45 minutes', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
-    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const asked = forks(on)
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
@@ -603,14 +635,14 @@ describe('keep-alive', () => {
     expect(await ui.find({ type: 'Text', text: /^endete nach 45 m ohne Eingabe$/ })).toBeDefined()
     expect(asked.logs.at(-1)).toContain('nach 45 m ohne Eingabe nicht weiter aufgefrischt')
     // The checkbox stays as the person set it.
-    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toMatch(/^☑ Keep-alive/)
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toMatch(/^☑ Keep-warm/)
     await ui.unmount()
   })
 
   test('switching it off and on clears the note; with the cache gone it waits for the next request', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
-    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const asked = forks(on)
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -618,8 +650,8 @@ describe('keep-alive', () => {
     await clock.advance(HOUR)
     expect(asked.prompts.length).toBe(11)
 
-    await ui.press({ key: 'keep-alive' })
-    await ui.press({ key: 'keep-alive' })
+    await ui.press({ key: 'keep-warm' })
+    await ui.press({ key: 'keep-warm' })
     expect(await ui.find({ type: 'Text', text: /ohne Eingabe/ })).toBeUndefined()
     await clock.advance(HOUR)
     expect(asked.prompts.length).toBe(11)
@@ -629,7 +661,7 @@ describe('keep-alive', () => {
   test('a refresh that finds the cache gone stops until the next request, and says so', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
-    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const asked = forks(on, COLD)
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -669,7 +701,7 @@ describe('keep-alive', () => {
     expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Hits / })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Ctx/ })).toBeUndefined()
-    expect(await ui.find({ key: 'keep-alive' })).toBeDefined()
+    expect(await ui.find({ key: 'keep-warm' })).toBeDefined()
     await ui.unmount()
   })
 })

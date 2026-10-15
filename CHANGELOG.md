@@ -2,19 +2,22 @@
 
 ## 0.8.0 — 2026-10-15
 
-- **Keep-alive**, a checkbox beside the cache time (`[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app): shortly
+- **Keep-warm**, a checkbox beside the cache time (`[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app): shortly
   before the prompt cache runs out (a minute before the end of a 5-minute cache, five minutes before the end of a
   1-hour one) the mod asks one question over the conversation as its last request sent it (`$.model.fork`), which the
   API reads from the cache and so keeps warm. The question asks for “OK”, may call no tool and stays out of the
   conversation; each refresh logs the tokens read and replied.
   - While Claude works, it refreshes for as long as that takes; an idle or paused session is kept warm for 8 hours
     (1-hour cache) or 45 minutes (5-minute cache) from the last request or input, then the band and a log line say
-    why it stopped. A refresh that finds the cache gone waits for the next request instead of building it afresh.
+    why it stopped. Claude waiting for the person (a permission prompt, a question) counts as idle; the answer
+    starts the span over. A refresh that finds the cache gone waits for the next request instead of building it
+    afresh, and so does keep-warm after a compaction or a switch to another model. Only answered requests count.
+    (Some of these rules follow cachebeat by ARahim3.)
   - Only the person checks or unchecks it, per session: a restart or resume keeps it, a new session and `/clear`
-    start without. The state file keeps `keepAliveSessions` by session id, pruned with deleted sessions.
+    start without. The state file keeps `keepWarmSessions` by session id, pruned with deleted sessions.
 - The cache bar has a line of its own below the band, over its full width: a heavy line in the cache's colour over a
-  light one in a terminal, a picture a few pixels high in the desktop app. Yellow from 60 % of the lifetime left, red from 20 % (the
-  cache time too).
+  light one in a terminal, a picture a few pixels high in the desktop app. Yellow from 60 % of the lifetime left,
+  red from 20 % (the cache time too).
 - An expired cache hides Hits, Ctx and Max until the next response.
 - The band no longer folds: the ▾ / ▸ button and the folded view are gone (`isCollapsed` in the state file is
   ignored).

@@ -7,8 +7,8 @@ import {
   compactionLines,
   hitRate,
   isWarmRead,
-  keepAliveSpanText,
-  keepAliveStep,
+  keepWarmSpanText,
+  keepWarmStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
   pauseSigns,
@@ -61,10 +61,10 @@ describe('the cache countdown', () => {
   })
 })
 
-describe('keep-alive', () => {
+describe('keep-warm', () => {
   const MIN = 60_000
-  const at = (minutes: number, over: Partial<Parameters<typeof keepAliveStep>[0]> = {}) =>
-    keepAliveStep({ cacheUsedAt: 0, activeAt: 0, ttlMinutes: 60, isWorking: false, now: minutes * MIN, ...over })
+  const at = (minutes: number, over: Partial<Parameters<typeof keepWarmStep>[0]> = {}) =>
+    keepWarmStep({ cacheUsedAt: 0, activeAt: 0, ttlMinutes: 60, isWorking: false, now: minutes * MIN, ...over })
 
   test('refreshes the hour cache five minutes before it lapses, the five-minute one a minute before', async () => {
     expect(at(54)).toBe('wait')
@@ -84,8 +84,8 @@ describe('keep-alive', () => {
     expect(at(8 * 60 + 55, { cacheUsedAt: 8 * 60 * MIN, activeAt: 60 * MIN })).toBe('refresh')
     expect(at(44, { ttlMinutes: 5, cacheUsedAt: 40 * MIN })).toBe('refresh')
     expect(at(48, { ttlMinutes: 5, cacheUsedAt: 44 * MIN })).toBe('ended')
-    expect(keepAliveSpanText(60)).toBe('8 h')
-    expect(keepAliveSpanText(5)).toBe('45 m')
+    expect(keepWarmSpanText(60)).toBe('8 h')
+    expect(keepWarmSpanText(5)).toBe('45 m')
   })
 
   test('a refresh counts as warm when nearly all of its input came from the cache', async () => {
@@ -199,7 +199,7 @@ describe('the band', () => {
       expect(await ui.find({ type: 'Text', text: /^Hits / })).toBeDefined()
       expect(await ui.find({ key: 'pause' })).toBeDefined()
       expect(await ui.find({ key: 'compact' })).toBeDefined()
-      expect(await ui.find({ key: 'keep-alive' })).toBeDefined()
+      expect(await ui.find({ key: 'keep-warm' })).toBeDefined()
       // Nothing folds any more (0.8.0).
       expect(await ui.find({ key: 'toggle' })).toBeUndefined()
       await ui.unmount()

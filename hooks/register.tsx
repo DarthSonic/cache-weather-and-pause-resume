@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { ClassicResultOf, EngineInterface, Register } from 'claude-code'
 
-import type { ContextFill, KeepAliveNote, PausePhase, Threshold, Ttl } from '../types'
+import type { ContextFill, KeepWarmNote, PausePhase, Threshold, Ttl } from '../types'
 import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
@@ -12,8 +12,8 @@ import {
   groupDigits,
   hitRate,
   isWarmRead,
-  keepAliveSpanText,
-  keepAliveStep,
+  keepWarmSpanText,
+  keepWarmStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
   pauseSigns,
@@ -62,16 +62,17 @@ const pauseTasksLeft = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pa
 const turnRunning = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnRunning' } as const, false)
 const sessionId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionId' } as const, null)
 const language = atom({ plugin: 'cache-weather-and-pause-resume', key: 'language' } as const, null)
-const keepAlive = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepAlive' } as const, false)
+const keepWarm = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarm' } as const, false)
 const cacheUsedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'cacheUsedAt' } as const, null)
 const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt' } as const, null)
-const keepAliveNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepAliveNote' } as const, null)
-const keepAliveRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepAliveRefreshes' } as const, 0)
+const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
+const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
+const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 
 // The language before session.start has read the locale: the option, else the runtime's locale. Set by `register`.
 let fallbackLang: Lang = 'en'
 
-// What outlives a session (paused and kept-alive sessions by id, the cache lifetime last seen) lives in one file,
+// What outlives a session (paused and kept-warm sessions by id, the cache lifetime last seen) lives in one file,
 // ~/.claude/cache-weather-and-pause-resume/state.json, not in `$.store`: the store is keyed by how the mod was loaded
 // (handed in by the desktop app „inline“, or by the CLI's own loader), so a pause kept there was gone after a restart
 // that loaded the mod the other way (2026-10-13). Each call spells its path out under the home folder, so the source
@@ -85,8 +86,8 @@ type Persisted = {
   /** When a session last read the lifetime itself (a transcript, a model switch, a resumed session's start). */
   ttlConfirmedAt?: number
   pausedSessions?: Record<string, number>
-  /** The sessions keep-alive is switched on in, by id, with the time it was. */
-  keepAliveSessions?: Record<string, number>
+  /** The sessions keep-warm is switched on in, by id, with the time it was. */
+  keepWarmSessions?: Record<string, number>
   codeVersion?: string
 }
 
@@ -232,13 +233,13 @@ function withSession(all: Record<string, number> | undefined, id: string, at: nu
   return Object.fromEntries(kept)
 }
 
-// Drops the remembered pauses and keep-alives of sessions that are gone: no transcript `<id>.jsonl` in any project
+// Drops the remembered pauses and keep-warms of sessions that are gone: no transcript `<id>.jsonl` in any project
 // folder (the session was deleted). Unsure is never gone: an unreadable or empty projects folder drops nothing, and
 // this session is kept.
 async function pruneSessions($: EngineInterface): Promise<void> {
   const persisted = await readPersisted($)
   const keep = await read($, sessionId)
-  const ids = [...new Set([...Object.keys(persisted.pausedSessions ?? {}), ...Object.keys(persisted.keepAliveSessions ?? {})])].filter(
+  const ids = [...new Set([...Object.keys(persisted.pausedSessions ?? {}), ...Object.keys(persisted.keepWarmSessions ?? {})])].filter(
     id => id !== keep,
   )
   if (ids.length === 0) return
@@ -261,12 +262,12 @@ async function pruneSessions($: EngineInterface): Promise<void> {
   if (gone.length === 0) return
   await writePersisted($, p => {
     const paused = { ...(p.pausedSessions ?? {}) }
-    const kept = { ...(p.keepAliveSessions ?? {}) }
+    const kept = { ...(p.keepWarmSessions ?? {}) }
     for (const id of gone) {
       delete paused[id]
       delete kept[id]
     }
-    return { ...p, pausedSessions: paused, keepAliveSessions: kept }
+    return { ...p, pausedSessions: paused, keepWarmSessions: kept }
   })
 }
 
@@ -307,71 +308,77 @@ async function currentSessionId($: EngineInterface): Promise<string | null> {
   }
 }
 
-// ── Keep-alive ────────────────────────────────────────────────────────────────────────────────────────────────────
+// ── Keep-warm ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-// Shortly before the cache lapses, keep-alive asks one question over the conversation as its last request sent it
+// Shortly before the cache lapses, keep-warm asks one question over the conversation as its last request sent it
 // ($.model.fork): the API serves that from the cache, which keeps the cache warm for another lifetime. The question
 // and its answer stay out of the conversation, and the fork may call no tool. A refresh reads the whole context from
-// the cache, so a session nobody works in is kept warm for a while only (keepAliveSpanMs).
-const KEEP_ALIVE_PROMPT =
-  'Automated keep-alive request of the cache-weather-and-pause-resume mod: it only keeps the prompt cache warm, and ' +
+// the cache, so a session nobody works in is kept warm for a while only (keepWarmSpanMs).
+const KEEP_WARM_PROMPT =
+  'Automated keep-warm request of the cache-weather-and-pause-resume mod: it only keeps the prompt cache warm, and ' +
   'your reply is discarded. Reply with OK and nothing else.'
-// How often keep-alive looks whether a refresh is due; the earliest refresh is a minute before the cache lapses.
-const KEEP_ALIVE_CHECK_MS = 15_000
+// How often keep-warm looks whether a refresh is due; the earliest refresh is a minute before the cache lapses.
+const KEEP_WARM_CHECK_MS = 15_000
 // After a refresh that failed (an API error), the next try waits this long.
-const KEEP_ALIVE_RETRY_MS = 30_000
+const KEEP_WARM_RETRY_MS = 30_000
 
 // The module's own: a reload starts them over, and its timers go with the old module.
-let keepAliveStarted = false
+let keepWarmStarted = false
 let isRefreshing = false
 let retryAt = 0
 
-function startKeepAlive($: EngineInterface): void {
-  if (keepAliveStarted) return
-  keepAliveStarted = true
-  $.clock.every(KEEP_ALIVE_CHECK_MS, () => {
-    void keepAliveTick($).catch(() => undefined)
+function startKeepWarm($: EngineInterface): void {
+  if (keepWarmStarted) return
+  keepWarmStarted = true
+  $.clock.every(KEEP_WARM_CHECK_MS, () => {
+    void keepWarmTick($).catch(() => undefined)
   })
 }
 
-// A request of the conversation's own, or the person switching keep-alive on: the cache was used (or is about to be),
-// and the idle span starts over.
+// A response of the conversation's own, or the person's input (switching keep-warm on, answering a question): the
+// idle span starts over, and with a response the cache was read when its request went out.
+// Some of keep-warm's rules follow cachebeat (github.com/ARahim3/cachebeat): only answered requests count, nothing
+// is kept warm after a compaction or a switch of model, and waiting for the person is idle.
 async function markActive($: EngineInterface, at: number, isRequest: boolean): Promise<void> {
   if (isRequest) await update($, cacheUsedAt, () => at)
   await update($, activeAt, () => at)
-  await update($, keepAliveNote, () => null)
-  await update($, keepAliveRefreshes, () => 0)
+  await update($, keepWarmNote, () => null)
+  await update($, keepWarmRefreshes, () => 0)
 }
 
-async function keepAliveTick($: EngineInterface): Promise<void> {
-  if (isRefreshing || !(await read($, keepAlive)) || (await read($, keepAliveNote)) !== null) return
+async function keepWarmTick($: EngineInterface): Promise<void> {
+  if (isRefreshing || !(await read($, keepWarm)) || (await read($, keepWarmNote)) !== null) return
   const at = await $.clock.now()
   if (at < retryAt) return
   const life = await read($, ttl)
   const last = await read($, lastResponseAt)
   // A resumed session knows its last response alone: the idle span starts there, and stays put as refreshes come.
   if ((await read($, activeAt)) === null && last !== null) await update($, activeAt, () => last)
-  const step = keepAliveStep({
+  const step = keepWarmStep({
     cacheUsedAt: (await read($, cacheUsedAt)) ?? last,
     activeAt: (await read($, activeAt)) ?? last,
     ttlMinutes: life?.minutes ?? null,
-    isWorking: (await read($, turnRunning)) || (await read($, pausePhase)) === 'pausing',
+    // Claude waiting for the person (a permission prompt, a question) is no work: left open overnight it would keep
+    // refreshing without end.
+    isWorking:
+      !(await read($, isAwaitingPerson)) &&
+      ((await read($, turnRunning)) || (await read($, pausePhase)) === 'pausing'),
     now: at,
   })
   const lang = await currentLang($)
   const t = strings(lang)
   if (step === 'ended' && life !== null) {
-    await update($, keepAliveNote, () => 'ended')
-    $.ui.log(t.keepAliveEndedLog(keepAliveSpanText(life.minutes), life.minutes === 60 ? '1-h' : '5-m'))
+    await update($, keepWarmNote, () => 'ended')
+    $.ui.log(t.keepWarmEndedLog(keepWarmSpanText(life.minutes), life.minutes === 60 ? '1-h' : '5-m'))
     return
   }
   if (step !== 'refresh') return
 
   isRefreshing = true
   try {
-    const result = await $.model.fork({ prompt: KEEP_ALIVE_PROMPT })
+    const result = await $.model.fork({ prompt: KEEP_WARM_PROMPT })
     if (!result.isAnswered && result.reason === 'nothing-to-fork') {
-      await update($, keepAliveNote, () => 'missed')
+      await update($, keepWarmNote, () => 'missed')
       return
     }
     const usage = result.usage
@@ -379,14 +386,14 @@ async function keepAliveTick($: EngineInterface): Promise<void> {
       await update($, cacheUsedAt, () => at)
       await update($, lastResponseAt, () => at)
       await update($, now, () => at)
-      await update($, keepAliveRefreshes, n => n + 1)
-      $.ui.log(t.keepAliveRefreshedLog(groupDigits(usage.cache_read_input_tokens, lang), groupDigits(usage.output_tokens, lang)))
+      await update($, keepWarmRefreshes, n => n + 1)
+      $.ui.log(t.keepWarmRefreshedLog(groupDigits(usage.cache_read_input_tokens, lang), groupDigits(usage.output_tokens, lang)))
     } else if (usage.input_tokens + usage.cache_creation_input_tokens > 0) {
       // Answered, but not from the cache: it had lapsed. The next request of the conversation builds it again.
-      await update($, keepAliveNote, () => 'missed')
-      $.ui.log(t.keepAliveMissedLog)
+      await update($, keepWarmNote, () => 'missed')
+      $.ui.log(t.keepWarmMissedLog)
     } else {
-      retryAt = at + KEEP_ALIVE_RETRY_MS
+      retryAt = at + KEEP_WARM_RETRY_MS
     }
   } finally {
     isRefreshing = false
@@ -395,18 +402,18 @@ async function keepAliveTick($: EngineInterface): Promise<void> {
 
 // The person's switch, for this session alone: kept under its id, so a restart or a resume keeps it, and a new
 // session (`/clear` too) starts without.
-async function setKeepAlive($: EngineInterface, value: boolean): Promise<void> {
-  await update($, keepAlive, () => value)
+async function setKeepWarm($: EngineInterface, value: boolean): Promise<void> {
+  await update($, keepWarm, () => value)
   const at = await $.clock.now()
   if (value) await markActive($, at, false)
   const id = await currentSessionId($)
   if (id === null) return
-  await writePersisted($, p => ({ ...p, keepAliveSessions: withSession(p.keepAliveSessions, id, value ? at : null) }))
+  await writePersisted($, p => ({ ...p, keepWarmSessions: withSession(p.keepWarmSessions, id, value ? at : null) }))
 }
 
-async function restoreKeepAlive($: EngineInterface, id: string): Promise<void> {
-  const isOn = (await readPersisted($)).keepAliveSessions?.[id] !== undefined
-  await update($, keepAlive, () => isOn)
+async function restoreKeepWarm($: EngineInterface, id: string): Promise<void> {
+  const isOn = (await readPersisted($)).keepWarmSessions?.[id] !== undefined
+  await update($, keepWarm, () => isOn)
 }
 
 // ── The pause button ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -535,7 +542,7 @@ async function pauseOnStop(
 
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
-  keepAliveStarted = false
+  keepWarmStarted = false
   isRefreshing = false
   retryAt = 0
   fallbackLang = langOf(options.language) ?? langOf(runtimeLocale()) ?? 'en'
@@ -553,7 +560,7 @@ export const register: Register = (on, options) => {
     const id = await currentSessionId($)
     if (id !== null) {
       await restorePause($, id)
-      await restoreKeepAlive($, id)
+      await restoreKeepWarm($, id)
     }
 
     await refreshContext($)
@@ -565,7 +572,7 @@ export const register: Register = (on, options) => {
     $.clock.every(60_000, () => {
       void tick($)
     })
-    startKeepAlive($)
+    startKeepWarm($)
     return started
   })
 
@@ -577,7 +584,7 @@ export const register: Register = (on, options) => {
     // /clear the id is a new one, whose pause (none) is restored.
     await update($, sessionId, () => e.session_id)
     await restorePause($, e.session_id)
-    await restoreKeepAlive($, e.session_id)
+    await restoreKeepWarm($, e.session_id)
     // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
     const seconds = e.seconds_since_last_response
     if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
@@ -590,7 +597,7 @@ export const register: Register = (on, options) => {
     const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
     if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
     await applyRememberedTtl($)
-    startKeepAlive($)
+    startKeepWarm($)
     // Once per session start, a little later: what is remembered of deleted sessions goes.
     $.clock.after(PRUNE_AFTER_MS, () => {
       void pruneSessions($).catch(() => undefined)
@@ -601,14 +608,15 @@ export const register: Register = (on, options) => {
   // Each response of the main conversation: the cache was read or written now, and its hit rate. A request that
   // starts after the pause row was appended carries it.
   on('turn.step', async function* ($, e, next) {
+    let sentAt: number | null = null
     if (e.agentId === undefined) {
       try {
         if ((await read($, pausePhase)) === 'pausing' && !(await read($, pauseDelivered))) {
           await update($, pauseDelivered, () => true)
         }
-        // A request of the conversation's own reads the cache now, and the idle span starts over. Should a refresh of
-        // an idle session come by here, no turn runs: it is not counted.
-        if (!isRefreshing || (await read($, turnRunning))) await markActive($, await $.clock.now(), true)
+        // A request of the conversation's own reads the cache as it goes out. Should a refresh of an idle session come
+        // by here, no turn runs: it is not counted.
+        if (!isRefreshing || (await read($, turnRunning))) sentAt = await $.clock.now()
       } catch {
         // Never hold up a request over the band's bookkeeping.
       }
@@ -620,6 +628,10 @@ export const register: Register = (on, options) => {
       await update($, lastResponseAt, () => at)
       await update($, lastHitRate, () => rate)
       await update($, now, () => at)
+      // Answered: the idle span starts over from the request, and Claude waits for no one. A request that failed read
+      // nothing and counts for nothing.
+      if (sentAt !== null) await markActive($, sentAt, true)
+      await update($, isAwaitingPerson, () => false)
     }
     return result
   })
@@ -659,7 +671,33 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId === undefined) await update($, turnRunning, () => false)
+    if (e.agentId === undefined) {
+      await update($, turnRunning, () => false)
+      await update($, isAwaitingPerson, () => false)
+    }
+    return result
+  }).catch(($, e, next) => next(e))
+
+  // A permission prompt about to show: Claude waits for the person until the call has run (or was refused).
+  on('classic.PermissionRequest', async ($, e, next) => {
+    await update($, isAwaitingPerson, () => true)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // A question to the person waits for the answer; the answer is input of the person's and starts the idle span over.
+  // Any call of the main conversation that has run ends a wait for a permission prompt. Observes only: the call runs
+  // as it would without the hook.
+  on('tool.call', async ($, e, next) => {
+    if (e.agentId !== undefined) return next(e)
+    const isQuestion = e.tool === 'AskUserQuestion'
+    if (isQuestion) await update($, isAwaitingPerson, () => true)
+    const result = await next(e)
+    try {
+      await update($, isAwaitingPerson, () => false)
+      if (isQuestion) await markActive($, await $.clock.now(), false)
+    } catch {
+      // The call has run; the bookkeeping waits for the next response.
+    }
     return result
   }).catch(($, e, next) => next(e))
 
@@ -700,6 +738,8 @@ export const register: Register = (on, options) => {
 
   on('classic.PostModelSwitch', async ($, e, next) => {
     const result = await next(e)
+    // Another model has no cache of this conversation: the next request writes it, a refresh would only pay for it.
+    if (e.from_model !== e.to_model) await update($, keepWarmNote, () => 'cold')
     await settleTtl($, { minutes: e.cache_ttl === '5m' ? 5 : 60, source: 'model-switch' })
     await refreshThreshold($)
     return result
@@ -709,8 +749,11 @@ export const register: Register = (on, options) => {
   on('session.compact', async ($, e, next) => {
     const before = (await read($, context))?.tokens ?? undefined
     const result = await next(e)
-    if (e.trigger !== 'manual' && e.trigger !== 'plugin') return result
     if (result.skip !== undefined) return result
+    // The conversation is a new one now: the next request writes its cache, a refresh would read the old one. (A
+    // precompute installs nothing yet, and a subagent's compaction is its own.)
+    if (e.agentId === undefined && e.trigger !== 'precompute') await update($, keepWarmNote, () => 'cold')
+    if (e.trigger !== 'manual' && e.trigger !== 'plugin') return result
 
     const lang = await currentLang($)
     for (const line of compactionLines(result.messages, result.tokensBefore ?? before, result.tokensAfter, lang)) {
@@ -758,26 +801,28 @@ export const register: Register = (on, options) => {
     // An expired cache leaves its readings stale: hits, context and threshold go until the next response.
     const isExpired = share !== null && share <= 0
 
-    // Keep-alive's checkbox: the person's choice alone, the mod never switches it. Narrow signs in a terminal; in the
-    // desktop app ☐ / ☑ (emoji were bigger but looked out of place, 2026-10-15). Beside it why keep-alive waits for the
+    // Keep-warm's checkbox: the person's choice alone, the mod never switches it. Narrow signs in a terminal; in the
+    // desktop app ☐ / ☑ (emoji were bigger but looked out of place, 2026-10-15). Beside it why keep-warm waits for the
     // next request, when it does.
-    const isKeptAlive = await read($, keepAlive)
-    const note = await read($, keepAliveNote)
-    const refreshes = await read($, keepAliveRefreshes)
-    const box = isTerminal ? (isKeptAlive ? '[✓]' : '[ ]') : isKeptAlive ? '☑' : '☐'
+    const isKeptWarm = await read($, keepWarm)
+    const note = await read($, keepWarmNote)
+    const refreshes = await read($, keepWarmRefreshes)
+    const box = isTerminal ? (isKeptWarm ? '[✓]' : '[ ]') : isKeptWarm ? '☑' : '☐'
     const noteText =
-      !isKeptAlive || note === null || life === null
+      !isKeptWarm || note === null || life === null
         ? null
         : note === 'ended'
-          ? t.keepAliveEnded(keepAliveSpanText(life.minutes))
-          : t.keepAliveMissed
-    const keepAliveControl = (
+          ? t.keepWarmEnded(keepWarmSpanText(life.minutes))
+          : note === 'cold'
+            ? t.keepWarmCold
+            : t.keepWarmMissed
+    const keepWarmControl = (
       <Box flexDirection="row" gap={1}>
         <Button
-          key="keep-alive"
-          label={`${box} ${t.keepAlive}${isKeptAlive && refreshes > 0 ? ` ↻${refreshes}` : ''}`}
+          key="keep-warm"
+          label={`${box} ${t.keepWarm}${isKeptWarm && refreshes > 0 ? ` ↻${refreshes}` : ''}`}
           plain
-          onPress={async () => setKeepAlive($, !(await read($, keepAlive)))}
+          onPress={async () => setKeepWarm($, !(await read($, keepWarm)))}
         />
         {noteText === null ? null : (
           <Text color="warning" wrap="truncate-end">
@@ -870,7 +915,7 @@ export const register: Register = (on, options) => {
           <Text color={tone} wrap="truncate-end">
             {`${cacheText}${ttlNote}`}
           </Text>
-          {keepAliveControl}
+          {keepWarmControl}
           {isExpired ? null : (
             <Text>
               {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
