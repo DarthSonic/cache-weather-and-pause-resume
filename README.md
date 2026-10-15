@@ -6,10 +6,13 @@
 *Deutsch: [README.de.md](README.de.md)*
 
 A [Claude Code](https://code.claude.com) mod: one slim band directly above the prompt that tells you how warm the
-prompt cache still is and how full the context is, with a **Compact** button and a **Pause / Resume** button that has
-Claude finish what is running, save its state and wait.
+prompt cache still is and how full the context is, with a **Compact** button, a **Pause / Resume** button that has
+Claude finish what is running, save its state and wait, and a **Keep-alive** checkbox that refreshes the cache shortly
+before it runs out.
 
-![The band in the Claude desktop app: cache 60 minutes left, hits 100 %, a storm at 87 % of a 97 % threshold, Compact highlighted, the Pause button](docs/band.png)
+![The band in a terminal: cache 57 minutes left, the Keep-alive checkbox, hits 63 %, a sun at 5 % of a 97 % threshold, Compact and Pause; below it the green cache bar over the band's width](docs/band-terminal.png)
+
+![The band in the Claude desktop app: cache 57 minutes left, Keep-alive checked, hits 100 %, a sun at 40 % of a 97 % threshold, Compact and Pause; below it the green cache bar](docs/band-desktop.png)
 
 ## Examples
 
@@ -23,6 +26,9 @@ Claude finish what is running, save its state and wait.
 3. **Compact when it suits you.** The weather turns ⛈️ as the context nears the auto-compact threshold (`Ctx 87 % /
    Max 97 %`). Press **Compact** between two tasks instead of letting an auto-compact cut into one; the band then logs
    the summary Claude carries on with.
+4. **Keep the cache warm through a long run or a break.** Claude waits for a build that takes 70 minutes, or you are
+   in a meeting. Check **Keep-alive**: shortly before the cache runs out the mod refreshes it, so the next request reads
+   the conversation from the cache instead of writing all of it again.
 
 You can also type: “pause” pauses, “continue” resumes (in German “pausieren” and „weitermachen“).
 
@@ -30,13 +36,17 @@ You can also type: “pause” pauses, “continue” resumes (in German “paus
 
 | Part | What it shows |
 | --- | --- |
-| **Cache** | Minutes left (`m`) of the prompt cache since the last response, with 20 cells that run empty; green, yellow in the last quarter, red in the last tenth, “expired” at 0. Redrawn every minute. |
+| **Cache** | Minutes left (`m`) of the prompt cache since the last response or keep-alive refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. |
+| **Keep-alive** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; beside it why keep-alive waits, when it does. |
 | **Hits** | The share of the last response's input tokens that came from the cache. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
 | **Ctx / Max** | Context fill in percent and the auto-compact threshold (`*`: the fallback of 83 %, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
-| **⏸ Pause / ▶ Resume** | Asks Claude to pause the session, and carries on (below). Also shown when the band is folded. In a terminal `❚❚ Pause` and `► Resume`. |
-| **▾ / ▸** | Folds the band to weather, cache time, Ctx and the pause button. Remembered across sessions. |
+| **⏸ Pause / ▶ Resume** | Asks Claude to pause the session, and carries on (below). In a terminal `❚❚ Pause` and `► Resume`. |
+| **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
+
+Once the cache has expired, Hits, Ctx and Max are hidden until the next response: they describe a request that no
+longer reads from the cache.
 
 A terminal gets narrow signs instead of emoji: terminals count an emoji's width in their own way (some one column,
 Claude Code two), and the band would keep leftovers of an earlier frame. The desktop app draws the emoji.
@@ -79,6 +89,31 @@ How the mod tracks the state:
   run the band counts them.
 - A pause is kept per session in `~/.claude/cache-weather-and-pause-resume/state.json`, so a session reopened while paused (an app
   restart, a resumed session) shows **Resume** again. `/clear` ends the pause.
+
+## Keep-alive
+
+The prompt cache holds the conversation for 5 minutes or 1 hour after the last request reads it. When it has run out,
+the next request writes all of it again: 1.25 times (5 minutes) or 2 times (1 hour) the normal input price, where a
+read costs a tenth of it or less. With **Keep-alive** checked the mod refreshes the cache shortly before it runs out:
+
+- **When:** a minute before the end of a 5-minute cache, five minutes before the end of a 1-hour cache.
+- **How:** one question over the conversation as its last request sent it (`$.model.fork`, through the session's own
+  client and login). The API reads all of it from the cache, which keeps the cache for another full lifetime. The
+  question is fixed text (“reply with OK”, in [`hooks/register.tsx`](hooks/register.tsx)); it may call no tool, and
+  question and answer stay out of the conversation. Each refresh writes a dim line: the tokens read from the cache and
+  the tokens of the reply.
+- **While Claude works** (a long run, a subagent, a pause being requested): for as long as it takes.
+- **While the session is idle or paused:** for 8 hours with the 1-hour cache, for 45 minutes with the 5-minute one,
+  counted from the last request or input. Then the band says “stopped after 8 h without input”, and a line explains
+  why: a forgotten session should not keep spending. Your next message builds the cache again and keep-alive takes
+  over again.
+- **When a refresh finds the cache already gone** (the machine slept, say), keep-alive waits for the next request
+  rather than build it afresh, and says so.
+- **Your switch alone:** the mod never checks or unchecks it. It holds for this session: a restart or a resume keeps
+  it, a new session and `/clear` start without.
+
+A refresh is a request of its own and is billed or counted like one: it reads the whole context from the cache, plus
+a few tokens of reply. It pays off when the next request comes later than the cache would have lasted.
 
 ## Install
 
@@ -146,8 +181,8 @@ together with it in either order.
 
 ## What the mod does on your machine
 
-cache-weather-and-pause-resume makes no network requests of its own and starts no programs. What it hands Claude enters the conversation
-like anything else you send:
+cache-weather-and-pause-resume starts no programs and makes no network requests of its own, but for keep-alive's refreshes, which
+you switch on per session. What it hands Claude enters the conversation like anything else you send:
 
 | What | When | Exactly |
 | --- | --- | --- |
@@ -157,8 +192,10 @@ like anything else you send:
 | a note added to your prompt | a pause is requested or on, or you type “pause” or “continue” | a fixed note (the request, “the session is paused”, “the pause is over”); the text you typed is never changed, and no prompt is held back |
 | the slash command `/compact` | you press **Compact** while Claude works, or in the desktop app | queued like a typed `/compact`; otherwise the button compacts through the session's own compaction call |
 | the Stop hook's answer | Claude stops before it read the pause request | Claude goes on once, with the pause request as the reason |
+| a question beside the conversation | **Keep-alive** is checked and the cache is about to run out | a model request over the conversation as its last request sent it, through the session's own client: fixed text asking for “OK”, no tools; the answer is discarded and stays out of the conversation |
 
-No file content, transcript text or setting goes into these texts.
+No file content, transcript text or setting goes into these texts. Keep-alive's request carries the conversation the
+session sends with every request anyway, to the same API.
 
 **Files.** The mod writes one file, `~/.claude/cache-weather-and-pause-resume/state.json` (below), and no other: no settings,
 instructions, hooks or build files. It reads that file, the session's transcript when it is at most 3.5 MiB (for the
@@ -171,20 +208,21 @@ to drop the pauses of deleted sessions.
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above. Every other hook only reads and
 passes its event on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime),
-`turn.step` and `session.measure` (token counts), `turn.start`, `turn.complete`, `session.end`, and
+`turn.step` (token counts, and when a request reads the cache) and `session.measure` (token counts), `turn.start`,
+`turn.complete`, `session.end`, and
 `session.compact`, after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
 band and stacks the bands of other mods beneath it.
 
 ## State file
 
-`~/.claude/cache-weather-and-pause-resume/state.json` holds the paused sessions (by session id), whether the band is folded, the cache
-lifetime last seen and the version last loaded. It keeps at most the 20 latest pauses, and ten seconds after a session
-starts it drops the pauses of deleted sessions (no transcript left under `~/.claude/projects/`); when in doubt it drops
-nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
+`~/.claude/cache-weather-and-pause-resume/state.json` holds the paused sessions and the sessions with keep-alive checked (by session
+id), the cache lifetime last seen and the version last loaded. It keeps at most the 20
+latest of each, and ten seconds after a session starts it drops what it holds of deleted sessions (no transcript left
+under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
 
 ## Requirements
 
-Claude Code with mods (function-hook plugins), early access, checked with **2.1.295** (desktop app) and **2.1.299** (CLI). The mod API
+Claude Code with mods (function-hook plugins), early access, checked with **2.1.295** (desktop app) and **2.1.300** (CLI). The mod API
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,

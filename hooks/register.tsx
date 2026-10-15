@@ -1,20 +1,26 @@
 import { atom, read, update } from 'claude-code'
 import type { ClassicResultOf, EngineInterface, Register } from 'claude-code'
 
-import type { ContextFill, PausePhase, Threshold, Ttl } from '../types'
+import type { ContextFill, KeepAliveNote, PausePhase, Threshold, Ttl } from '../types'
 import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
   FALLBACK_THRESHOLD_PERCENT,
-  cacheBar,
+  SVG_BAR_HEIGHT,
   cacheTone,
   compactionLines,
+  groupDigits,
   hitRate,
+  isWarmRead,
+  keepAliveSpanText,
+  keepAliveStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
   pauseSigns,
   remainingMinutes,
   remainingShare,
+  svgBar,
+  terminalBar,
   terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
@@ -38,7 +44,7 @@ import {
 } from './pause'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.7.1'
+const CODE_VERSION = '0.8.0'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -46,7 +52,6 @@ const lastHitRate = atom({ plugin: 'cache-weather-and-pause-resume', key: 'hitRa
 const context = atom({ plugin: 'cache-weather-and-pause-resume', key: 'context' } as const, null)
 const threshold = atom({ plugin: 'cache-weather-and-pause-resume', key: 'threshold' } as const, null)
 const now = atom({ plugin: 'cache-weather-and-pause-resume', key: 'now' } as const, 0)
-const isCollapsed = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCollapsed' } as const, false)
 const transcriptPath = atom({ plugin: 'cache-weather-and-pause-resume', key: 'transcriptPath' } as const, null)
 const isCompacting = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCompacting' } as const, false)
 const pausePhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pausePhase' } as const, 'running')
@@ -57,16 +62,21 @@ const pauseTasksLeft = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pa
 const turnRunning = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnRunning' } as const, false)
 const sessionId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionId' } as const, null)
 const language = atom({ plugin: 'cache-weather-and-pause-resume', key: 'language' } as const, null)
+const keepAlive = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepAlive' } as const, false)
+const cacheUsedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'cacheUsedAt' } as const, null)
+const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt' } as const, null)
+const keepAliveNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepAliveNote' } as const, null)
+const keepAliveRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepAliveRefreshes' } as const, 0)
 
 // The language before session.start has read the locale: the option, else the runtime's locale. Set by `register`.
 let fallbackLang: Lang = 'en'
 
-// What outlives a session (paused sessions by id, the folded band, the cache lifetime last seen) lives in one file,
+// What outlives a session (paused and kept-alive sessions by id, the cache lifetime last seen) lives in one file,
 // ~/.claude/cache-weather-and-pause-resume/state.json, not in `$.store`: the store is keyed by how the mod was loaded
 // (handed in by the desktop app „inline“, or by the CLI's own loader), so a pause kept there was gone after a restart
 // that loaded the mod the other way (2026-10-13). Each call spells its path out under the home folder, so the source
 // shows which files the mod touches.
-const PAUSED_KEEP = 20
+const SESSIONS_KEEP = 20
 // The pruning waits so it never holds up the session's start.
 const PRUNE_AFTER_MS = 10_000
 
@@ -74,8 +84,9 @@ type Persisted = {
   ttlMinutes?: number
   /** When a session last read the lifetime itself (a transcript, a model switch, a resumed session's start). */
   ttlConfirmedAt?: number
-  isCollapsed?: boolean
   pausedSessions?: Record<string, number>
+  /** The sessions keep-alive is switched on in, by id, with the time it was. */
+  keepAliveSessions?: Record<string, number>
   codeVersion?: string
 }
 
@@ -209,12 +220,27 @@ async function homeDir($: EngineInterface): Promise<string | null> {
   }
 }
 
-// Drops the remembered pauses of sessions that are gone: no transcript `<id>.jsonl` in any project folder (the session
-// was deleted). Unsure is never gone: an unreadable or empty projects folder drops nothing, and this session is kept.
-async function prunePausedSessions($: EngineInterface): Promise<void> {
-  const paused = (await readPersisted($)).pausedSessions ?? {}
+// A map of session ids to times with one session set (a time) or taken out (null); the latest SESSIONS_KEEP stay.
+function withSession(all: Record<string, number> | undefined, id: string, at: number | null): Record<string, number> {
+  const next = { ...(all ?? {}) }
+  if (at === null) delete next[id]
+  else next[id] = at
+  const kept = Object.entries(next)
+    .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, SESSIONS_KEEP)
+  return Object.fromEntries(kept)
+}
+
+// Drops the remembered pauses and keep-alives of sessions that are gone: no transcript `<id>.jsonl` in any project
+// folder (the session was deleted). Unsure is never gone: an unreadable or empty projects folder drops nothing, and
+// this session is kept.
+async function pruneSessions($: EngineInterface): Promise<void> {
+  const persisted = await readPersisted($)
   const keep = await read($, sessionId)
-  const ids = Object.keys(paused).filter(id => id !== keep)
+  const ids = [...new Set([...Object.keys(persisted.pausedSessions ?? {}), ...Object.keys(persisted.keepAliveSessions ?? {})])].filter(
+    id => id !== keep,
+  )
   if (ids.length === 0) return
   const home = await homeDir($)
   if (home === null) return
@@ -234,9 +260,13 @@ async function prunePausedSessions($: EngineInterface): Promise<void> {
   const gone = ids.filter(id => !transcripts.has(id))
   if (gone.length === 0) return
   await writePersisted($, p => {
-    const all = { ...(p.pausedSessions ?? {}) }
-    for (const id of gone) delete all[id]
-    return { ...p, pausedSessions: all }
+    const paused = { ...(p.pausedSessions ?? {}) }
+    const kept = { ...(p.keepAliveSessions ?? {}) }
+    for (const id of gone) {
+      delete paused[id]
+      delete kept[id]
+    }
+    return { ...p, pausedSessions: paused, keepAliveSessions: kept }
   })
 }
 
@@ -277,22 +307,115 @@ async function currentSessionId($: EngineInterface): Promise<string | null> {
   }
 }
 
+// ── Keep-alive ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+// Shortly before the cache lapses, keep-alive asks one question over the conversation as its last request sent it
+// ($.model.fork): the API serves that from the cache, which keeps the cache warm for another lifetime. The question
+// and its answer stay out of the conversation, and the fork may call no tool. A refresh reads the whole context from
+// the cache, so a session nobody works in is kept warm for a while only (keepAliveSpanMs).
+const KEEP_ALIVE_PROMPT =
+  'Automated keep-alive request of the cache-weather-and-pause-resume mod: it only keeps the prompt cache warm, and ' +
+  'your reply is discarded. Reply with OK and nothing else.'
+// How often keep-alive looks whether a refresh is due; the earliest refresh is a minute before the cache lapses.
+const KEEP_ALIVE_CHECK_MS = 15_000
+// After a refresh that failed (an API error), the next try waits this long.
+const KEEP_ALIVE_RETRY_MS = 30_000
+
+// The module's own: a reload starts them over, and its timers go with the old module.
+let keepAliveStarted = false
+let isRefreshing = false
+let retryAt = 0
+
+function startKeepAlive($: EngineInterface): void {
+  if (keepAliveStarted) return
+  keepAliveStarted = true
+  $.clock.every(KEEP_ALIVE_CHECK_MS, () => {
+    void keepAliveTick($).catch(() => undefined)
+  })
+}
+
+// A request of the conversation's own, or the person switching keep-alive on: the cache was used (or is about to be),
+// and the idle span starts over.
+async function markActive($: EngineInterface, at: number, isRequest: boolean): Promise<void> {
+  if (isRequest) await update($, cacheUsedAt, () => at)
+  await update($, activeAt, () => at)
+  await update($, keepAliveNote, () => null)
+  await update($, keepAliveRefreshes, () => 0)
+}
+
+async function keepAliveTick($: EngineInterface): Promise<void> {
+  if (isRefreshing || !(await read($, keepAlive)) || (await read($, keepAliveNote)) !== null) return
+  const at = await $.clock.now()
+  if (at < retryAt) return
+  const life = await read($, ttl)
+  const last = await read($, lastResponseAt)
+  // A resumed session knows its last response alone: the idle span starts there, and stays put as refreshes come.
+  if ((await read($, activeAt)) === null && last !== null) await update($, activeAt, () => last)
+  const step = keepAliveStep({
+    cacheUsedAt: (await read($, cacheUsedAt)) ?? last,
+    activeAt: (await read($, activeAt)) ?? last,
+    ttlMinutes: life?.minutes ?? null,
+    isWorking: (await read($, turnRunning)) || (await read($, pausePhase)) === 'pausing',
+    now: at,
+  })
+  const lang = await currentLang($)
+  const t = strings(lang)
+  if (step === 'ended' && life !== null) {
+    await update($, keepAliveNote, () => 'ended')
+    $.ui.log(t.keepAliveEndedLog(keepAliveSpanText(life.minutes), life.minutes === 60 ? '1-h' : '5-m'))
+    return
+  }
+  if (step !== 'refresh') return
+
+  isRefreshing = true
+  try {
+    const result = await $.model.fork({ prompt: KEEP_ALIVE_PROMPT })
+    if (!result.isAnswered && result.reason === 'nothing-to-fork') {
+      await update($, keepAliveNote, () => 'missed')
+      return
+    }
+    const usage = result.usage
+    if (isWarmRead(usage)) {
+      await update($, cacheUsedAt, () => at)
+      await update($, lastResponseAt, () => at)
+      await update($, now, () => at)
+      await update($, keepAliveRefreshes, n => n + 1)
+      $.ui.log(t.keepAliveRefreshedLog(groupDigits(usage.cache_read_input_tokens, lang), groupDigits(usage.output_tokens, lang)))
+    } else if (usage.input_tokens + usage.cache_creation_input_tokens > 0) {
+      // Answered, but not from the cache: it had lapsed. The next request of the conversation builds it again.
+      await update($, keepAliveNote, () => 'missed')
+      $.ui.log(t.keepAliveMissedLog)
+    } else {
+      retryAt = at + KEEP_ALIVE_RETRY_MS
+    }
+  } finally {
+    isRefreshing = false
+  }
+}
+
+// The person's switch, for this session alone: kept under its id, so a restart or a resume keeps it, and a new
+// session (`/clear` too) starts without.
+async function setKeepAlive($: EngineInterface, value: boolean): Promise<void> {
+  await update($, keepAlive, () => value)
+  const at = await $.clock.now()
+  if (value) await markActive($, at, false)
+  const id = await currentSessionId($)
+  if (id === null) return
+  await writePersisted($, p => ({ ...p, keepAliveSessions: withSession(p.keepAliveSessions, id, value ? at : null) }))
+}
+
+async function restoreKeepAlive($: EngineInterface, id: string): Promise<void> {
+  const isOn = (await readPersisted($)).keepAliveSessions?.[id] !== undefined
+  await update($, keepAlive, () => isOn)
+}
+
 // ── The pause button ──────────────────────────────────────────────────────────────────────────────────────────────
 
 async function rememberPause($: EngineInterface, at: number | null): Promise<void> {
   const id = await currentSessionId($)
   if (id === null) return
   if (at === null && (await readPersisted($)).pausedSessions?.[id] === undefined) return
-  await writePersisted($, p => {
-    const all = { ...(p.pausedSessions ?? {}) }
-    if (at === null) delete all[id]
-    else all[id] = at
-    const kept = Object.entries(all)
-      .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, PAUSED_KEEP)
-    return { ...p, pausedSessions: Object.fromEntries(kept) }
-  })
+  await writePersisted($, p => ({ ...p, pausedSessions: withSession(p.pausedSessions, id, at) }))
 }
 
 // A session reopened while paused (the app restarted, the session resumed) shows „Weitermachen“ again.
@@ -412,6 +535,9 @@ async function pauseOnStop(
 
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
+  keepAliveStarted = false
+  isRefreshing = false
+  retryAt = 0
   fallbackLang = langOf(options.language) ?? langOf(runtimeLocale()) ?? 'en'
 
   on('session.start', async ($, e, next) => {
@@ -420,14 +546,15 @@ export const register: Register = (on, options) => {
     const lang = await detectLang($, options.language)
     await update($, language, () => lang)
     await applyRememberedTtl($)
-    const collapsed = (await readPersisted($)).isCollapsed
-    if (typeof collapsed === 'boolean') await update($, isCollapsed, () => collapsed)
     await update($, isCompacting, () => false)
     await update($, turnRunning, () => false)
     await $.store.set('codeVersion', CODE_VERSION)
     await writePersisted($, p => ({ ...p, codeVersion: CODE_VERSION }))
     const id = await currentSessionId($)
-    if (id !== null) await restorePause($, id)
+    if (id !== null) {
+      await restorePause($, id)
+      await restoreKeepAlive($, id)
+    }
 
     await refreshContext($)
     await refreshThreshold($)
@@ -438,6 +565,7 @@ export const register: Register = (on, options) => {
     $.clock.every(60_000, () => {
       void tick($)
     })
+    startKeepAlive($)
     return started
   })
 
@@ -449,6 +577,7 @@ export const register: Register = (on, options) => {
     // /clear the id is a new one, whose pause (none) is restored.
     await update($, sessionId, () => e.session_id)
     await restorePause($, e.session_id)
+    await restoreKeepAlive($, e.session_id)
     // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
     const seconds = e.seconds_since_last_response
     if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
@@ -461,9 +590,10 @@ export const register: Register = (on, options) => {
     const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
     if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
     await applyRememberedTtl($)
-    // Once per session start, a little later: remembered pauses of deleted sessions go.
+    startKeepAlive($)
+    // Once per session start, a little later: what is remembered of deleted sessions goes.
     $.clock.after(PRUNE_AFTER_MS, () => {
-      void prunePausedSessions($).catch(() => undefined)
+      void pruneSessions($).catch(() => undefined)
     })
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -476,6 +606,9 @@ export const register: Register = (on, options) => {
         if ((await read($, pausePhase)) === 'pausing' && !(await read($, pauseDelivered))) {
           await update($, pauseDelivered, () => true)
         }
+        // A request of the conversation's own reads the cache now, and the idle span starts over. Should a refresh of
+        // an idle session come by here, no turn runs: it is not counted.
+        if (!isRefreshing || (await read($, turnRunning))) await markActive($, await $.clock.now(), true)
       } catch {
         // Never hold up a request over the band's bookkeeping.
       }
@@ -590,7 +723,8 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const elements = $.ui.resolve(e)
+    const { Box, Text, Button } = elements
 
     const at = Math.max(await read($, now), 0)
     const last = await read($, lastResponseAt)
@@ -598,7 +732,6 @@ export const register: Register = (on, options) => {
     const rate = await read($, lastHitRate)
     const fill = await read($, context)
     const limit = (await read($, threshold)) ?? { percent: FALLBACK_THRESHOLD_PERCENT, isFallback: true }
-    const collapsed = await read($, isCollapsed)
     const compacting = await read($, isCompacting)
     const lang = await currentLang($)
     const t = strings(lang)
@@ -622,8 +755,39 @@ export const register: Register = (on, options) => {
           ? t.cacheExpired
           : t.cacheMinutes(remainingMinutes(last, life.minutes, at))
     const tone = share === null ? 'subtle' : cacheTone(share)
+    // An expired cache leaves its readings stale: hits, context and threshold go until the next response.
+    const isExpired = share !== null && share <= 0
 
-    // The pause button: „Pause“, then what Claude is finishing up, then „Weitermachen“; folded or not.
+    // Keep-alive's checkbox: the person's choice alone, the mod never switches it. Narrow signs in a terminal; in the
+    // desktop app ☐ / ☑ (emoji were bigger but looked out of place, 2026-10-15). Beside it why keep-alive waits for the
+    // next request, when it does.
+    const isKeptAlive = await read($, keepAlive)
+    const note = await read($, keepAliveNote)
+    const refreshes = await read($, keepAliveRefreshes)
+    const box = isTerminal ? (isKeptAlive ? '[✓]' : '[ ]') : isKeptAlive ? '☑' : '☐'
+    const noteText =
+      !isKeptAlive || note === null || life === null
+        ? null
+        : note === 'ended'
+          ? t.keepAliveEnded(keepAliveSpanText(life.minutes))
+          : t.keepAliveMissed
+    const keepAliveControl = (
+      <Box flexDirection="row" gap={1}>
+        <Button
+          key="keep-alive"
+          label={`${box} ${t.keepAlive}${isKeptAlive && refreshes > 0 ? ` ↻${refreshes}` : ''}`}
+          plain
+          onPress={async () => setKeepAlive($, !(await read($, keepAlive)))}
+        />
+        {noteText === null ? null : (
+          <Text color="warning" wrap="truncate-end">
+            {noteText}
+          </Text>
+        )}
+      </Box>
+    )
+
+    // The pause button: „Pause“, then what Claude is finishing up, then „Weitermachen“.
     const phase = await read($, pausePhase)
     let pause
     if (phase === 'running') {
@@ -645,19 +809,6 @@ export const register: Register = (on, options) => {
       )
     }
 
-    const toggle = (
-      <Button
-        key="toggle"
-        label={collapsed ? '▸' : '▾'}
-        plain
-        onPress={async () => {
-          const value = !(await read($, isCollapsed))
-          await update($, isCollapsed, () => value)
-          await writePersisted($, p => ({ ...p, isCollapsed: value }))
-        }}
-      />
-    )
-
     // The band is one site with a chain of hooks: what another mod beneath draws (savvy-progress' bar) goes under
     // ours; returning ours alone would hide it. A row's gap sets the two apart and only exists between them.
     const below = await next(e)
@@ -671,20 +822,20 @@ export const register: Register = (on, options) => {
         </Box>
       )
 
-    if (collapsed) {
-      return withBelow(
-        <Box flexDirection="row" gap={2}>
-          {skyText}
-          <Text color={tone} wrap="truncate-end">
-            {cacheText}
-          </Text>
-          <Text>
-            {t.ctx} {fillText}
-          </Text>
-          {pause}
-          {toggle}
-        </Box>,
+    // The cache's time left as a line of its own over the band's width, coloured as the cache text: a terminal draws
+    // it in line signs, the other surfaces as a picture a few pixels high.
+    let bar = null
+    if (isTerminal) {
+      const cells = terminalBar(share, e.props.bodyColumns)
+      bar = (
+        <Box flexDirection="row">
+          {cells.lit === '' ? null : <Text color={tone}>{cells.lit}</Text>}
+          {cells.spent === '' ? null : <Text dimColor>{cells.spent}</Text>}
+        </Box>
       )
+    } else if ('Svg' in elements) {
+      const { Svg } = elements
+      bar = <Svg source={svgBar(share)} alt={t.cacheBarAlt(cacheText)} height={SVG_BAR_HEIGHT} />
     }
 
     const compact = (
@@ -714,20 +865,27 @@ export const register: Register = (on, options) => {
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''
     return withBelow(
-      <Box flexDirection="row" gap={2}>
-        <Text color={tone} wrap="truncate-end">
-          {`${cacheText}${ttlNote}${share === null ? '' : ` ${cacheBar(share)}`}`}
-        </Text>
-        <Text>
-          {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
-        </Text>
-        {skyText}
-        <Text>
-          {t.ctx} {fillText} / {t.max} {limit.percent} %{limit.isFallback ? '*' : ''}
-        </Text>
-        {compact}
-        {pause}
-        {toggle}
+      <Box flexDirection="column">
+        <Box flexDirection="row" gap={2}>
+          <Text color={tone} wrap="truncate-end">
+            {`${cacheText}${ttlNote}`}
+          </Text>
+          {keepAliveControl}
+          {isExpired ? null : (
+            <Text>
+              {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
+            </Text>
+          )}
+          {skyText}
+          {isExpired ? null : (
+            <Text>
+              {t.ctx} {fillText} / {t.max} {limit.percent} %{limit.isFallback ? '*' : ''}
+            </Text>
+          )}
+          {compact}
+          {pause}
+        </Box>
+        {bar}
       </Box>,
     )
   })

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import type { On, PromptSubmitInput } from 'claude-code'
+import type { Engine, On, PromptSubmitInput } from 'claude-code'
 
 import { langOf, strings } from '../hooks/i18n'
 import {
@@ -355,7 +355,7 @@ describe('the pause across a restart', () => {
     const clock = mock.clock(on, { now: 9_000_000 })
     const paused = { alive: 1_000_000, gone: 2_000_000, current: 3_000_000 }
     const files = disk(on, {
-      [STATE]: JSON.stringify({ pausedSessions: paused, isCollapsed: true }),
+      [STATE]: JSON.stringify({ pausedSessions: paused, ttlMinutes: 60 }),
       [`${PROJECTS}/C--repo/alive.jsonl`]: '{}',
       [`${PROJECTS}/C--other/unrelated.jsonl`]: '{}',
     })
@@ -367,7 +367,7 @@ describe('the pause across a restart', () => {
     await clock.advance(10_000)
     const after = JSON.parse(files[STATE] ?? '{}')
     expect(after.pausedSessions).toEqual({ alive: 1_000_000, current: 3_000_000 })
-    expect(after.isCollapsed).toBe(true)
+    expect(after.ttlMinutes).toBe(60)
   })
 
   test('an unreadable projects folder drops nothing', DE, async ($, on) => {
@@ -393,16 +393,6 @@ describe('the pause across a restart', () => {
     await $.classic.SessionStart({ source: 'resume', session_id: 'sess-3', seconds_since_last_response: 120 })
     await $.classic.PostModelSwitch({ cache_ttl: '1h' })
     expect(await ui.find({ type: 'Text', text: /^Cache 58 m/ })).toBeDefined()
-    await ui.unmount()
-  })
-
-  test('the folded band is kept on disk too', DE, async ($, on) => {
-    mock.store(on)
-    const files = disk(on)
-    on('ui.render', { component: 'AbovePrompt' }, () => ({ type: 'engine', ref: 0 }))
-    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-    await ui.press({ key: 'toggle' })
-    expect(JSON.parse(files[STATE] ?? '{}').isCollapsed).toBe(true)
     await ui.unmount()
   })
 })
@@ -464,7 +454,7 @@ describe('the cache lifetime', () => {
       seconds_since_last_response: 1200,
       prompt_cache_likely_expired: false,
     })
-    expect(await ui.find({ type: 'Text', text: /^Cache 40 m / })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Cache 40 m$/ })).toBeDefined()
     expect(JSON.parse(files[STATE] ?? '{}').ttlConfirmedAt).toBe(100 * HOUR)
     await ui.unmount()
   })
@@ -483,6 +473,203 @@ describe('the cache lifetime', () => {
     })
     expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen/ })).toBeDefined()
     expect(JSON.parse(files[STATE] ?? '{}').ttlMinutes).toBe(5)
+    await ui.unmount()
+  })
+})
+
+describe('keep-alive', () => {
+  // These move the clock on by hours in steps of 15 seconds: more time than the default 5 seconds on a busy machine.
+  const SLOW = { ...DE, timeoutMs: 30_000 }
+  const MIN = 60_000
+  const HOUR = 60 * MIN
+  const START = 100 * HOUR
+  const WARM = { input_tokens: 30, output_tokens: 2, cache_read_input_tokens: 150_000, cache_creation_input_tokens: 0 }
+  const COLD = { input_tokens: 150_030, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+
+  // The refreshes the mod asks for, answered from the cache (or not), and the lines it logs.
+  function forks(on: On, usage = WARM): { prompts: string[]; logs: string[] } {
+    const prompts: string[] = []
+    const logs: string[] = []
+    on('model.fork', ($, e) => {
+      prompts.push(e.prompt)
+      return { value: { isAnswered: true, text: 'OK', usage } }
+    })
+    on('ui.log', ($, e) => {
+      logs.push(e.text)
+      return { value: undefined }
+    })
+    on('classic.PostModelSwitch', () => ({}))
+    return { prompts, logs }
+  }
+
+  // A session resumed `ago` milliseconds after its last response, with the given cache lifetime.
+  async function resumed($: Engine, ago: number, ttl: '5m' | '1h'): Promise<void> {
+    await $.classic.SessionStart({ source: 'resume', session_id: 'k1', seconds_since_last_response: ago / 1000 })
+    await $.classic.PostModelSwitch({ cache_ttl: ttl })
+  }
+
+  test('the checkbox is the person’s alone: off at first, switched by a press, kept on disk for this session', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    const files = disk(on)
+    engine(on)
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 's1' })
+    expect((await terminal.find({ key: 'keep-alive' }))?.props.label).toBe('[ ] Keep-alive')
+    await terminal.press({ key: 'keep-alive' })
+    expect((await terminal.find({ key: 'keep-alive' }))?.props.label).toBe('[✓] Keep-alive')
+    expect(JSON.parse(files[STATE] ?? '{}').keepAliveSessions).toEqual({ s1: START })
+    const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    expect((await desktop.find({ key: 'keep-alive' }))?.props.label).toBe('☑ Keep-alive')
+    await desktop.press({ key: 'keep-alive' })
+    expect(JSON.parse(files[STATE] ?? '{}').keepAliveSessions).toEqual({})
+    await terminal.unmount()
+    await desktop.unmount()
+  })
+
+  test('a session resumed keeps its switch; another one, and the one after /clear, start without', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'resume', session_id: 'k1' })
+    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toBe('[✓] Keep-alive')
+    await $.classic.SessionStart({ source: 'clear', session_id: 'k2' })
+    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toBe('[ ] Keep-alive')
+    await ui.unmount()
+  })
+
+  test('off, nothing is refreshed', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    const asked = forks(on)
+    await resumed($, 2 * MIN, '1h')
+    await clock.advance(2 * HOUR)
+    expect(asked.prompts.length).toBe(0)
+  })
+
+  test('the hour cache is refreshed five minutes before it lapses, and counts down afresh', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+
+    await clock.advance(52 * MIN)
+    expect(asked.prompts.length).toBe(0)
+    await clock.advance(MIN)
+    expect(asked.prompts.length).toBe(1)
+    expect(asked.prompts[0]).toContain('keep-alive')
+    expect(asked.logs.at(-1)).toBe('↻ Keep-alive: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort)')
+    expect(await ui.find({ type: 'Text', text: /^Cache 60 m/ })).toBeDefined()
+    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toBe('☑ Keep-alive ↻1')
+
+    await clock.advance(55 * MIN)
+    expect(asked.prompts.length).toBe(2)
+    await ui.unmount()
+  })
+
+  test('while Claude works there is no limit', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    await resumed($, 0, '5m')
+    await $.turn.start({ text: 'die lange Suite', turnId: 't1' })
+
+    await clock.advance(HOUR)
+    // Every 4 minutes, past the 45 minutes an idle session gets.
+    expect(asked.prompts.length).toBe(15)
+  })
+
+  test('the five-minute cache is refreshed a minute before it lapses, for 45 minutes', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 0, '5m')
+
+    await clock.advance(HOUR)
+    // At 4, 8, … 44 minutes; the one due at 48 is past the 45 minutes. (The hour cache's 8 hours: the logic's tests.)
+    expect(asked.prompts.length).toBe(11)
+    expect(await ui.find({ type: 'Text', text: /^endete nach 45 m ohne Eingabe$/ })).toBeDefined()
+    expect(asked.logs.at(-1)).toContain('nach 45 m ohne Eingabe nicht weiter aufgefrischt')
+    // The checkbox stays as the person set it.
+    expect((await ui.find({ key: 'keep-alive' }))?.props.label).toMatch(/^☑ Keep-alive/)
+    await ui.unmount()
+  })
+
+  test('switching it off and on clears the note; with the cache gone it waits for the next request', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await resumed($, 0, '5m')
+    await clock.advance(HOUR)
+    expect(asked.prompts.length).toBe(11)
+
+    await ui.press({ key: 'keep-alive' })
+    await ui.press({ key: 'keep-alive' })
+    expect(await ui.find({ type: 'Text', text: /ohne Eingabe/ })).toBeUndefined()
+    await clock.advance(HOUR)
+    expect(asked.prompts.length).toBe(11)
+    await ui.unmount()
+  })
+
+  test('a refresh that finds the cache gone stops until the next request, and says so', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepAliveSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on, COLD)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await resumed($, 2 * MIN, '1h')
+
+    await clock.advance(2 * HOUR)
+    expect(asked.prompts.length).toBe(1)
+    expect(await ui.find({ type: 'Text', text: /^Cache war schon abgelaufen$/ })).toBeDefined()
+    expect(asked.logs.at(-1)).toContain('Der Cache war schon abgelaufen')
+    await ui.unmount()
+  })
+
+  test('the bar takes the cache’s colour: red with 10 of 60 minutes left', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    forks(on)
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 50 * MIN, '1h')
+    expect((await terminal.find({ type: 'Text', text: /^━+$/ }))?.props.color).toBe('error')
+    expect((await terminal.find({ type: 'Text', text: /^Cache 10 m$/ }))?.props.color).toBe('error')
+    expect((await desktop.find({ type: 'Svg' }))?.props.source).toContain('fill="#e5484d"')
+    await terminal.unmount()
+    await desktop.unmount()
+  })
+
+  test('an expired cache hides hits, context and threshold', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    forks(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await resumed($, 2 * HOUR, '1h')
+    expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Hits / })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /Ctx/ })).toBeUndefined()
+    expect(await ui.find({ key: 'keep-alive' })).toBeDefined()
     await ui.unmount()
   })
 })

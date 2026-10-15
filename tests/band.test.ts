@@ -2,17 +2,20 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import {
-  BAR_CELLS,
-  cacheBar,
   cacheTone,
   chunkSummary,
   compactionLines,
   hitRate,
+  isWarmRead,
+  keepAliveSpanText,
+  keepAliveStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
   pauseSigns,
   remainingMinutes,
   remainingShare,
+  svgBar,
+  terminalBar,
   terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
@@ -34,16 +37,61 @@ describe('the cache countdown', () => {
     expect(remainingShare(null, 60, start)).toBeNull()
     expect(remainingMinutes(start, 60, start + 59 * 60_000 + 1)).toBe(1)
     expect(remainingMinutes(start, 60, start + 60 * 60_000)).toBe(0)
-    expect(cacheTone(0.8)).toBe('success')
-    expect(cacheTone(0.25)).toBe('warning')
-    expect(cacheTone(0.1)).toBe('error')
+    expect(cacheTone(0.61)).toBe('success')
+    expect(cacheTone(0.6)).toBe('warning')
+    expect(cacheTone(0.21)).toBe('warning')
+    expect(cacheTone(0.2)).toBe('error')
   })
 
-  test('the bar has twenty cells and keeps one lit until the end', async () => {
-    expect(cacheBar(1)).toBe('█'.repeat(BAR_CELLS))
-    expect(cacheBar(0.5)).toBe('█'.repeat(10) + '░'.repeat(10))
-    expect(cacheBar(0.001)).toBe('█' + '░'.repeat(19))
-    expect(cacheBar(0)).toBe('░'.repeat(BAR_CELLS))
+  test('the terminal bar spans the band and keeps one cell lit until the end', async () => {
+    expect(terminalBar(1, 80)).toEqual({ lit: '━'.repeat(80), spent: '' })
+    expect(terminalBar(0.5, 80)).toEqual({ lit: '━'.repeat(40), spent: '─'.repeat(40) })
+    expect(terminalBar(0.001, 80)).toEqual({ lit: '━', spent: '─'.repeat(79) })
+    expect(terminalBar(0, 80)).toEqual({ lit: '', spent: '─'.repeat(80) })
+    expect(terminalBar(null, 80)).toEqual({ lit: '', spent: '─'.repeat(80) })
+  })
+
+  test('the picture bar is a grey track, lit in the cache colour for what is left', async () => {
+    expect(svgBar(0.5)).toContain('<rect y="6" height="4" width="2000" fill="#f5a524"/>')
+    expect(svgBar(0.5)).toContain('height="10" viewBox="0 0 4000 10"')
+    expect(svgBar(0.9)).toContain('fill="#30a46c"')
+    expect(svgBar(0.1)).toContain('fill="#e5484d"')
+    expect(svgBar(0)).not.toContain('#e5484d')
+    expect(svgBar(null)).toContain('preserveAspectRatio="none"')
+  })
+})
+
+describe('keep-alive', () => {
+  const MIN = 60_000
+  const at = (minutes: number, over: Partial<Parameters<typeof keepAliveStep>[0]> = {}) =>
+    keepAliveStep({ cacheUsedAt: 0, activeAt: 0, ttlMinutes: 60, isWorking: false, now: minutes * MIN, ...over })
+
+  test('refreshes the hour cache five minutes before it lapses, the five-minute one a minute before', async () => {
+    expect(at(54)).toBe('wait')
+    expect(at(55)).toBe('refresh')
+    expect(at(60)).toBe('lapsed')
+    expect(at(3.9, { ttlMinutes: 5 })).toBe('wait')
+    expect(at(4, { ttlMinutes: 5 })).toBe('refresh')
+    expect(at(5, { ttlMinutes: 5 })).toBe('lapsed')
+    expect(at(55, { cacheUsedAt: null })).toBe('wait')
+    expect(at(55, { ttlMinutes: null })).toBe('wait')
+  })
+
+  test('an idle session is kept warm 8 hours (hour cache) or 45 minutes (five-minute cache), Claude at work always', async () => {
+    expect(at(7 * 60 + 55, { cacheUsedAt: 7 * 60 * MIN })).toBe('refresh')
+    expect(at(8 * 60 + 55, { cacheUsedAt: 8 * 60 * MIN })).toBe('ended')
+    expect(at(8 * 60 + 55, { cacheUsedAt: 8 * 60 * MIN, isWorking: true })).toBe('refresh')
+    expect(at(8 * 60 + 55, { cacheUsedAt: 8 * 60 * MIN, activeAt: 60 * MIN })).toBe('refresh')
+    expect(at(44, { ttlMinutes: 5, cacheUsedAt: 40 * MIN })).toBe('refresh')
+    expect(at(48, { ttlMinutes: 5, cacheUsedAt: 44 * MIN })).toBe('ended')
+    expect(keepAliveSpanText(60)).toBe('8 h')
+    expect(keepAliveSpanText(5)).toBe('45 m')
+  })
+
+  test('a refresh counts as warm when nearly all of its input came from the cache', async () => {
+    expect(isWarmRead({ input_tokens: 30, cache_read_input_tokens: 150_000, cache_creation_input_tokens: 0 })).toBe(true)
+    expect(isWarmRead({ input_tokens: 140_000, cache_read_input_tokens: 10_000, cache_creation_input_tokens: 0 })).toBe(false)
+    expect(isWarmRead({ input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })).toBe(false)
   })
 })
 
@@ -151,28 +199,9 @@ describe('the band', () => {
       expect(await ui.find({ type: 'Text', text: /^Hits / })).toBeDefined()
       expect(await ui.find({ key: 'pause' })).toBeDefined()
       expect(await ui.find({ key: 'compact' })).toBeDefined()
-
-      await ui.press({ key: 'toggle' })
-      expect(await ui.find({ key: 'compact' })).toBeUndefined()
-      expect(await ui.find({ type: 'Text', text: /^Ctx / })).toBeDefined()
-
-      await ui.press({ key: 'toggle' })
-      expect(await ui.find({ key: 'compact' })).toBeDefined()
-      await ui.unmount()
-    }
-  })
-
-  test('the pause button sits beside Compact, and stays when folded', async ($, on) => {
-    mock.store(on)
-    nothingBeneath(on)
-    for (const surface of ['terminal', 'desktop'] as const) {
-      const ui = await $.ui.mount({ ...BAND, surface })
-      expect(await ui.find({ key: 'compact' })).toBeDefined()
-      expect(await ui.find({ key: 'pause' })).toBeDefined()
-      await ui.press({ key: 'toggle' })
-      expect(await ui.find({ key: 'compact' })).toBeUndefined()
-      expect(await ui.find({ key: 'pause' })).toBeDefined()
-      await ui.press({ key: 'toggle' })
+      expect(await ui.find({ key: 'keep-alive' })).toBeDefined()
+      // Nothing folds any more (0.8.0).
+      expect(await ui.find({ key: 'toggle' })).toBeUndefined()
       await ui.unmount()
     }
   })
@@ -184,9 +213,6 @@ describe('the band', () => {
     expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('❚❚ Pause')
     expect((await terminal.find({ type: 'Text', text: /^☼$/ }))?.props.color).toBe('warning')
     expect(await terminal.find({ type: 'Text', text: /️|[☀🌧⛈⏸⏳▶]/u })).toBeUndefined()
-    await terminal.press({ key: 'toggle' })
-    expect(await terminal.find({ type: 'Text', text: /^☼$/ })).toBeDefined()
-    await terminal.press({ key: 'toggle' })
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
@@ -195,7 +221,19 @@ describe('the band', () => {
     await desktop.unmount()
   })
 
-  test('the band of another mod beneath (a progress bar) stays visible under ours, folded or not', async ($, on) => {
+  test('the cache bar has a line of its own: line signs over the band’s width in a terminal, a picture elsewhere', async ($, on) => {
+    mock.store(on)
+    nothingBeneath(on)
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await terminal.find({ type: 'Text', text: /^─{160}$/ })).toBeDefined()
+    await terminal.unmount()
+
+    const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    expect((await desktop.find({ type: 'Svg' }))?.props.height).toBe(10)
+    await desktop.unmount()
+  })
+
+  test('the band of another mod beneath (a progress bar) stays visible under ours', async ($, on) => {
     mock.store(on)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Box, Text, Button } = $.ui.resolve(e)
@@ -206,9 +244,6 @@ describe('the band', () => {
       expect(await ui.find({ key: 'compact' })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /Fortschritt 3\/7/ })).toBeDefined()
       expect(await ui.find({ key: 'savvy-agents' })).toBeDefined()
-      await ui.press({ key: 'toggle' })
-      expect(await ui.find({ type: 'Text', text: /Fortschritt 3\/7/ })).toBeDefined()
-      await ui.press({ key: 'toggle' })
       await ui.unmount()
     }
   })

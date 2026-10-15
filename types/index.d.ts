@@ -17,6 +17,9 @@ export type Threshold = { percent: number; isFallback: boolean }
 /** Where the session stands: working, asked to pause and finishing up, or paused until „weitermachen“. */
 export type PausePhase = 'running' | 'pausing' | 'paused'
 
+/** Why keep-alive waits for the next request: the idle span ran out, or a refresh found the cache gone. */
+export type KeepAliveNote = 'ended' | 'missed'
+
 declare module 'claude-code' {
   interface PluginState {
     'cache-weather-and-pause-resume': {
@@ -26,7 +29,6 @@ declare module 'claude-code' {
       context: ContextFill | null
       threshold: Threshold | null
       now: number
-      isCollapsed: boolean
       transcriptPath: string | null
       isCompacting: boolean
       pausePhase: PausePhase
@@ -44,6 +46,15 @@ declare module 'claude-code' {
       sessionId: string | null
       /** The language the band and the pause texts use, once session.start has read the settings. */
       language: 'de' | 'en' | null
+      /** Whether keep-alive is on: the person's choice alone, kept on disk. */
+      keepAlive: boolean
+      /** When a request last read or wrote the cache: the conversation's own, or a keep-alive refresh. */
+      cacheUsedAt: number | null
+      /** The last request that was no refresh, or keep-alive switched on: the idle span counts from here. */
+      activeAt: number | null
+      keepAliveNote: KeepAliveNote | null
+      /** Refreshes since the last request that was none. */
+      keepAliveRefreshes: number
     }
   }
 }

@@ -2,9 +2,6 @@
 
 import type { Lang } from './i18n'
 
-/** Cells of the cache bar. */
-export const BAR_CELLS = 20
-
 /** The auto-compact threshold when the session does not say: 83 % of the window. */
 export const FALLBACK_THRESHOLD_PERCENT = 83
 
@@ -27,17 +24,104 @@ export function remainingMinutes(lastResponseAt: number, ttlMinutes: number, now
   return Math.max(0, Math.ceil((lastResponseAt + ttlMinutes * 60_000 - now) / 60_000))
 }
 
-/** Green, yellow in the last quarter, red in the last tenth. */
+/** Green, yellow from 60 % of the lifetime left, red from 20 %. */
 export function cacheTone(share: number): CacheTone {
-  if (share <= 0.1) return 'error'
-  if (share <= 0.25) return 'warning'
+  if (share <= 0.2) return 'error'
+  if (share <= 0.6) return 'warning'
   return 'success'
 }
 
-/** Twenty cells that run empty with time; a cell stays lit while any of its slice is left. */
-export function cacheBar(share: number): string {
-  const lit = share <= 0 ? 0 : Math.min(BAR_CELLS, Math.ceil(share * BAR_CELLS))
-  return '█'.repeat(lit) + '░'.repeat(BAR_CELLS - lit)
+/**
+ * The cache bar's line in a terminal, `columns` cells wide: line signs in the middle of their cells, a heavy line for
+ * what is left of the lifetime, a light one for what has run out. (Block signs at a cell's foot sat too far from the
+ * row above, 2026-10-15.) A cell stays lit while any of its slice is left.
+ */
+export function terminalBar(share: number | null, columns: number): { lit: string; spent: string } {
+  const width = Math.max(0, Math.floor(columns))
+  const lit = share === null || share <= 0 ? 0 : Math.min(width, Math.ceil(share * width))
+  return { lit: '━'.repeat(lit), spent: '─'.repeat(width - lit) }
+}
+
+// The picture's bar: a few pixels high, below a gap that sets it off from the row above.
+const BAR_GAP = 6
+const BAR_THICKNESS = 4
+
+/** How high the desktop app, VS Code and the phone draw the cache bar's picture, its gap above included (CSS px). */
+export const SVG_BAR_HEIGHT = BAR_GAP + BAR_THICKNESS
+
+// Fixed colours: an SVG drawn as an image reads no theme. Each reads on a light and a dark background alike.
+const BAR_COLOURS: Record<CacheTone, string> = { success: '#30a46c', warning: '#f5a524', error: '#e5484d' }
+
+/**
+ * The cache bar as an SVG, stretched over the band's width: wider than any band, so the slot it is drawn in caps it,
+ * and without a fixed aspect ratio, so it keeps its few pixels of height. A grey track, lit for what is left, below a
+ * transparent gap.
+ */
+export function svgBar(share: number | null): string {
+  const width = 4000
+  const lit = share === null ? 0 : Math.round(Math.max(0, Math.min(1, share)) * width)
+  const bar = `y="${BAR_GAP}" height="${BAR_THICKNESS}"`
+  const fill = share === null ? '' : `<rect ${bar} width="${lit}" fill="${BAR_COLOURS[cacheTone(share)]}"/>`
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${SVG_BAR_HEIGHT}" ` +
+    `viewBox="0 0 ${width} ${SVG_BAR_HEIGHT}" preserveAspectRatio="none">` +
+    `<rect ${bar} width="${width}" fill="#808080" fill-opacity="0.25"/>${lit > 0 ? fill : ''}</svg>`
+  )
+}
+
+/** How long before the cache lapses keep-alive refreshes it: a minute for the five-minute cache, five for the hour's. */
+export function keepAliveLeadMs(ttlMinutes: 5 | 60): number {
+  return ttlMinutes === 5 ? 60_000 : 5 * 60_000
+}
+
+/**
+ * How long keep-alive goes on in a session nobody works in (paused, or quiet after its last turn), from the last
+ * request or input: 8 hours for the hour's cache, 45 minutes for the five-minute one, whose refreshes come twelve times
+ * as often.
+ */
+export function keepAliveSpanMs(ttlMinutes: 5 | 60): number {
+  return ttlMinutes === 5 ? 45 * 60_000 : 8 * 60 * 60_000
+}
+
+/** The idle span as the band and the log name it: „8 h“, „45 m“. */
+export function keepAliveSpanText(ttlMinutes: 5 | 60): string {
+  const minutes = keepAliveSpanMs(ttlMinutes) / 60_000
+  return minutes >= 60 ? `${minutes / 60} h` : `${minutes} m`
+}
+
+/**
+ * What keep-alive does now: `wait` for the refresh's time, `refresh`, or neither because the cache has `lapsed` (a
+ * refresh would build it afresh) or the idle span has `ended`. While Claude works there is no span.
+ *
+ * `cacheUsedAt` is when a request last read or wrote the cache (the conversation's own, or a refresh); `activeAt` the
+ * last request or input that was no refresh, where the idle span starts.
+ */
+export function keepAliveStep(s: {
+  cacheUsedAt: number | null
+  activeAt: number | null
+  ttlMinutes: 5 | 60 | null
+  isWorking: boolean
+  now: number
+}): 'wait' | 'refresh' | 'lapsed' | 'ended' {
+  if (s.cacheUsedAt === null || s.ttlMinutes === null) return 'wait'
+  const lapsesAt = s.cacheUsedAt + s.ttlMinutes * 60_000
+  if (s.now >= lapsesAt) return 'lapsed'
+  if (s.now < lapsesAt - keepAliveLeadMs(s.ttlMinutes)) return 'wait'
+  if (!s.isWorking && s.now >= (s.activeAt ?? s.cacheUsedAt) + keepAliveSpanMs(s.ttlMinutes)) return 'ended'
+  return 'refresh'
+}
+
+/**
+ * Whether a refresh was served from the conversation's cache: nearly all of its input read from it. The system prompt
+ * alone may be served from a cache other sessions share, so some read tokens do not yet say the conversation's was warm.
+ */
+export function isWarmRead(usage: {
+  input_tokens: number
+  cache_read_input_tokens: number
+  cache_creation_input_tokens: number
+}): boolean {
+  const rate = hitRate(usage)
+  return rate !== null && rate >= 0.8
 }
 
 /** The share of the input tokens the cache served, or null when the response read no input. */
