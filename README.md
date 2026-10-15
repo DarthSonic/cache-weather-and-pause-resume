@@ -10,9 +10,9 @@ prompt cache still is and how full the context is, with a **Compact** button, a 
 Claude finish what is running, save its state and wait, and a **Keep-warm** checkbox that refreshes the cache shortly
 before it runs out.
 
-![The band in a terminal: cache 57 minutes left, the Keep-warm checkbox, hits 63 %, a sun at 5 % of a 97 % threshold, Compact and Pause; below it the green cache bar over the band's width](docs/band-terminal.png)
+![The band in a terminal: cache 58 minutes left, Keep-warm checked, hits 98 %, a sun at 5 % of a 97 % threshold, Compact and Pause; below it the green cache bar over the band's width](docs/band-terminal.png)
 
-![The band in the Claude desktop app: cache 57 minutes left, Keep-warm checked, hits 100 %, a sun at 40 % of a 97 % threshold, Compact and Pause; below it the green cache bar](docs/band-desktop.png)
+![The band in the Claude desktop app: cache 20 minutes left, Keep-warm checked, hits 99 %, a sun at 8 % of a 97 % threshold, Compact and Pause; below it the cache bar, yellow with a third of the hour left](docs/band-desktop.png)
 
 ## Examples
 

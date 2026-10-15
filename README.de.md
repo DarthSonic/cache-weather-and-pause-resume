@@ -10,9 +10,9 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
 **Pause / Weitermachen**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, und einem Haken
 **Keep-warm**, der den Cache kurz vor Ablauf auffrischt.
 
-![Die Leiste im Terminal: Cache noch 57 Minuten, der Haken Keep-warm, Hits 63 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
+![Die Leiste im Terminal: Cache noch 58 Minuten, Keep-warm gesetzt, Hits 98 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
 
-![Die Leiste in der Claude-Desktop-App: Cache noch 57 Minuten, Keep-warm gesetzt, Hits 100 %, Sonne bei 40 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken](docs/band-desktop.png)
+![Die Leiste in der Claude-Desktop-App: Cache noch 20 Minuten, Keep-warm gesetzt, Hits 99 %, Sonne bei 8 % einer Schwelle von 97 %, Compact und Pause; darunter der Cache-Balken, gelb mit einem Drittel der Stunde Rest](docs/band-desktop.png)
 
 ## Beispiele
 
