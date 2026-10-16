@@ -7,6 +7,9 @@
 - In the desktop app the cache time, hits, weather and context keep their width in a narrow band instead of breaking
   over two lines („Hits 100 / %“) or being cut („Cache 6…“), and the weather sits closer to its numbers. The terminal
   is unchanged.
+- For the plugin directory: `plugin.json` no longer names `types`, which Claude Code does not read when loading;
+  `claude plugin validate` finds the state contract at `./types/index.d.ts` without it and still holds every state
+  key to it.
 
 ## 0.8.1 — 2026-10-15
 

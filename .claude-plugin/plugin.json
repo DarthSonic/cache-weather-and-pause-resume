@@ -10,7 +10,6 @@
   "documentationUrl": "https://github.com/DarthSonic/cache-weather-and-pause-resume#readme",
   "supportUrl": "https://github.com/DarthSonic/cache-weather-and-pause-resume/issues",
   "keywords": ["mod", "prompt-cache", "context", "compact", "pause"],
-  "types": "./types/index.d.ts",
   "userConfig": {
     "language": {
       "type": "string",
