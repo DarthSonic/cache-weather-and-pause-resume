@@ -6,6 +6,27 @@ import type { Lang } from './i18n'
 export const PLUGIN = 'cache-weather-and-pause-resume'
 export const DEFAULT_ASK_ABOVE_MINUTES = 5
 
+/** The tool Claude tells the band with that the session is paused, or running again: its short and its full name. */
+export const PAUSE_TOOL_NAME = 'pause_state'
+export const PAUSE_TOOL = 'mcp__cache-weather-and-pause-resume__pause_state'
+
+/**
+ * What Claude reads about the tool. A pause asked for in any words or language gets the same steps as the button's,
+ * and the band learns of it only once Claude is done pausing.
+ */
+export function pauseToolDescription(askAboveMinutes: number): string {
+  const minutes = formatMinutes(askAboveMinutes, 'en')
+  return [
+    'Tells the band above the prompt whether this session is paused: it then shows the person a Resume button (and keeps it across a restart of the app), or the Pause button again.',
+    '',
+    `Call it with state "paused" once the person has asked you to pause the session, in any words or language (typed, or with the band's button), and you have finished pausing: you started nothing new; running background work has finished, or, for a task likely to run longer than ${minutes} or without a foreseeable end, you asked the person whether to stop it now and restart it after resuming; and you saved the state as this project's rules say (what is done, what ran, what was stopped and how to restart it, what comes next). Then report "Paused" briefly and wait; run no scheduled wakeups during the pause.`,
+    '',
+    'Call it with state "running" when the person asks you to pick the paused work back up, in any words or language, before you carry on.',
+    '',
+    'Do not call it for a question during a pause that you only answer, or for pausing something else (a test run, a timer, a video).',
+  ].join('\n')
+}
+
 /** What the „Weiter“ / „Resume“ button submits, as the person would type it. */
 export function resumeText(lang: Lang): string {
   return lang === 'de' ? 'weitermachen' : 'continue'
@@ -21,7 +42,7 @@ export function pauseRequest(askAboveMinutes: number, lang: Lang): string {
       '1. Starte ab jetzt nichts Neues mehr: keine neuen Arbeitsschritte, Läufe, Agenten oder Werkzeugaufrufe dafür. Was gerade läuft, läuft zu Ende.',
       `2. Prüfe die laufenden Hintergrund-Tasks (Läufe, Agenten, Monitore, Workflows) und schätze je Task die ungefähre Restlaufzeit. Braucht einer voraussichtlich noch länger als ${minutes} (oder hat er kein absehbares Ende), frag den Menschen, als Dialog (AskUserQuestion), sofern verfügbar, und nenne je Task die Restlaufzeit: „jetzt beenden und nach ‚weitermachen‘ neu starten“ (nur anbieten, wenn der Task einen Neustart zulässt, sonst sag, warum nicht) oder „zu Ende laufen lassen“. Kürzere Tasks wartest du ohne Rückfrage ab: beende deinen Zug, du wirst bei ihrem Ende geweckt, und sichere dann auch ihr Ergebnis.`,
       '3. Sichere den aktuellen Stand nach den Regeln dieses Projekts (CLAUDE.md, Memory), so dass du nach „weitermachen“ nahtlos fortsetzen kannst: was erledigt ist, was lief, was abgebrochen wurde und mit welchem Befehl es neu startet, was als Nächstes kommt. Gibt das Projekt keine Regel vor, verwirf nichts und committe nicht ungefragt; dann hält deine Pausen-Meldung den Stand fest.',
-      '4. Melde dann kurz „Pausiert“ mit diesem Stand (keinen Übergabe-Prompt) und beende deinen Zug. Danach tust du nichts mehr, bis der Mensch „weitermachen“ schreibt oder den Knopf „Weiter“ drückt. Geplante Weckungen (Cron, /loop, ScheduleWakeup) führst du in der Pause nicht aus.',
+      '4. Rufe dann das Werkzeug pause_state mit state „paused“ auf, melde kurz „Pausiert“ mit diesem Stand (keinen Übergabe-Prompt) und beende deinen Zug. Danach tust du nichts mehr, bis der Mensch „weitermachen“ schreibt oder den Knopf „Weiter“ drückt. Geplante Weckungen (Cron, /loop, ScheduleWakeup) führst du in der Pause nicht aus.',
     ].join('\n')
   }
   return [
@@ -30,7 +51,7 @@ export function pauseRequest(askAboveMinutes: number, lang: Lang): string {
     '1. From now on, start nothing new: no new work steps, runs, agents or tool calls for them. Whatever is running finishes.',
     `2. Check the running background tasks (runs, agents, monitors, workflows) and estimate each one's remaining time. If one will likely take longer than ${minutes} (or has no foreseeable end), ask the person, as a dialog (AskUserQuestion) where available, naming each task's remaining time: "stop it now and restart it after 'continue'" (offer this only if the task can be restarted, otherwise say why not) or "let it finish". Wait for shorter tasks without asking: end your turn, you will be woken when they finish, and then save their results too.`,
     "3. Save the current state following this project's rules (CLAUDE.md, memory) so you can pick up seamlessly after \"continue\": what is done, what was running, what was stopped and the command that restarts it, what comes next. If the project sets no rule, discard nothing and do not commit unasked; your pause report then records the state.",
-    '4. Then report "Paused" briefly with this state (no handoff prompt) and end your turn. After that, do nothing until the person writes "continue" or presses the "Resume" button. Do not run scheduled wakeups (cron, /loop, ScheduleWakeup) during the pause.',
+    '4. Then call the tool pause_state with state "paused", report "Paused" briefly with this state (no handoff prompt) and end your turn. After that, do nothing until the person writes "continue" or presses the "Resume" button. Do not run scheduled wakeups (cron, /loop, ScheduleWakeup) during the pause.',
   ].join('\n')
 }
 
@@ -47,8 +68,8 @@ export function resumeContext(pausedMinutes: number | null, lang: Lang): string 
 /** Beside a message of the person's while the session is paused. */
 export function pausedPersonNote(lang: Lang): string {
   return lang === 'de'
-    ? '⏸ Pause-Knopf: Die Sitzung ist pausiert. Geh auf diese Nachricht ein; die pausierte Arbeit nimmst du erst nach „weitermachen“ wieder auf, und neue Läufe startest du nur, wenn diese Nachricht es ausdrücklich verlangt.'
-    : '⏸ Pause button: the session is paused. Respond to this message; resume the paused work only after "continue", and start new runs only if this message explicitly asks for them.'
+    ? '⏸ Pause-Knopf: Die Sitzung ist pausiert. Geh auf diese Nachricht ein. Die pausierte Arbeit nimmst du erst wieder auf, wenn der Mensch darum bittet, in welchen Worten auch immer; dann rufe zuerst das Werkzeug pause_state mit state „running“ auf. Neue Läufe startest du nur, wenn diese Nachricht es ausdrücklich verlangt.'
+    : '⏸ Pause button: the session is paused. Respond to this message. Resume the paused work only when the person asks for it, in whatever words; then first call the tool pause_state with state "running". Start new runs only if this message explicitly asks for them.'
 }
 
 /** Beside a task notification, a scheduled wakeup or another session's message while paused. */
@@ -61,8 +82,8 @@ export function pausedMachineNote(lang: Lang): string {
 /** Beside any message while the pause is asked for and Claude is still finishing up. */
 export function pausingNote(lang: Lang): string {
   return lang === 'de'
-    ? '⏸ Pause-Knopf: Eine Pause ist angefordert. Starte nichts Neues; sobald nichts mehr läuft, sichere den Stand, melde „Pausiert“ und warte auf „weitermachen“.'
-    : '⏸ Pause button: a pause has been requested. Start nothing new; once nothing is running any more, save the state, report "Paused" and wait for "continue".'
+    ? '⏸ Pause-Knopf: Eine Pause ist angefordert. Starte nichts Neues; sobald nichts mehr läuft, sichere den Stand, rufe das Werkzeug pause_state mit state „paused“ auf, melde „Pausiert“ und warte auf „weitermachen“.'
+    : '⏸ Pause button: a pause has been requested. Start nothing new; once nothing is running any more, save the state, call the tool pause_state with state "paused", report "Paused" and wait for "continue".'
 }
 
 // A whole message of „weitermachen“ / „continue“ and their kin, or one that starts with one of them and says more.

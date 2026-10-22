@@ -30,7 +30,9 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
    dauert, oder du bist in einer Besprechung. Setz den Haken **Keep-warm**: Kurz bevor der Cache abläuft, frischt der
    Mod ihn auf, und die nächste Anfrage liest die Unterhaltung aus dem Cache, statt alles neu zu schreiben.
 
-Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf Englisch “pause” und “continue”).
+Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf Englisch “pause” und “continue”). Oder bitte
+Claude in eigenen Worten darum („lass uns für heute Schluss machen“): Sobald pausiert ist, sagt Claude es der Leiste,
+und die zeigt **Weiter**.
 
 ## Was die Leiste zeigt
 
@@ -66,6 +68,11 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 Tippen geht auch: eine Nachricht, die nur „pausieren“ (oder „pause“) ist, pausiert; eine, die mit „weitermachen“ (oder
 „continue“, „resume“) beginnt, setzt fort. Beide Sprachen werden verstanden, egal in welcher der Mod gerade spricht.
 
+In anderen Worten oder einer anderen Sprache läuft die Pause über Claude: Der Mod gibt Claude ein Werkzeug,
+`pause_state`, dessen Beschreibung dieselben Schritte wie die Bitte unten enthält. Claude ruft es mit `paused` auf,
+sobald es fertig pausiert hat, und mit `running`, wenn du die Arbeit wieder aufnimmst, in welchen Worten auch immer;
+die Leiste folgt und merkt sich die Pause wie beim Knopf. Knopf und die Wörter oben funktionieren weiter für sich.
+
 Die Bitte an Claude (der genaue Text steht in [`hooks/pause.ts`](hooks/pause.ts)):
 
 1. Nichts Neues mehr starten; was läuft, läuft zu Ende.
@@ -86,8 +93,8 @@ Wie der Mod den Zustand verfolgt:
   Anfrage (nach dem gerade laufenden Werkzeugaufruf). Endet der Zug vorher, hält der Stop-Hook das Anhalten auf und
   reicht die Bitte weiter; nach einem abgebrochenen Zug trägt die nächste Nachricht sie.
 - **Klick, während Claude ruht:** die Bitte geht als Prompt mit deinen Worten.
-- **Pausiert** ist die Sitzung, sobald Claude anhält und der Stop-Hook keine Hintergrund-Arbeit mehr meldet. Laufen
-  noch Tasks, zählt die Leiste sie.
+- **Pausiert** ist die Sitzung, sobald Claude anhält und der Stop-Hook keine Hintergrund-Arbeit mehr meldet, oder
+  wenn Claude es über `pause_state` meldet. Laufen noch Tasks, zählt die Leiste sie.
 - Eine Pause wird je Sitzung in `~/.claude/cache-weather-and-pause-resume/state.json` gemerkt: eine pausierte Sitzung, die wieder
   geöffnet wird (Neustart der App, fortgesetzte Sitzung), zeigt wieder **Weiter**. `/clear` hebt die Pause auf.
 
@@ -201,6 +208,7 @@ Unterhaltung:
 | ein Hinweis an deinem Prompt | eine Pause ist angefordert oder läuft, oder du tippst „pausieren“ oder „weitermachen“ | ein fester Hinweis (die Bitte, „die Sitzung ist pausiert“, „die Pause ist beendet“); dein getippter Text bleibt unverändert, und kein Prompt wird zurückgehalten |
 | der Slash-Befehl `/compact` | du drückst **Compact**, während Claude arbeitet, oder in der Desktop-App | eingereiht wie ein getipptes `/compact`; sonst verdichtet der Knopf über den eigenen Compact-Aufruf der Sitzung |
 | die Antwort des Stop-Hooks | Claude hält an, bevor es die Pause-Bitte gelesen hat | Claude macht einmal weiter, mit der Pause-Bitte als Grund |
+| ein Werkzeug für Claude, `pause_state` | Claude hat die Sitzung pausiert oder nimmt die pausierte Arbeit wieder auf | für Claude mit fester Beschreibung gelistet (in [`hooks/pause.ts`](hooks/pause.ts)); ein Aufruf ändert nur den Pause-Zustand der Leiste und die Zustandsdatei, der Mod beantwortet ihn selbst, sonst läuft nichts |
 | eine Frage neben der Unterhaltung | **Keep-warm** ist gesetzt und der Cache läuft gleich ab | eine Modell-Anfrage über die Unterhaltung, so wie ihre letzte Anfrage sie geschickt hat, über den eigenen Client der Sitzung: fester Text, der um „OK“ bittet, keine Werkzeuge; die Antwort wird verworfen und bleibt außerhalb der Unterhaltung |
 
 In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung. Die Anfrage von Keep-warm trägt
@@ -218,7 +226,8 @@ Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das 
 reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
-`tool.call` (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
+`tool.call` (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist; er
+beantwortet auch das eigene Werkzeug `pause_state`),
 `turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen), `turn.start`,
 `turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
 Modell nicht liest. Der Hook auf

@@ -30,7 +30,8 @@ before it runs out.
    in a meeting. Check **Keep-warm**: shortly before the cache runs out the mod refreshes it, so the next request reads
    the conversation from the cache instead of writing all of it again.
 
-You can also type: “pause” pauses, “continue” resumes (in German “pausieren” and „weitermachen“).
+You can also type: “pause” pauses, “continue” resumes (in German “pausieren” and „weitermachen“). Or ask Claude in
+any words (“let's stop here for today”): once paused, Claude tells the band, which then shows **Resume**.
 
 ## What the band shows
 
@@ -65,6 +66,11 @@ with as log lines, which the model does not read.
 You can also type: a message that is only “pause” (or “pausieren”) pauses; one that starts with “continue” or
 “resume” (or “weitermachen”) carries on. Both languages are understood whatever the mod's language is.
 
+In other words, or in another language, the pause goes through Claude: the mod gives Claude a tool,
+`pause_state`, whose description holds the same steps as the request below. Claude calls it with `paused` once it has
+finished pausing, and with `running` when you pick the work back up, in whatever words; the band follows and keeps
+the pause as the button does. The button and the words above keep working on their own.
+
 The request Claude gets (full text in [`hooks/pause.ts`](hooks/pause.ts)):
 
 1. Start nothing new; whatever is running finishes.
@@ -85,8 +91,8 @@ How the mod tracks the state:
   the tool call in progress). Should the turn end before that, the Stop hook keeps Claude from stopping and hands the
   request on; after an interrupted turn the next message carries it.
 - **Pressed while Claude is idle:** the request goes in as a prompt in your words.
-- **Paused** is reached once Claude stops and the Stop hook reports no background work in flight. While tasks still
-  run the band counts them.
+- **Paused** is reached once Claude stops and the Stop hook reports no background work in flight, or when Claude
+  reports it through `pause_state`. While tasks still run the band counts them.
 - A pause is kept per session in `~/.claude/cache-weather-and-pause-resume/state.json`, so a session reopened while paused (an app
   restart, a resumed session) shows **Resume** again. `/clear` ends the pause.
 
@@ -195,6 +201,7 @@ you switch on per session. What it hands Claude enters the conversation like any
 | a note added to your prompt | a pause is requested or on, or you type “pause” or “continue” | a fixed note (the request, “the session is paused”, “the pause is over”); the text you typed is never changed, and no prompt is held back |
 | the slash command `/compact` | you press **Compact** while Claude works, or in the desktop app | queued like a typed `/compact`; otherwise the button compacts through the session's own compaction call |
 | the Stop hook's answer | Claude stops before it read the pause request | Claude goes on once, with the pause request as the reason |
+| a tool Claude can call, `pause_state` | Claude has paused the session, or picks the paused work back up | listed for Claude with a fixed description (in [`hooks/pause.ts`](hooks/pause.ts)); a call changes only the band's pause state and the state file, is answered by the mod and runs nothing else |
 | a question beside the conversation | **Keep-warm** is checked and the cache is about to run out | a model request over the conversation as its last request sent it, through the session's own client: fixed text asking for “OK”, no tools; the answer is discarded and stays out of the conversation |
 
 No file content, transcript text or setting goes into these texts. Keep-warm's request carries the conversation the
@@ -212,7 +219,7 @@ to drop the pauses of deleted sessions.
 passes its event on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` (when a call of the
-conversation has run, and when a question to you is answered), `turn.step` (token counts, and when a request reads
+conversation has run, and when a question to you is answered; it also answers the mod's own `pause_state`), `turn.step` (token counts, and when a request reads
 the cache) and `session.measure` (token counts), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,
 after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
 band and stacks the bands of other mods beneath it.

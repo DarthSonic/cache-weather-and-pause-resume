@@ -27,6 +27,7 @@ import {
   weather,
 } from './logic'
 import {
+  PAUSE_TOOL_NAME,
   askAboveMinutes,
   inFlight,
   isOwnOrigin,
@@ -38,6 +39,7 @@ import {
   pausedMachineNote,
   pausedPersonNote,
   pausingNote,
+  pauseToolDescription,
   resumeContext,
   resumeText,
   sinceText,
@@ -325,6 +327,7 @@ const KEEP_WARM_RETRY_MS = 30_000
 const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'elicitation_url_dialog'])
 
 // The module's own: a reload starts them over, and its timers go with the old module.
+let pauseToolRegistered = false
 let keepWarmStarted = false
 let isRefreshing = false
 let retryAt = 0
@@ -416,6 +419,28 @@ async function setKeepWarm($: EngineInterface, value: boolean): Promise<void> {
 async function restoreKeepWarm($: EngineInterface, id: string): Promise<void> {
   const isOn = (await readPersisted($)).keepWarmSessions?.[id] !== undefined
   await update($, keepWarm, () => isOn)
+}
+
+// Claude's way to tell the band that it paused the session or picks the work back up (pause_state): a pause asked
+// for in any words counts, not only the button and the few typed words. Listed in the prompt's tool list from the
+// start, so Claude knows it before a pause is asked for.
+async function registerPauseTool($: EngineInterface, askAbove: number): Promise<void> {
+  if (pauseToolRegistered) return
+  try {
+    await $.tool.register({
+      name: PAUSE_TOOL_NAME,
+      description: pauseToolDescription(askAbove),
+      inputSchema: {
+        type: 'object',
+        properties: { state: { type: 'string', enum: ['paused', 'running'] } },
+        required: ['state'],
+      },
+      isDeferred: false,
+    })
+    pauseToolRegistered = true
+  } catch {
+    // The session is not bound yet: classic.SessionStart tries again.
+  }
 }
 
 // ── The pause button ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -544,6 +569,7 @@ async function pauseOnStop(
 
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
+  pauseToolRegistered = false
   keepWarmStarted = false
   isRefreshing = false
   retryAt = 0
@@ -575,6 +601,7 @@ export const register: Register = (on, options) => {
       void tick($)
     })
     startKeepWarm($)
+    await registerPauseTool($, askAbove)
     return started
   })
 
@@ -600,6 +627,7 @@ export const register: Register = (on, options) => {
     if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
     await applyRememberedTtl($)
     startKeepWarm($)
+    await registerPauseTool($, askAbove)
     // Once per session start, a little later: what is remembered of deleted sessions goes.
     $.clock.after(PRUNE_AFTER_MS, () => {
       void pruneSessions($).catch(() => undefined)
@@ -688,6 +716,22 @@ export const register: Register = (on, options) => {
     if (WAITING_NOTICES.has(e.notification_type)) await update($, isAwaitingPerson, () => true)
     return result
   }).catch(($, e, next) => next(e))
+
+  // Claude reports through the mod's own tool that it has paused the session, or picks the paused work back up. The
+  // call is answered here: nothing else runs, and the band and the state file are all it changes.
+  on('tool.call', { tool: 'mcp__cache-weather-and-pause-resume__pause_state' }, async ($, e) => {
+    if (e.agentId !== undefined) return { result: 'Only the main conversation reports the pause; nothing changed.' }
+    const state = (e as { state?: unknown }).state
+    if (state === 'paused') {
+      if ((await read($, pausePhase)) !== 'paused') await enterPaused($)
+      return { result: 'The band shows the session as paused. Report "Paused" briefly and wait.' }
+    }
+    if (state === 'running') {
+      if ((await read($, pausePhase)) !== 'running') await enterRunning($)
+      return { result: 'The band shows the session as running again.' }
+    }
+    return { result: 'Nothing changed: state must be "paused" or "running".' }
+  })
 
   // A question to the person waits for the answer; the answer is input of the person's and starts the idle span over.
   // Any call of the main conversation that has run ends a wait for a permission prompt. Observes only: the call runs

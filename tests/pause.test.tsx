@@ -3,6 +3,7 @@ import type { Engine, On, PromptSubmitInput } from 'claude-code'
 
 import { langOf, strings } from '../hooks/i18n'
 import {
+  PAUSE_TOOL,
   formatMinutes,
   inFlight,
   isPauseCommand,
@@ -12,6 +13,7 @@ import {
   pausedMachineNote,
   pausedPersonNote,
   pausingNote,
+  pauseToolDescription,
   resumeContext,
   resumeText,
   sinceText,
@@ -129,6 +131,18 @@ describe('the pause words', () => {
     expect(resumeText('de')).toBe('weitermachen')
     expect(resumeText('en')).toBe('continue')
     expect(isResume(resumeText('en'))).toBe(true)
+  })
+
+  test('the tool tells Claude when to report a pause and when the work goes on, and the texts name it', async () => {
+    const text = pauseToolDescription(5)
+    expect(text).toContain('state "paused"')
+    expect(text).toContain('state "running"')
+    expect(text).toContain('in any words or language')
+    expect(text).toContain('longer than 5 minutes')
+    expect(pauseRequest(5, 'de')).toContain('pause_state mit state „paused“')
+    expect(pauseRequest(5, 'en')).toContain('pause_state with state "paused"')
+    expect(pausedPersonNote('de')).toContain('pause_state mit state „running“')
+    expect(pausingNote('en')).toContain('pause_state with state "paused"')
   })
 
   test('the language is read off the option and locales', async () => {
@@ -311,6 +325,44 @@ describe('the pause button', () => {
     expect(prompts.at(-1)?.context?.[0]).toContain('die Sitzung zu pausieren')
     await $.prompt.submit(typed('noch da?'))
     expect(prompts.at(-1)?.context).toEqual([PAUSING_NOTE])
+    await ui.unmount()
+  })
+})
+
+describe('the pause by Claude\'s word', () => {
+  test('a pause Claude reports through its tool shows „Weiter“ and is kept; „running“ takes it off', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 9_000_000 })
+    const files = disk(on)
+    const prompts = engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'w1' })
+
+    // Typed in words the band does not know: Claude pauses, then says so.
+    await $.prompt.submit(typed('Lass uns hier Schluss machen für heute, ich muss los.'))
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    const paused = await $.tool.call({ tool: PAUSE_TOOL, state: 'paused' } as never)
+    expect(JSON.stringify(paused)).toContain('paused')
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(JSON.parse(files[STATE] ?? '{}').pausedSessions).toEqual({ w1: 9_000_000 })
+
+    // A message in the pause carries the note that names the tool; Claude decides it resumes the work.
+    await $.prompt.submit(typed('So, jetzt geht es weiter mit dem Feature.'))
+    expect(prompts.at(-1)?.context?.[0]).toContain('pause_state mit state „running“')
+    await $.tool.call({ tool: PAUSE_TOOL, state: 'running' } as never)
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    expect(JSON.parse(files[STATE] ?? '{}').pausedSessions).toEqual({})
+    await ui.unmount()
+  })
+
+  test('a subagent cannot report the pause', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 9_000_000 })
+    disk(on)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.tool.call({ tool: PAUSE_TOOL, state: 'paused', agentId: 'agent-1' } as never)
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
     await ui.unmount()
   })
 })
