@@ -2,6 +2,15 @@
 
 ## 0.8.2 — unreleased
 
+- **Shutdown**, a button beside Pause: it pauses the session as Pause does, telling Claude to ask about long tasks
+  right away, and once paused counts down 60 seconds (with Cancel) and shuts the computer down: on Windows
+  `shutdown /s /f /t 10` (other programs are closed without asking), on Linux `systemctl poweroff` or a password-free
+  `sudo shutdown`, on macOS a password-free `sudo shutdown`. Each session start checks whether that can happen
+  unattended (`whoami /priv`; `uname -s`, `loginctl can-power-off`, `sudo -n -l shutdown`); where not, the button is
+  dimmed and a press says what is missing. Picking the work back up cancels it. The mod starts programs again, for
+  this alone.
+- Keep-warm is on by default: a new session starts with it checked, the option `keepWarm` (`on` / `off`) sets that.
+  A session where the person unchecks it keeps it off (`keepWarmOffSessions` in the state file).
 - A pause asked for in any words or language is recognised: the mod gives Claude a tool, `pause_state`, listed from the
   start, whose description holds the pause steps. Claude calls it with `paused` once it has finished pausing, and with
   `running` when the person picks the work back up in whatever words; the band shows „Weiter“ / “Resume” or „Pause“

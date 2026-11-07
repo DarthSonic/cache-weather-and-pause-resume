@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
-import type { ClassicResultOf, EngineInterface, Register } from 'claude-code'
+import type { ClassicResultOf, EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ContextFill, KeepWarmNote, PausePhase, Threshold, Ttl } from '../types'
+import type { ContextFill, KeepWarmNote, PausePhase, ShutdownReadiness, Threshold, Ttl } from '../types'
 import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
@@ -42,8 +42,17 @@ import {
   pauseToolDescription,
   resumeContext,
   resumeText,
+  shutdownNote,
   sinceText,
 } from './pause'
+import {
+  SHUTDOWN_COUNTDOWN_MS,
+  hasShutdownRight,
+  logindAllows,
+  osFromUname,
+  secondsLeft,
+  shutdownCommand,
+} from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
 const CODE_VERSION = '0.8.2'
@@ -70,6 +79,9 @@ const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt
 const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
+const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
+const shutdownPhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPhase' } as const, 'idle')
+const shutdownAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownAt' } as const, null)
 
 // The language before session.start has read the locale: the option, else the runtime's locale. Set by `register`.
 let fallbackLang: Lang = 'en'
@@ -90,6 +102,8 @@ type Persisted = {
   pausedSessions?: Record<string, number>
   /** The sessions keep-warm is switched on in, by id, with the time it was. */
   keepWarmSessions?: Record<string, number>
+  /** The sessions it is switched off in (keep-warm is on by default, option `keepWarm`). */
+  keepWarmOffSessions?: Record<string, number>
   codeVersion?: string
 }
 
@@ -241,9 +255,13 @@ function withSession(all: Record<string, number> | undefined, id: string, at: nu
 async function pruneSessions($: EngineInterface): Promise<void> {
   const persisted = await readPersisted($)
   const keep = await read($, sessionId)
-  const ids = [...new Set([...Object.keys(persisted.pausedSessions ?? {}), ...Object.keys(persisted.keepWarmSessions ?? {})])].filter(
-    id => id !== keep,
-  )
+  const ids = [
+    ...new Set([
+      ...Object.keys(persisted.pausedSessions ?? {}),
+      ...Object.keys(persisted.keepWarmSessions ?? {}),
+      ...Object.keys(persisted.keepWarmOffSessions ?? {}),
+    ]),
+  ].filter(id => id !== keep)
   if (ids.length === 0) return
   const home = await homeDir($)
   if (home === null) return
@@ -264,12 +282,14 @@ async function pruneSessions($: EngineInterface): Promise<void> {
   if (gone.length === 0) return
   await writePersisted($, p => {
     const paused = { ...(p.pausedSessions ?? {}) }
-    const kept = { ...(p.keepWarmSessions ?? {}) }
+    const warm = { ...(p.keepWarmSessions ?? {}) }
+    const cold = { ...(p.keepWarmOffSessions ?? {}) }
     for (const id of gone) {
       delete paused[id]
-      delete kept[id]
+      delete warm[id]
+      delete cold[id]
     }
-    return { ...p, pausedSessions: paused, keepWarmSessions: kept }
+    return { ...p, pausedSessions: paused, keepWarmSessions: warm, keepWarmOffSessions: cold }
   })
 }
 
@@ -327,6 +347,10 @@ const KEEP_WARM_RETRY_MS = 30_000
 const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'elicitation_url_dialog'])
 
 // The module's own: a reload starts them over, and its timers go with the old module.
+let keepWarmByDefault = true
+let shutdownChecked = false
+let shutdownTimer: Timer | null = null
+let shutdownTicker: Timer | null = null
 let pauseToolRegistered = false
 let keepWarmStarted = false
 let isRefreshing = false
@@ -405,20 +429,154 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
   }
 }
 
-// The person's switch, for this session alone: kept under its id, so a restart or a resume keeps it, and a new
-// session (`/clear` too) starts without.
+// The person's switch, for this session alone: kept under its id, so a restart or a resume keeps it; a new session
+// (`/clear` too) starts as the option `keepWarm` says, on unless set to off.
 async function setKeepWarm($: EngineInterface, value: boolean): Promise<void> {
   await update($, keepWarm, () => value)
   const at = await $.clock.now()
   if (value) await markActive($, at, false)
   const id = await currentSessionId($)
   if (id === null) return
-  await writePersisted($, p => ({ ...p, keepWarmSessions: withSession(p.keepWarmSessions, id, value ? at : null) }))
+  await writePersisted($, p => ({
+    ...p,
+    keepWarmSessions: withSession(p.keepWarmSessions, id, value ? at : null),
+    keepWarmOffSessions: withSession(p.keepWarmOffSessions, id, value ? null : at),
+  }))
 }
 
 async function restoreKeepWarm($: EngineInterface, id: string): Promise<void> {
-  const isOn = (await readPersisted($)).keepWarmSessions?.[id] !== undefined
+  const persisted = await readPersisted($)
+  const isOn =
+    persisted.keepWarmOffSessions?.[id] !== undefined
+      ? false
+      : persisted.keepWarmSessions?.[id] !== undefined
+        ? true
+        : keepWarmByDefault
   await update($, keepWarm, () => isOn)
+}
+
+// ── The shutdown button ───────────────────────────────────────────────────────────────────────────────────────────
+
+// Whether the computer can be shut down with nobody at the keyboard, checked once per session start: the button shows
+// dimmed, and says what is missing, until it can. The programs it starts read and change nothing: `whoami /priv`
+// (Windows), else `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no
+// password and runs nothing.
+async function checkShutdown($: EngineInterface): Promise<void> {
+  if (shutdownChecked) return
+  shutdownChecked = true
+  let readiness: ShutdownReadiness
+  try {
+    readiness = await detectShutdown($)
+  } catch {
+    readiness = { isReady: false, os: 'unknown', reason: 'check-failed' }
+  }
+  await update($, shutdownReadiness, () => readiness)
+}
+
+async function detectShutdown($: EngineInterface): Promise<ShutdownReadiness> {
+  if ((await $.env.get('OS')) === 'Windows_NT') {
+    const priv = await $.process.run(['whoami', '/priv'], { timeoutMs: 10_000 })
+    return hasShutdownRight(priv.stdout)
+      ? { isReady: true, os: 'windows', command: shutdownCommand('windows', false) }
+      : { isReady: false, os: 'windows', reason: 'no-right' }
+  }
+  const os = osFromUname((await $.process.run(['uname', '-s'], { timeoutMs: 10_000 })).stdout)
+  if (os === null) return { isReady: false, os: 'unknown', reason: 'unknown-os' }
+  if (os === 'linux') {
+    try {
+      const logind = await $.process.run(['loginctl', 'can-power-off'], { timeoutMs: 10_000 })
+      if (logind.exitCode === 0 && logindAllows(logind.stdout)) return { isReady: true, os, command: shutdownCommand(os, true) }
+    } catch {
+      // No systemd-logind: sudo may still allow it.
+    }
+  }
+  try {
+    const sudo = await $.process.run(['sudo', '-n', '-l', 'shutdown'], { timeoutMs: 10_000 })
+    if (sudo.exitCode === 0) return { isReady: true, os, command: shutdownCommand(os, false) }
+  } catch {
+    // No sudo.
+  }
+  return { isReady: false, os, reason: 'no-permission' }
+}
+
+// The button: pause as the pause button does, telling Claude to ask its questions now, then count down and shut the
+// computer down. Pressed while paused, it counts down at once; pressed where it cannot, it says what is missing.
+async function requestShutdown($: EngineInterface, askAbove: number): Promise<void> {
+  const lang = await currentLang($)
+  const t = strings(lang)
+  const readiness = await read($, shutdownReadiness)
+  if (readiness === null) {
+    $.ui.toast(t.shutdownChecking)
+    return
+  }
+  if (!readiness.isReady) {
+    $.ui.toast(t.shutdownHelp(readiness))
+    $.ui.log(t.shutdownHelp(readiness))
+    return
+  }
+  if ((await read($, shutdownPhase)) !== 'idle') return
+  const phase = await read($, pausePhase)
+  if (phase === 'paused') {
+    await startShutdownCountdown($)
+    return
+  }
+  await update($, shutdownPhase, () => 'requested')
+  if (phase === 'running') await requestPause($, askAbove, shutdownNote(lang))
+  else await handToModel($, shutdownNote(lang))
+}
+
+async function startShutdownCountdown($: EngineInterface): Promise<void> {
+  const at = await $.clock.now()
+  stopShutdownTimers()
+  await update($, shutdownAt, () => at + SHUTDOWN_COUNTDOWN_MS)
+  await update($, shutdownPhase, () => 'countdown')
+  await update($, now, () => at)
+  // The countdown in the band, second by second, and the command at its end.
+  shutdownTicker = $.clock.every(1000, () => {
+    void tick($)
+  })
+  shutdownTimer = $.clock.after(SHUTDOWN_COUNTDOWN_MS, () => {
+    void runShutdown($).catch(() => undefined)
+  })
+}
+
+function stopShutdownTimers(): void {
+  shutdownTimer?.cancel()
+  shutdownTimer = null
+  shutdownTicker?.cancel()
+  shutdownTicker = null
+}
+
+// The cancel button, and quietly whatever ends the pause: the pause itself stays as it is.
+async function cancelShutdown($: EngineInterface, isQuiet: boolean): Promise<void> {
+  stopShutdownTimers()
+  if ((await read($, shutdownPhase)) === 'idle') return
+  await update($, shutdownPhase, () => 'idle')
+  await update($, shutdownAt, () => null)
+  if (!isQuiet) $.ui.toast(strings(await currentLang($)).shutdownCancelled)
+}
+
+async function runShutdown($: EngineInterface): Promise<void> {
+  stopShutdownTimers()
+  if ((await read($, shutdownPhase)) !== 'countdown') return
+  const readiness = await read($, shutdownReadiness)
+  if (readiness === null || !readiness.isReady) {
+    await cancelShutdown($, true)
+    return
+  }
+  const t = strings(await currentLang($))
+  await update($, shutdownPhase, () => 'shutting')
+  $.ui.log(t.shutdownLog)
+  try {
+    const result = await $.process.run(readiness.command, { timeoutMs: 30_000 })
+    if (result.exitCode !== 0) throw new Error(result.stderr.trim().split('\n')[0] || `exit code ${result.exitCode}`)
+  } catch (error) {
+    await update($, shutdownPhase, () => 'idle')
+    await update($, shutdownAt, () => null)
+    const message = t.shutdownFailed(error instanceof Error ? error.message : String(error))
+    $.ui.toast(message)
+    $.ui.log(message)
+  }
 }
 
 // Claude's way to tell the band that it paused the session or picks the work back up (pause_state): a pause asked
@@ -484,6 +642,7 @@ async function enterPaused($: EngineInterface): Promise<void> {
   await setPausePhase($, 'paused')
   await rememberPause($, at)
   $.ui.toast(strings(await currentLang($)).pausedToast)
+  if ((await read($, shutdownPhase)) === 'requested') await startShutdownCountdown($)
 }
 
 async function enterRunning($: EngineInterface): Promise<void> {
@@ -493,6 +652,7 @@ async function enterRunning($: EngineInterface): Promise<void> {
   await update($, pauseTasksLeft, () => null)
   await update($, pauseDelivered, () => true)
   await rememberPause($, null)
+  await cancelShutdown($, true)
 }
 
 // Hands the model a text now: folded into the running turn as a row it reads at its next request, or as a prompt
@@ -513,13 +673,14 @@ async function handToModel($: EngineInterface, text: string): Promise<'appended'
   return 'submitted'
 }
 
-async function requestPause($: EngineInterface, askAbove: number): Promise<void> {
+async function requestPause($: EngineInterface, askAbove: number, extra?: string): Promise<void> {
   if ((await read($, pausePhase)) !== 'running') return
   const lang = await currentLang($)
   await enterPausing($, true)
+  const request = extra === undefined ? pauseRequest(askAbove, lang) : `${pauseRequest(askAbove, lang)}\n\n${extra}`
   // An appended row waits for the turn's next request; should the turn end first, the Stop hook hands it on.
   // (Marked after the append: a request racing it at worst hands the model the request twice.)
-  if ((await handToModel($, pauseRequest(askAbove, lang))) === 'appended') await update($, pauseDelivered, () => false)
+  if ((await handToModel($, request)) === 'appended') await update($, pauseDelivered, () => false)
   $.ui.toast(strings(lang).pauseRequestedToast)
 }
 
@@ -569,6 +730,9 @@ async function pauseOnStop(
 
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
+  keepWarmByDefault = options.keepWarm !== 'off'
+  shutdownChecked = false
+  stopShutdownTimers()
   pauseToolRegistered = false
   keepWarmStarted = false
   isRefreshing = false
@@ -589,7 +753,10 @@ export const register: Register = (on, options) => {
     if (id !== null) {
       await restorePause($, id)
       await restoreKeepWarm($, id)
+    } else {
+      await update($, keepWarm, () => keepWarmByDefault)
     }
+    void checkShutdown($).catch(() => undefined)
 
     await refreshContext($)
     await refreshThreshold($)
@@ -614,6 +781,7 @@ export const register: Register = (on, options) => {
     await update($, sessionId, () => e.session_id)
     await restorePause($, e.session_id)
     await restoreKeepWarm($, e.session_id)
+    void checkShutdown($).catch(() => undefined)
     // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
     const seconds = e.seconds_since_last_response
     if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
@@ -881,17 +1049,51 @@ export const register: Register = (on, options) => {
       </Box>
     )
 
-    // The pause button: „Pause“, then what Claude is finishing up, then „Weiter“.
+    // The pause button: „Pause“, then what Claude is finishing up, then „Weiter“. Beside it the shutdown button, which
+    // pauses the same way and then shuts the computer down: dimmed where that cannot happen unattended (a press says
+    // what is missing), replaced by the countdown and its cancel button once the session is paused.
     const phase = await read($, pausePhase)
+    const shutting = await read($, shutdownPhase)
+    const readiness = await read($, shutdownReadiness)
+    const cancelShutdownButton = (
+      <Button key="shutdown-cancel" label={t.shutdownCancel} onPress={() => cancelShutdown($, false)} />
+    )
+    const shutdownButton = (
+      <Button
+        key="shutdown"
+        label={t.shutdown}
+        dimColor={readiness?.isReady !== true}
+        onPress={() => requestShutdown($, askAbove)}
+      />
+    )
     let pause
-    if (phase === 'running') {
-      pause = <Button key="pause" label={`${signs.pause} ${t.pause}`} onPress={() => requestPause($, askAbove)} />
+    if (shutting === 'countdown') {
+      const until = (await read($, shutdownAt)) ?? at
+      pause = (
+        <Box flexDirection="row" gap={1}>
+          <Text color="error">{t.shutdownIn(secondsLeft(until, at))}</Text>
+          {cancelShutdownButton}
+        </Box>
+      )
+    } else if (shutting === 'shutting') {
+      pause = <Text color="error">{t.shutdownRunning}</Text>
+    } else if (phase === 'running') {
+      pause = (
+        <Box flexDirection="row" gap={1}>
+          <Button key="pause" label={`${signs.pause} ${t.pause}`} onPress={() => requestPause($, askAbove)} />
+          {shutdownButton}
+        </Box>
+      )
     } else if (phase === 'pausing') {
       const left = await read($, pauseTasksLeft)
+      const asked = shutting === 'requested' ? t.shutdownRequested : t.pauseRequested
       pause = (
-        <Text color="warning" wrap="truncate-end">
-          {`${signs.requested} ${t.pauseRequested}${t.tasksLeft(left)}`}
-        </Text>
+        <Box flexDirection="row" gap={1}>
+          <Text color="warning" wrap="truncate-end">
+            {`${signs.requested} ${asked}${t.tasksLeft(left)}`}
+          </Text>
+          {shutting === 'requested' ? cancelShutdownButton : null}
+        </Box>
       )
     } else {
       const since = sinceText(await read($, pausedAt), at, lang)
@@ -899,6 +1101,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="row" gap={1}>
           <Button key="resume" label={`${signs.resume} ${t.resume}`} variant="primary" onPress={() => requestResume($)} />
           <Text color="success">{t.paused(since)}</Text>
+          {shutdownButton}
         </Box>
       )
     }

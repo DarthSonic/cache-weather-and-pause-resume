@@ -18,6 +18,13 @@
       "default": "auto",
       "options": ["auto", "de", "en"]
     },
+    "keepWarm": {
+      "type": "string",
+      "title": "Keep-warm in new sessions",
+      "description": "on: every new session starts with keep-warm checked; off: it starts unchecked. Each session's checkbox stays yours.",
+      "default": "on",
+      "options": ["on", "off"]
+    },
     "askAboveMinutes": {
       "type": "number",
       "title": "Pause: ask above (minutes)",

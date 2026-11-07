@@ -23,6 +23,22 @@ export type PausePhase = 'running' | 'pausing' | 'paused'
  */
 export type KeepWarmNote = 'ended' | 'missed' | 'cold'
 
+/** The systems the shutdown button knows. */
+export type ShutdownOs = 'windows' | 'linux' | 'macos'
+
+/**
+ * Whether the shutdown button can shut the computer down unattended, and with which command; or why not. `no-right`:
+ * the Windows account lacks the right to shut the system down; `no-permission`: neither systemd-logind nor a
+ * password-free sudo lets the session power off; `unknown-os`: a system the button does not know; `check-failed`: the
+ * check itself could not run.
+ */
+export type ShutdownReadiness =
+  | { isReady: true; os: ShutdownOs; command: readonly string[] }
+  | { isReady: false; os: ShutdownOs | 'unknown'; reason: 'no-right' | 'no-permission' | 'unknown-os' | 'check-failed' }
+
+/** Where the shutdown stands: none, asked for (the pause runs), counting down, or the command is running. */
+export type ShutdownPhase = 'idle' | 'requested' | 'countdown' | 'shutting'
+
 declare module 'claude-code' {
   interface PluginState {
     'cache-weather-and-pause-resume': {
@@ -60,6 +76,11 @@ declare module 'claude-code' {
       keepWarmRefreshes: number
       /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */
       isAwaitingPerson: boolean
+      /** Whether and how the computer can be shut down unattended; null until the session start has checked. */
+      shutdownReadiness: ShutdownReadiness | null
+      shutdownPhase: ShutdownPhase
+      /** When the countdown ends and the command runs. */
+      shutdownAt: number | null
     }
   }
 }

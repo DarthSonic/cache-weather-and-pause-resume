@@ -7,8 +7,9 @@
 
 Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt über dem Eingabefeld. Sie zeigt, wie
 warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf, einem Knopf
-**Pause / Weiter**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, und einem Haken
-**Keep-warm**, der den Cache kurz vor Ablauf auffrischt.
+**Pause / Weiter**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, einem Haken
+**Keep-warm**, der den Cache kurz vor Ablauf auffrischt, und einem Knopf **Shutdown**, der die Sitzung pausiert und
+danach den Rechner herunterfährt.
 
 ![Die Leiste im Terminal: Cache noch 58 Minuten, Keep-warm gesetzt, Hits 98 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
 
@@ -27,8 +28,10 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
    (`Ctx 87 % / Max 97 %`). Drück **Compact** zwischen zwei Aufgaben, statt ein Auto-Compact mitten in eine geraten zu
    lassen; danach schreibt die Leiste die Zusammenfassung ins Log, mit der Claude weitermacht.
 4. **Den Cache durch einen langen Lauf oder eine Pause warm halten.** Claude wartet auf einen Build, der 70 Minuten
-   dauert, oder du bist in einer Besprechung. Setz den Haken **Keep-warm**: Kurz bevor der Cache abläuft, frischt der
-   Mod ihn auf, und die nächste Anfrage liest die Unterhaltung aus dem Cache, statt alles neu zu schreiben.
+   dauert, oder du bist in einer Besprechung. **Keep-warm**, standardmäßig an, frischt den Cache kurz vor Ablauf auf,
+   und die nächste Anfrage liest die Unterhaltung aus dem Cache, statt alles neu zu schreiben.
+5. **Feierabend.** Drück **Shutdown**: Claude fragt sofort nach allem Langen, das noch läuft, und pausiert dann wie bei
+   **Pause**; sobald pausiert ist, zählt die Leiste 60 Sekunden herunter und fährt den Rechner herunter.
 
 Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf Englisch “pause” und “continue”). Oder bitte
 Claude in eigenen Worten darum („lass uns für heute Schluss machen“): Sobald pausiert ist, sagt Claude es der Leiste,
@@ -39,12 +42,13 @@ und die zeigt **Weiter**.
 | Teil | Was er zeigt |
 | --- | --- |
 | **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. |
-| **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; daneben, warum Keep-warm wartet, wenn es wartet. |
+| **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; daneben, warum Keep-warm wartet, wenn es wartet. |
 | **Hits** | Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx / Max** | Füllung des Kontexts in Prozent und die Auto-Compact-Schwelle (`*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
 | **⏸ Pause / ▶ Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). Im Terminal `❚❚ Pause` und `► Weiter`. |
+| **Shutdown** | Pausiert wie **Pause** und fährt den Rechner dann nach 60 Sekunden Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 
 Ist der Cache abgelaufen, sind Hits, Ctx und Max bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
@@ -98,6 +102,35 @@ Wie der Mod den Zustand verfolgt:
 - Eine Pause wird je Sitzung in `~/.claude/cache-weather-and-pause-resume/state.json` gemerkt: eine pausierte Sitzung, die wieder
   geöffnet wird (Neustart der App, fortgesetzte Sitzung), zeigt wieder **Weiter**. `/clear` hebt die Pause auf.
 
+## Der Shutdown-Knopf
+
+**Shutdown** steht neben **Pause** und beendet den Tag für dich:
+
+1. Ein Klick schickt Claude die Pause-Bitte (oben) mit einem Zusatz: Danach geht der Rechner aus. Claude fragt deshalb
+   sofort nach langen Tasks, solange du noch da bist, und danach nichts mehr.
+2. Die Leiste zeigt „Shutdown angefordert“, die noch laufenden Tasks und einen Knopf **Abbrechen**.
+3. Ist die Sitzung pausiert, zählt die Leiste 60 Sekunden herunter („Shutdown in 47 s“, **Abbrechen**), dann startet der
+   Mod den Befehl des Systems und schreibt eine Zeile ins Log. Ist die Sitzung schon pausiert, zählt er sofort herunter.
+
+Nimmst du die Arbeit wieder auf (**Weiter**, „weitermachen“ oder Claude über `pause_state`), fällt ein angeforderter
+Shutdown weg; die Pause selbst bleibt wie immer erhalten.
+
+**Was es braucht.** Der Knopf ist gedimmt, bis sich der Rechner ohne jemanden an der Tastatur herunterfahren lässt; ein
+Klick sagt dann, was fehlt. Der Mod prüft das einmal je Sitzungsstart:
+
+| System | Prüfung | Befehl | Wenn es fehlt |
+| --- | --- | --- | --- |
+| Windows | `whoami /priv` nennt `SeShutdownPrivilege` (das Recht „Herunterfahren des Systems“, das ein normales Konto hat) | `shutdown /s /f /t 10` | ein Administrator vergibt das Recht in der lokalen Sicherheitsrichtlinie |
+| Linux | `loginctl can-power-off` antwortet `yes` (bei einer lokalen Desktop-Anmeldung meist so), sonst gelingt `sudo -n -l shutdown` | `systemctl poweroff`, sonst `sudo -n shutdown -h now` | `shutdown` ohne Passwort erlauben: `sudo visudo -f /etc/sudoers.d/shutdown` mit der Zeile `DEIN_NAME ALL=(root) NOPASSWD: PFAD` (PFAD aus `command -v shutdown`) |
+| macOS | `sudo -n -l shutdown` gelingt | `sudo -n shutdown -h now` | dieselbe sudoers-Zeile, mit `/sbin/shutdown` |
+
+**Beachten:**
+
+- Unter Windows werden andere Programme ohne Rückfrage geschlossen (`/f`; Windows setzt es bei jedem Vorlauf ohnehin),
+  damit kein Bildschirm „Apps verhindern das Herunterfahren“ auf jemanden wartet, der gegangen ist. Speichere deine
+  Arbeit in anderen Programmen vorher.
+- Andere Claude-Code-Sitzungen auf dem Rechner enden mit.
+
 ## Keep-warm
 
 Der Prompt-Cache hält die Unterhaltung 5 Minuten oder 1 Stunde, nachdem die letzte Anfrage sie gelesen hat. Ist er
@@ -121,8 +154,9 @@ Cache kurz vor Ablauf auf:
 - **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die nächste Anfrage
   schreibt den neuen Cache, und Keep-warm wartet auf sie („wartet auf die nächste Anfrage“).
 - **Nur beantwortete Anfragen zählen:** Eine fehlgeschlagene hat nichts aus dem Cache gelesen und setzt nichts zurück.
-- **Nur du schaltest:** Der Mod setzt oder löscht den Haken nie. Er gilt für diese Sitzung: Ein Neustart oder
-  Fortsetzen behält ihn, eine neue Sitzung und `/clear` starten ohne.
+- **Standardmäßig an, dann schaltest nur du:** Eine neue Sitzung startet mit gesetztem Haken (mit der Option `keepWarm`
+  auf `off` ohne). Der Mod setzt oder löscht ihn nie; deine Wahl gilt für diese Sitzung: Ein Neustart oder Fortsetzen
+  behält sie, eine neue Sitzung und `/clear` starten, wie die Option sagt.
 
 Eine Auffrischung ist eine eigene Anfrage und wird wie eine abgerechnet oder gezählt: Sie liest den ganzen Kontext aus
 dem Cache, dazu ein paar Tokens Antwort. Sie lohnt sich, wenn die nächste Anfrage später kommt, als der Cache gehalten
@@ -162,6 +196,7 @@ Zustandsdatei (`~/.claude/cache-wetter/`) wird nicht übernommen und kann weg.
 | --- | --- | --- |
 | `language` | `auto` | `de` oder `en` für Leiste, Meldungen und die Texte an Claude. `auto` folgt `LC_ALL` / `LC_MESSAGES` / `LANG`, dann der Systemsprache (unter Windows, wo `LANG` meist leer ist). |
 | `askAboveMinutes` | `5` | Ab welcher Restlaufzeit eines laufenden Tasks Claude bei einer Pause nachfragt. |
+| `keepWarm` | `on` | Ob eine neue Sitzung mit gesetztem Keep-warm startet; `off` startet ohne. |
 
 Setzen mit `/plugin configure cache-weather-and-pause-resume@darthsonic` oder in `~/.claude/settings.json`:
 
@@ -196,13 +231,14 @@ zusammen.
 
 ## Was der Mod auf deinem Rechner tut
 
-cache-weather-and-pause-resume startet keine Programme und stellt selbst keine Netzwerk-Anfragen, außer den Auffrischungen von
-Keep-warm, die du je Sitzung einschaltest. Was er Claude übergibt, kommt wie alles, was du schickst, in die
+cache-weather-and-pause-resume stellt selbst keine Netzwerk-Anfragen, außer den Auffrischungen von Keep-warm, und startet
+Programme nur für den Shutdown-Knopf (unten). Was er Claude übergibt, kommt wie alles, was du schickst, in die
 Unterhaltung:
 
 | Was | Wann | Genau |
 | --- | --- | --- |
 | ein Prompt in deinem Namen | du drückst **Pause**, während Claude ruht | die Pause-Bitte: fester Text aus [`hooks/pause.ts`](hooks/pause.ts), mit deinem `askAboveMinutes` |
+| dasselbe, mit Zusatz | du drückst **Shutdown** | die Pause-Bitte und ein fester Hinweis, dass der Rechner danach ausgeht |
 | ein Prompt in deinem Namen | du drückst **Weiter** | „weitermachen“ (auf Englisch “continue”) |
 | eine Zeile in der Unterhaltung | du drückst **Pause**, während Claude arbeitet, oder **Weiter** | die Pause-Bitte; ein fester Hinweis, dass die Pause vorbei ist, mit ihrer Dauer in Minuten |
 | ein Hinweis an deinem Prompt | eine Pause ist angefordert oder läuft, oder du tippst „pausieren“ oder „weitermachen“ | ein fester Hinweis (die Bitte, „die Sitzung ist pausiert“, „die Pause ist beendet“); dein getippter Text bleibt unverändert, und kein Prompt wird zurückgehalten |
@@ -219,8 +255,14 @@ Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das 
 3,5 MiB groß ist (für Cache-Laufzeit und Zeitpunkt der letzten Antwort), und die Dateinamen — nicht die Inhalte — in
 `~/.claude/projects/*/`, um die Pausen gelöschter Sitzungen zu streichen.
 
-**Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt) und `LC_ALL` /
-`LC_MESSAGES` / `LANG` (die Sprache). Er liest keine Einstellungen von Claude Code und keine Zugangsdaten.
+**Programme.** Bei jedem Sitzungsstart prüft er, ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
+sonst `uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und
+nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzung pausiert ist und der 60-Sekunden-Countdown
+abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht.
+
+**Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt), `LC_ALL` /
+`LC_MESSAGES` / `LANG` (die Sprache) und `OS` (ob er unter Windows läuft). Er liest keine Einstellungen von Claude Code
+und keine Zugangsdaten.
 
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle. Jeder andere Hook liest nur und
 reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
@@ -235,8 +277,8 @@ Modell nicht liest. Der Hook auf
 
 ## Zustandsdatei
 
-`~/.claude/cache-weather-and-pause-resume/state.json` hält die pausierten Sitzungen und die Sitzungen mit gesetztem Keep-warm (je
-Sitzungs-ID), die zuletzt gesehene Cache-Laufzeit und die zuletzt geladene Fassung. Sie
+`~/.claude/cache-weather-and-pause-resume/state.json` hält die pausierten Sitzungen und die Sitzungen, in denen du Keep-warm an-
+oder abgeschaltet hast (je Sitzungs-ID), die zuletzt gesehene Cache-Laufzeit und die zuletzt geladene Fassung. Sie
 behält von beidem höchstens die 20 jüngsten, und zehn Sekunden nach einem Sitzungsstart fällt heraus, was sie von
 gelöschten Sitzungen hält (kein Transkript mehr unter `~/.claude/projects/`); im Zweifel bleibt alles stehen. Die Datei liest nur der Mod — sie gelangt nie zum Modell und
 kostet keine Token.

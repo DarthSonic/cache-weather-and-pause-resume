@@ -55,6 +55,13 @@ export function pauseRequest(askAboveMinutes: number, lang: Lang): string {
   ].join('\n')
 }
 
+/** Beside the pause request when the shutdown button asked for it: the person leaves once Claude has asked. */
+export function shutdownNote(lang: Lang): string {
+  return lang === 'de'
+    ? '⏻ Shutdown-Knopf: Nach dieser Pause fährt der Mod den Rechner herunter, und der Mensch geht weg. Stell Rückfragen zu langen Tasks deshalb sofort, bevor du anderes tust, solange der Mensch noch da ist; danach fragst du nichts mehr. Fahre den Rechner nicht selbst herunter, das übernimmt der Mod.'
+    : '⏻ Shutdown button: after this pause the mod shuts the computer down, and the person leaves. So ask about long tasks right away, before anything else, while the person is still there; ask nothing after that. Do not shut the computer down yourself; the mod does.'
+}
+
 /** What the model reads beside „weitermachen“ / „continue“. */
 export function resumeContext(pausedMinutes: number | null, lang: Lang): string {
   if (lang === 'de') {

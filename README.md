@@ -7,8 +7,8 @@
 
 A [Claude Code](https://code.claude.com) mod: one slim band directly above the prompt that tells you how warm the
 prompt cache still is and how full the context is, with a **Compact** button, a **Pause / Resume** button that has
-Claude finish what is running, save its state and wait, and a **Keep-warm** checkbox that refreshes the cache shortly
-before it runs out.
+Claude finish what is running, save its state and wait, a **Keep-warm** checkbox that refreshes the cache shortly
+before it runs out, and a **Shutdown** button that pauses the session and then shuts the computer down.
 
 ![The band in a terminal: cache 58 minutes left, Keep-warm checked, hits 98 %, a sun at 5 % of a 97 % threshold, Compact and Pause; below it the green cache bar over the band's width](docs/band-terminal.png)
 
@@ -27,8 +27,10 @@ before it runs out.
    Max 97 %`). Press **Compact** between two tasks instead of letting an auto-compact cut into one; the band then logs
    the summary Claude carries on with.
 4. **Keep the cache warm through a long run or a break.** Claude waits for a build that takes 70 minutes, or you are
-   in a meeting. Check **Keep-warm**: shortly before the cache runs out the mod refreshes it, so the next request reads
-   the conversation from the cache instead of writing all of it again.
+   in a meeting. **Keep-warm**, on by default, refreshes the cache shortly before it runs out, so the next request
+   reads the conversation from the cache instead of writing all of it again.
+5. **Leave for the night.** Press **Shutdown**: Claude asks right away about anything long still running, then pauses
+   as with **Pause**; once paused, the band counts down 60 seconds and shuts the computer down.
 
 You can also type: “pause” pauses, “continue” resumes (in German “pausieren” and „weitermachen“). Or ask Claude in
 any words (“let's stop here for today”): once paused, Claude tells the band, which then shows **Resume**.
@@ -38,12 +40,13 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | Part | What it shows |
 | --- | --- |
 | **Cache** | Minutes left (`m`) of the prompt cache since the last response or keep-warm refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. |
-| **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; beside it why keep-warm waits, when it does. |
+| **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; beside it why keep-warm waits, when it does. |
 | **Hits** | The share of the last response's input tokens that came from the cache. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
 | **Ctx / Max** | Context fill in percent and the auto-compact threshold (`*`: the fallback of 83 %, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
 | **⏸ Pause / ▶ Resume** | Asks Claude to pause the session, and carries on (below). In a terminal `❚❚ Pause` and `► Resume`. |
+| **Shutdown** | Pauses like **Pause**, then shuts the computer down after a 60-second countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
 
 Once the cache has expired, Hits, Ctx and Max are hidden until the next response: they describe a request that no
@@ -96,6 +99,34 @@ How the mod tracks the state:
 - A pause is kept per session in `~/.claude/cache-weather-and-pause-resume/state.json`, so a session reopened while paused (an app
   restart, a resumed session) shows **Resume** again. `/clear` ends the pause.
 
+## The shutdown button
+
+**Shutdown** sits beside **Pause** and ends the day for you:
+
+1. A press hands Claude the pause request (above) with one more note: the computer goes off afterwards, so Claude asks
+   about long-running tasks right away, while you are still there, and asks nothing after that.
+2. The band shows “Shutdown requested”, the tasks still running and a **Cancel** button.
+3. Once the session is paused, the band counts down 60 seconds (“Shutdown in 47 s”, **Cancel**), then the mod runs the
+   system's command and logs a line. Pressed while the session is already paused, it counts down at once.
+
+Picking the work back up (**Resume**, “continue”, or Claude through `pause_state`) cancels a shutdown that was asked
+for; the pause itself is kept as always.
+
+**What it needs.** The button is dimmed until the computer can be shut down with nobody at the keyboard; a press then
+says what is missing. The mod checks once per session start:
+
+| System | Check | Command | Where it is missing |
+| --- | --- | --- | --- |
+| Windows | `whoami /priv` lists `SeShutdownPrivilege` (the right “Shut down the system”, which a normal account has) | `shutdown /s /f /t 10` | an administrator grants the right in the local security policy |
+| Linux | `loginctl can-power-off` answers `yes` (usually so for a local desktop login), else `sudo -n -l shutdown` succeeds | `systemctl poweroff`, else `sudo -n shutdown -h now` | allow `shutdown` without a password: `sudo visudo -f /etc/sudoers.d/shutdown` with the line `YOUR_NAME ALL=(root) NOPASSWD: PATH` (PATH from `command -v shutdown`) |
+| macOS | `sudo -n -l shutdown` succeeds | `sudo -n shutdown -h now` | the same sudoers line, with `/sbin/shutdown` |
+
+**Mind:**
+
+- On Windows the other programs are closed without asking (`/f`; Windows implies it for any delay), so that no “apps
+  are preventing shutdown” screen waits for someone who left. Save your work in other programs first.
+- Other Claude Code sessions on the computer end with it.
+
 ## Keep-warm
 
 The prompt cache holds the conversation for 5 minutes or 1 hour after the last request reads it. When it has run out,
@@ -118,8 +149,9 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
 - **After `/compact` or a switch to another model** there is nothing to keep warm: the next request writes the new
   cache, and keep-warm waits for it (“waiting for the next request”).
 - **Only answered requests count:** one that failed read nothing from the cache and starts nothing over.
-- **Your switch alone:** the mod never checks or unchecks it. It holds for this session: a restart or a resume keeps
-  it, a new session and `/clear` start without.
+- **On by default, then your switch alone:** a new session starts with keep-warm checked (with the option `keepWarm`
+  set to `off`, unchecked). The mod never checks or unchecks it; your choice holds for this session: a restart or a
+  resume keeps it, a new session and `/clear` start as the option says.
 
 A refresh is a request of its own and is billed or counted like one: it reads the whole context from the cache, plus
 a few tokens of reply. It pays off when the next request comes later than the cache would have lasted.
@@ -158,6 +190,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | --- | --- | --- |
 | `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
+| `keepWarm` | `on` | Whether a new session starts with keep-warm checked; `off` starts it unchecked. |
 
 Set them with `/plugin configure cache-weather-and-pause-resume@darthsonic`, or in `~/.claude/settings.json`:
 
@@ -190,12 +223,13 @@ together with it in either order.
 
 ## What the mod does on your machine
 
-cache-weather-and-pause-resume starts no programs and makes no network requests of its own, but for keep-warm's refreshes, which
-you switch on per session. What it hands Claude enters the conversation like anything else you send:
+cache-weather-and-pause-resume makes no network requests of its own but for keep-warm's refreshes, and starts programs only for
+the shutdown button (below). What it hands Claude enters the conversation like anything else you send:
 
 | What | When | Exactly |
 | --- | --- | --- |
 | a prompt in your name | you press **Pause** while Claude is idle | the pause request: fixed text from [`hooks/pause.ts`](hooks/pause.ts), with your `askAboveMinutes` |
+| the same, with a note | you press **Shutdown** | the pause request and a fixed note that the computer goes off afterwards |
 | a prompt in your name | you press **Resume** | “continue” (in German „weitermachen“) |
 | a row in the conversation | you press **Pause** while Claude works, or **Resume** | the pause request; a fixed note that the pause is over, with its length in minutes |
 | a note added to your prompt | a pause is requested or on, or you type “pause” or “continue” | a fixed note (the request, “the session is paused”, “the pause is over”); the text you typed is never changed, and no prompt is held back |
@@ -212,8 +246,13 @@ instructions, hooks or build files. It reads that file, the session's transcript
 cache lifetime and the time of the last response), and the file names — not the contents — in `~/.claude/projects/*/`,
 to drop the pauses of deleted sessions.
 
-**Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is) and `LC_ALL` / `LC_MESSAGES`
-/ `LANG` (the language). It reads no Claude Code settings and no credentials.
+**Programs.** At each session start it checks whether the shutdown button can work: `whoami /priv` on Windows;
+elsewhere `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and
+runs nothing. Only once you pressed **Shutdown**, the session is paused and the 60-second countdown has run out does it
+run the shutdown command from the table above. It starts no other program.
+
+**Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is), `LC_ALL` / `LC_MESSAGES` /
+`LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials.
 
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above. Every other hook only reads and
 passes its event on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
@@ -226,8 +265,8 @@ band and stacks the bands of other mods beneath it.
 
 ## State file
 
-`~/.claude/cache-weather-and-pause-resume/state.json` holds the paused sessions and the sessions with keep-warm checked (by session
-id), the cache lifetime last seen and the version last loaded. It keeps at most the 20
+`~/.claude/cache-weather-and-pause-resume/state.json` holds the paused sessions and the sessions where you switched keep-warm on or
+off (by session id), the cache lifetime last seen and the version last loaded. It keeps at most the 20
 latest of each, and ten seconds after a session starts it drops what it holds of deleted sessions (no transcript left
 under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
 

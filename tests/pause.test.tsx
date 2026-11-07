@@ -22,6 +22,8 @@ import {
 // The button tests read German words: the language is pinned, never the locale of the machine they run on.
 const DE = { options: { language: 'de' } }
 const EN = { options: { language: 'en' } }
+// Keep-warm is on in a new session unless the option says off.
+const DE_COLD = { options: { language: 'de', keepWarm: 'off' } }
 const PAUSED_PERSON_NOTE = pausedPersonNote('de')
 const PAUSED_MACHINE_NOTE = pausedMachineNote('de')
 const PAUSING_NOTE = pausingNote('de')
@@ -63,9 +65,9 @@ const fromHome = (path: string): string => {
   const at = path.indexOf(HOME)
   return (at >= 0 ? path.slice(at) : path).replaceAll('\\', '/')
 }
-function disk(on: On, seed: Record<string, string> = {}): Record<string, string> {
+function disk(on: On, seed: Record<string, string> = {}, env: Record<string, string> = {}): Record<string, string> {
   const files: Record<string, string> = { ...seed }
-  mock.env(on, { USERPROFILE: HOME })
+  mock.env(on, { USERPROFILE: HOME, ...env })
   on('fs.exists', ($, e) => ({ value: fromHome(e.path) in files }))
   on('fs.read', ($, e) => {
     const text = files[fromHome(e.path)]
@@ -367,6 +369,108 @@ describe('the pause by Claude\'s word', () => {
   })
 })
 
+describe('the shutdown button', () => {
+  const PRIVILEGES = 'SeShutdownPrivilege   Herunterfahren des Systems   Deaktiviert'
+
+  // Windows with or without the right to shut down; the commands the mod runs are recorded, none really runs.
+  function windows(on: On, privileges = PRIVILEGES): { runs: string[][]; logs: string[] } {
+    const runs: string[][] = []
+    const logs: string[] = []
+    on('process.run', ($, e) => {
+      runs.push([...e.argv])
+      const stdout = e.argv[0] === 'whoami' ? privileges : ''
+      return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    on('ui.log', ($, e) => {
+      logs.push(e.text)
+      return { value: undefined }
+    })
+    return { runs, logs }
+  }
+
+  test('dimmed where the computer cannot be shut down unattended, and a press says what is missing', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windows(on, 'SeChangeNotifyPrivilege   Auslassen der durchsuchenden Überprüfung   Aktiviert')
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'x1' })
+    await clock.settle()
+    expect((await ui.find({ key: 'shutdown' }))?.props.dimColor).toBe(true)
+    await ui.press({ key: 'shutdown' })
+    expect(host.logs.at(-1)).toContain('SeShutdownPrivilege')
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    expect(host.runs).toEqual([['whoami', '/priv']])
+    await ui.unmount()
+  })
+
+  test('pauses first, asks Claude to ask now, counts down 60 s, then shuts down', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    const host = windows(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'x2' })
+    await clock.settle()
+    expect((await ui.find({ key: 'shutdown' }))?.props.dimColor).toBe(false)
+
+    await ui.press({ key: 'shutdown' })
+    expect(prompts.at(-1)?.text).toContain('die Sitzung zu pausieren')
+    expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
+    expect(await ui.find({ type: 'Text', text: /Shutdown angefordert/ })).toBeDefined()
+
+    await $.classic.Stop(stop(undefined, 'x2'))
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in 60 s$/ })).toBeDefined()
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
+    await clock.advance(59_000)
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in 1 s$/ })).toBeDefined()
+    expect(host.runs.some(argv => argv[0] === 'shutdown')).toBe(false)
+    await clock.advance(1_000)
+    expect(host.runs.at(-1)?.slice(0, 3)).toEqual(['shutdown', '/s', '/f'])
+    expect(host.logs.at(-1)).toContain('fährt jetzt herunter')
+    expect(await ui.find({ type: 'Text', text: /Fährt herunter/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('the cancel button stops the countdown; the session stays paused', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windows(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'x3' })
+    await clock.settle()
+    await ui.press({ key: 'shutdown' })
+    await $.classic.Stop(stop(undefined, 'x3'))
+    await ui.press({ key: 'shutdown-cancel' })
+    await clock.advance(120_000)
+    expect(host.runs.some(argv => argv[0] === 'shutdown')).toBe(false)
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('picking the work back up drops the shutdown that was asked for', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windows(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'x4' })
+    await clock.settle()
+    await ui.press({ key: 'shutdown' })
+    await $.prompt.submit(typed('weitermachen'))
+    await $.classic.Stop(stop(undefined, 'x4'))
+    await clock.advance(120_000)
+    expect(host.runs.some(argv => argv[0] === 'shutdown')).toBe(false)
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    await ui.unmount()
+  })
+})
+
 describe('the pause across a restart', () => {
   test('a pause is kept on disk under the session id, and „Weiter“ takes it off', DE, async ($, on) => {
     mock.store(on)
@@ -561,7 +665,7 @@ describe('keep-warm', () => {
     await $.classic.PostModelSwitch({ cache_ttl: ttl })
   }
 
-  test('the checkbox is the person’s alone: off at first, switched by a press, kept on disk for this session', DE, async ($, on) => {
+  test('the checkbox is the person’s alone: switched by a press, kept on disk for this session (option off)', DE_COLD, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: START })
     const files = disk(on)
@@ -576,11 +680,28 @@ describe('keep-warm', () => {
     expect((await desktop.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Keep-warm')
     await desktop.press({ key: 'keep-warm' })
     expect(JSON.parse(files[STATE] ?? '{}').keepWarmSessions).toEqual({})
+    expect(JSON.parse(files[STATE] ?? '{}').keepWarmOffSessions).toEqual({ s1: START })
     await terminal.unmount()
     await desktop.unmount()
   })
 
-  test('a session resumed keeps its switch; another one, and the one after /clear, start without', DE, async ($, on) => {
+  test('by default a new session starts with keep-warm; switched off, that session keeps it off', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'd1' })
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('[✓] Keep-warm')
+    await ui.press({ key: 'keep-warm' })
+    await $.classic.SessionStart({ source: 'clear', session_id: 'd2' })
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('[✓] Keep-warm')
+    await $.classic.SessionStart({ source: 'resume', session_id: 'd1' })
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('[ ] Keep-warm')
+    await ui.unmount()
+  })
+
+  test('a session resumed keeps its switch; another one, and the one after /clear, start without (option off)', DE_COLD, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: START })
     disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
@@ -593,7 +714,7 @@ describe('keep-warm', () => {
     await ui.unmount()
   })
 
-  test('off, nothing is refreshed', SLOW, async ($, on) => {
+  test('off, nothing is refreshed', { ...DE_COLD, timeoutMs: 30_000 }, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
     disk(on)
