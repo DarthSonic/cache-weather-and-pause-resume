@@ -112,8 +112,8 @@ describe('the session readings', () => {
     expect(terminalWeather('⛈️')).toEqual({ sign: '↯', tone: 'error' })
     // One code point each, none an emoji: every terminal draws them one column wide.
     for (const sign of ['☼', '≋', '↯', '❚', '►']) expect([...sign].length).toBe(1)
-    expect(pauseSigns(true)).toEqual({ pause: '❚❚', resume: '►', requested: '❚❚' })
-    expect(pauseSigns(false)).toEqual({ pause: '⏸', resume: '▶', requested: '⏳' })
+    expect(pauseSigns(true)).toEqual({ requested: '❚❚' })
+    expect(pauseSigns(false)).toEqual({ requested: '⏳' })
   })
 
   test('a resumed session tells the lifetime only when its last response is 5 to 60 minutes old', async () => {
@@ -195,8 +195,8 @@ describe('the band', () => {
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...BAND, surface })
       expect(await ui.find({ type: 'Text', text: /Cache/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /Ctx – \/ Max 83 %/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /^Hits / })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^Ctx – \/ 83 %\*$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /Hits|Max/ })).toBeUndefined()
       expect(await ui.find({ key: 'pause' })).toBeDefined()
       expect(await ui.find({ key: 'compact' })).toBeDefined()
       expect(await ui.find({ key: 'keep-warm' })).toBeDefined()
@@ -210,13 +210,13 @@ describe('the band', () => {
     mock.store(on)
     nothingBeneath(on)
     const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
-    expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('❚❚ Pause')
+    expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('Pause')
     expect((await terminal.find({ type: 'Text', text: /^☼$/ }))?.props.color).toBe('warning')
     expect(await terminal.find({ type: 'Text', text: /️|[☀🌧⛈⏸⏳▶]/u })).toBeUndefined()
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸ Pause')
+    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('Pause')
     expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()
     await desktop.unmount()
   })

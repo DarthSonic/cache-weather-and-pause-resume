@@ -17,14 +17,15 @@ before it runs out, and a **Shutdown** button that pauses the session and then s
 ## Examples
 
 1. **Step away while a long run is going.** Claude has a test suite running in the background and you need to leave.
-   Press **⏸ Pause**: Claude starts nothing new, lets the run finish (or asks you first, with its remaining time, when
+   Press **Pause**: Claude starts nothing new, lets the run finish (or asks you first, with its remaining time, when
    it will take longer than 5 minutes), notes where it stands and reports “Paused”. Back at your desk, press
-   **▶ Resume** and Claude carries on from there, even after the app was restarted.
+   **Resume** and Claude carries on from there, even after the app was restarted.
 2. **Come back before the cache runs out.** The band counts down the prompt cache since the last response, say
    `Cache 12 m`. Send your next message before it reaches “expired”, and the request reads the conversation from the
-   cache instead of paying to write all of it again; **Hits** shows how much came from the cache.
+   cache instead of paying to write all of it again; the share after the slash (`Cache 12 m / 98 %`) shows how much
+   came from the cache.
 3. **Compact when it suits you.** The weather turns ⛈️ as the context nears the auto-compact threshold (`Ctx 87 % /
-   Max 97 %`). Press **Compact** between two tasks instead of letting an auto-compact cut into one; the band then logs
+   97 %`). Press **Compact** between two tasks instead of letting an auto-compact cut into one; the band then logs
    the summary Claude carries on with.
 4. **Keep the cache warm through a long run or a break.** Claude waits for a build that takes 70 minutes, or you are
    in a meeting. **Keep-warm**, on by default, refreshes the cache shortly before it runs out, so the next request
@@ -39,17 +40,16 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 
 | Part | What it shows |
 | --- | --- |
-| **Cache** | Minutes left (`m`) of the prompt cache since the last response or keep-warm refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. |
+| **Cache** | Minutes left (`m`) of the prompt cache since the last response or keep-warm refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. After the slash the hit rate: the share of the last response's input tokens that came from the cache (`Cache 42 m / 98 %`). |
 | **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; beside it why keep-warm waits, when it does. |
-| **Hits** | The share of the last response's input tokens that came from the cache. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
-| **Ctx / Max** | Context fill in percent and the auto-compact threshold (`*`: the fallback of 83 %, when the session reports none). |
+| **Ctx** | Context fill in percent and, after the slash, the auto-compact threshold (`Ctx 5 % / 97 %`; `*`: the fallback of 83 %, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
-| **⏸ Pause / ▶ Resume** | Asks Claude to pause the session, and carries on (below). In a terminal `❚❚ Pause` and `► Resume`. |
+| **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
 | **Shutdown** | Pauses like **Pause**, then shuts the computer down after a 60-second countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
 
-Once the cache has expired, Hits, Ctx and Max are hidden until the next response: they describe a request that no
+Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.
 
 A terminal gets narrow signs instead of emoji: terminals count an emoji's width in their own way (some one column,
@@ -62,9 +62,9 @@ with as log lines, which the model does not read.
 
 | State | Band | What happens |
 | --- | --- | --- |
-| working | `⏸ Pause` | A press hands Claude the pause request. |
+| working | `Pause` | A press hands Claude the pause request. |
 | pause requested | `⏳ Pause requested · 2 tasks still running` | Claude lets running work finish, asks about long tasks and saves the state. Typing “continue” takes the request back. |
-| paused | `▶ Resume` · `paused for 12 m` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
+| paused | `Resume` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
 
 You can also type: a message that is only “pause” (or “pausieren”) pauses; one that starts with “continue” or
 “resume” (or “weitermachen”) carries on. Both languages are understood whatever the mod's language is.
@@ -119,13 +119,15 @@ says what is missing. The mod checks once per session start:
 | --- | --- | --- | --- |
 | Windows | `whoami /priv` lists `SeShutdownPrivilege` (the right “Shut down the system”, which a normal account has) | `shutdown /s /f /t 10` | an administrator grants the right in the local security policy |
 | Linux | `loginctl can-power-off` answers `yes` (usually so for a local desktop login), else `sudo -n -l shutdown` succeeds | `systemctl poweroff`, else `sudo -n shutdown -h now` | allow `shutdown` without a password: `sudo visudo -f /etc/sudoers.d/shutdown` with the line `YOUR_NAME ALL=(root) NOPASSWD: PATH` (PATH from `command -v shutdown`) |
-| macOS | `sudo -n -l shutdown` succeeds | `sudo -n shutdown -h now` | the same sudoers line, with `/sbin/shutdown` |
+| macOS (not yet tested on a Mac) | `sudo -n -l shutdown` succeeds | `sudo -n shutdown -h now` | the same sudoers line, with `/sbin/shutdown` |
 
 **Mind:**
 
 - On Windows the other programs are closed without asking (`/f`; Windows implies it for any delay), so that no “apps
   are preventing shutdown” screen waits for someone who left. Save your work in other programs first.
 - Other Claude Code sessions on the computer end with it.
+- macOS is not yet tested on a real Mac: the button follows the same path as on Linux (a password-free sudo), and
+  where that fails the band says so. Reports are welcome as an issue.
 
 ## Keep-warm
 

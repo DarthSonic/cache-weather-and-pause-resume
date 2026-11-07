@@ -18,14 +18,15 @@ danach den Rechner herunterfährt.
 ## Beispiele
 
 1. **Weggehen, während ein langer Lauf läuft.** Claude hat eine Testsuite im Hintergrund laufen, und du musst los.
-   Drück **⏸ Pause**: Claude startet nichts Neues, lässt den Lauf zu Ende laufen (oder fragt dich vorher, mit der
+   Drück **Pause**: Claude startet nichts Neues, lässt den Lauf zu Ende laufen (oder fragt dich vorher, mit der
    Restlaufzeit, wenn er länger als 5 Minuten braucht), hält den Stand fest und meldet „Pausiert“. Zurück am Platz
-   drückst du **▶ Weiter**, und Claude macht dort weiter, auch nach einem Neustart der App.
+   drückst du **Weiter**, und Claude macht dort weiter, auch nach einem Neustart der App.
 2. **Zurück sein, bevor der Cache abläuft.** Die Leiste zählt den Prompt-Cache ab der letzten Antwort herunter, etwa
    `Cache 12 m`. Schickst du deine nächste Nachricht, bevor dort „abgelaufen“ steht, liest die Anfrage die Unterhaltung
-   aus dem Cache, statt alles neu zu schreiben und zu bezahlen; **Hits** zeigt, wie viel aus dem Cache kam.
+   aus dem Cache, statt alles neu zu schreiben und zu bezahlen; der Anteil hinter dem Schrägstrich (`Cache 12 m / 98 %`)
+   zeigt, wie viel aus dem Cache kam.
 3. **Verdichten, wann es dir passt.** Das Wetter wird ⛈️, wenn der Kontext der Auto-Compact-Schwelle nahekommt
-   (`Ctx 87 % / Max 97 %`). Drück **Compact** zwischen zwei Aufgaben, statt ein Auto-Compact mitten in eine geraten zu
+   (`Ctx 87 % / 97 %`). Drück **Compact** zwischen zwei Aufgaben, statt ein Auto-Compact mitten in eine geraten zu
    lassen; danach schreibt die Leiste die Zusammenfassung ins Log, mit der Claude weitermacht.
 4. **Den Cache durch einen langen Lauf oder eine Pause warm halten.** Claude wartet auf einen Build, der 70 Minuten
    dauert, oder du bist in einer Besprechung. **Keep-warm**, standardmäßig an, frischt den Cache kurz vor Ablauf auf,
@@ -41,17 +42,16 @@ und die zeigt **Weiter**.
 
 | Teil | Was er zeigt |
 | --- | --- |
-| **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. |
+| **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. Hinter dem Schrägstrich die Trefferquote: der Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam (`Cache 42 m / 98 %`). |
 | **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; daneben, warum Keep-warm wartet, wenn es wartet. |
-| **Hits** | Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
-| **Ctx / Max** | Füllung des Kontexts in Prozent und die Auto-Compact-Schwelle (`*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
+| **Ctx** | Füllung des Kontexts in Prozent und, hinter dem Schrägstrich, die Auto-Compact-Schwelle (`Ctx 5 % / 97 %`; `*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
-| **⏸ Pause / ▶ Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). Im Terminal `❚❚ Pause` und `► Weiter`. |
+| **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
 | **Shutdown** | Pausiert wie **Pause** und fährt den Rechner dann nach 60 Sekunden Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 
-Ist der Cache abgelaufen, sind Hits, Ctx und Max bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
+Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
 
 Im Terminal zeigt die Leiste schmale Zeichen statt Emoji: Terminals zählen die Breite eines Emoji auf ihre eigene Art
@@ -65,9 +65,9 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 
 | Zustand | Leiste | Was passiert |
 | --- | --- | --- |
-| läuft | `⏸ Pause` | Ein Klick schickt Claude die Pause-Bitte. |
+| läuft | `Pause` | Ein Klick schickt Claude die Pause-Bitte. |
 | Pause angefordert | `⏳ Pause angefordert · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. Getipptes „weitermachen“ nimmt die Bitte zurück. |
-| pausiert | `▶ Weiter` · `pausiert seit 12 m` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
+| pausiert | `Weiter` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
 
 Tippen geht auch: eine Nachricht, die nur „pausieren“ (oder „pause“) ist, pausiert; eine, die mit „weitermachen“ (oder
 „continue“, „resume“) beginnt, setzt fort. Beide Sprachen werden verstanden, egal in welcher der Mod gerade spricht.
@@ -122,7 +122,7 @@ Klick sagt dann, was fehlt. Der Mod prüft das einmal je Sitzungsstart:
 | --- | --- | --- | --- |
 | Windows | `whoami /priv` nennt `SeShutdownPrivilege` (das Recht „Herunterfahren des Systems“, das ein normales Konto hat) | `shutdown /s /f /t 10` | ein Administrator vergibt das Recht in der lokalen Sicherheitsrichtlinie |
 | Linux | `loginctl can-power-off` antwortet `yes` (bei einer lokalen Desktop-Anmeldung meist so), sonst gelingt `sudo -n -l shutdown` | `systemctl poweroff`, sonst `sudo -n shutdown -h now` | `shutdown` ohne Passwort erlauben: `sudo visudo -f /etc/sudoers.d/shutdown` mit der Zeile `DEIN_NAME ALL=(root) NOPASSWD: PFAD` (PFAD aus `command -v shutdown`) |
-| macOS | `sudo -n -l shutdown` gelingt | `sudo -n shutdown -h now` | dieselbe sudoers-Zeile, mit `/sbin/shutdown` |
+| macOS (auf einem Mac noch ungetestet) | `sudo -n -l shutdown` gelingt | `sudo -n shutdown -h now` | dieselbe sudoers-Zeile, mit `/sbin/shutdown` |
 
 **Beachten:**
 
@@ -130,6 +130,8 @@ Klick sagt dann, was fehlt. Der Mod prüft das einmal je Sitzungsstart:
   damit kein Bildschirm „Apps verhindern das Herunterfahren“ auf jemanden wartet, der gegangen ist. Speichere deine
   Arbeit in anderen Programmen vorher.
 - Andere Claude-Code-Sitzungen auf dem Rechner enden mit.
+- macOS ist auf einem echten Mac noch ungetestet: Der Knopf nimmt denselben Weg wie unter Linux (sudo ohne Passwort),
+  und wo das scheitert, sagt es die Leiste. Rückmeldungen gern als Issue.
 
 ## Keep-warm
 

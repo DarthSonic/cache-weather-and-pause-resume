@@ -9,7 +9,7 @@
   unattended (`whoami /priv`; `uname -s`, `loginctl can-power-off`, `sudo -n -l shutdown`); where not, the button is
   dimmed and a press says what is missing. Picking the work back up cancels it. The mod starts programs again, for
   this alone, each by its full path in the system's folders with that folder as the working folder, so a program
-  planted in the session's folder is never run.
+  planted in the session's folder is never run. macOS is not yet tested on a real Mac.
 - Keep-warm is on by default: a new session starts with it checked, the option `keepWarm` (`on` / `off`) sets that.
   A session where the person unchecks it keeps it off (`keepWarmOffSessions` in the state file).
 - A pause asked for in any words or language is recognised: the mod gives Claude a tool, `pause_state`, listed from the
@@ -17,11 +17,12 @@
   `running` when the person picks the work back up in whatever words; the band shows „Weiter“ / “Resume” or „Pause“
   and keeps the pause in the state file as the button does, so it survives a restart of the app. The button's request
   and the notes during a pause name the tool too. Before, only the button and a few whole-message words paused.
-- A more compact paused band: the German button reads „Weiter“ (it still sends „weitermachen“), and the time paused
-  reads like the cache time, „pausiert seit 0 m“ / “paused for 0 m” instead of „gerade eben“ / “just now”.
-- In the desktop app the cache time, hits, weather and context keep their width in a narrow band instead of breaking
-  over two lines („Hits 100 / %“) or being cut („Cache 6…“), and the weather sits closer to its numbers. The terminal
-  is unchanged.
+- A more compact band: the hit rate rides on the cache time („Cache 60 m / 98 %“, no „Hits“), the threshold on the
+  context („Ctx 74 % / 97 %“, no „Max“); the readings with keep-warm between them, and Compact with Pause and
+  Shutdown, stand half a gap apart. The Pause and Resume buttons carry no sign any more, the German one reads „Weiter“
+  (it still sends „weitermachen“), and the time paused is no longer shown.
+- In the desktop app the cache time and the context keep their width in a narrow band instead of breaking over two
+  lines or being cut („Cache 6…“).
 - For the plugin directory: `plugin.json` no longer names `types`, which Claude Code does not read when loading;
   `claude plugin validate` finds the state contract at `./types/index.d.ts` without it and still holds every state
   key to it.

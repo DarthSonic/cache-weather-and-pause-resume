@@ -26,16 +26,13 @@ export type Strings = {
   cacheNone: string
   cacheExpired: string
   cacheMinutes: (minutes: number) => string
-  hits: string
   ctx: string
-  max: string
   compact: string
   compacting: string
   pause: string
   resume: string
   pauseRequested: string
   tasksLeft: (n: number | null) => string
-  paused: (since: string) => string
   compactQueued: string
   compactQueueFailed: (error: string) => string
   compactSkipped: (reason: string) => string
@@ -68,16 +65,13 @@ const DE: Strings = {
   cacheNone: 'Cache –',
   cacheExpired: 'Cache abgelaufen',
   cacheMinutes: m => `Cache ${m} m`,
-  hits: 'Hits',
   ctx: 'Ctx',
-  max: 'Max',
   compact: 'Compact',
   compacting: 'Compact …',
   pause: 'Pause',
   resume: 'Weiter',
   pauseRequested: 'Pause angefordert',
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 Task läuft noch' : ` · ${n} Tasks laufen noch`),
-  paused: since => `pausiert ${since}`,
   compactQueued: '/compact eingereiht: startet, sobald Claude fertig ist',
   compactQueueFailed: error => `/compact ließ sich nicht einreihen: ${error}`,
   compactSkipped: reason => `Compact übersprungen: ${reason}`,
@@ -121,16 +115,13 @@ const EN: Strings = {
   cacheNone: 'Cache –',
   cacheExpired: 'Cache expired',
   cacheMinutes: m => `Cache ${m} m`,
-  hits: 'Hits',
   ctx: 'Ctx',
-  max: 'Max',
   compact: 'Compact',
   compacting: 'Compact …',
   pause: 'Pause',
   resume: 'Resume',
   pauseRequested: 'Pause requested',
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 task still running' : ` · ${n} tasks still running`),
-  paused: since => `paused ${since}`,
   compactQueued: '/compact queued: it starts once Claude is done',
   compactQueueFailed: error => `/compact could not be queued: ${error}`,
   compactSkipped: reason => `Compact skipped: ${reason}`,

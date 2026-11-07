@@ -16,7 +16,6 @@ import {
   pauseToolDescription,
   resumeContext,
   resumeText,
-  sinceText,
 } from '../hooks/pause'
 
 // The button tests read German words: the language is pinned, never the locale of the machine they run on.
@@ -162,11 +161,6 @@ describe('the pause words', () => {
   test('tasks, times and origins', async () => {
     expect(inFlight(undefined)).toBe(0)
     expect(inFlight([{ status: 'running' }, { status: 'pending' }, { status: 'completed' }])).toBe(2)
-    expect(sinceText(0, 30_000, 'de')).toBe('seit 0 m')
-    expect(sinceText(0, 12 * 60_000, 'de')).toBe('seit 12 m')
-    expect(sinceText(0, 65 * 60_000, 'de')).toBe('seit 1 h 05 m')
-    expect(sinceText(0, 30_000, 'en')).toBe('for 0 m')
-    expect(sinceText(0, 12 * 60_000, 'en')).toBe('for 12 m')
     expect(formatMinutes(1, 'de')).toBe('1 Minute')
     expect(formatMinutes(1, 'en')).toBe('1 minute')
     expect(strings('de').tasksLeft(2)).toBe(' · 2 Tasks laufen noch')
@@ -210,7 +204,8 @@ describe('the pause button', () => {
       // Nothing in flight any more: paused.
       await $.classic.Stop(stop())
       expect(await ui.find({ key: 'resume' })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /pausiert/ })).toBeDefined()
+      // The time paused is not shown (0.8.2).
+      expect(await ui.find({ type: 'Text', text: /pausiert/ })).toBeUndefined()
 
       // A question in the pause carries the note; the session stays paused.
       await $.prompt.submit(typed('Wie weit war die Suite?'))
@@ -235,15 +230,15 @@ describe('the pause button', () => {
     mock.session(on)
     engine(on)
     const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
-    expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('❚❚ Pause')
+    expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('Pause')
     await terminal.press({ key: 'pause' })
     expect(await terminal.find({ type: 'Text', text: /^❚❚ Pause angefordert$/ })).toBeDefined()
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
     expect(await desktop.find({ type: 'Text', text: /^⏳ Pause angefordert$/u })).toBeDefined()
 
     await $.classic.Stop(stop())
-    expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('► Weiter')
-    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶ Weiter')
+    expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('Weiter')
+    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('Weiter')
     await terminal.unmount()
     await desktop.unmount()
   })
@@ -505,7 +500,6 @@ describe('the pause across a restart', () => {
 
     await $.classic.SessionStart({ source: 'resume', session_id: 'sess-2' })
     expect(await ui.find({ key: 'resume' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /pausiert seit 1 h 40 m$/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -875,7 +869,7 @@ describe('keep-warm', () => {
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await resumed($, 2 * HOUR, '1h')
     expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen$/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /^Hits / })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /%/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /Ctx/ })).toBeUndefined()
     expect(await ui.find({ key: 'keep-warm' })).toBeDefined()
     await ui.unmount()
@@ -897,7 +891,7 @@ describe('in English', () => {
     await $.classic.Stop(stop('running'))
     expect(await ui.find({ type: 'Text', text: /1 task still running/ })).toBeDefined()
     await $.classic.Stop(stop())
-    expect(await ui.find({ type: 'Text', text: /paused for 0 m/ })).toBeDefined()
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
 
     await ui.press({ key: 'resume' })
     expect(prompts.at(-1)?.text).toBe('continue')

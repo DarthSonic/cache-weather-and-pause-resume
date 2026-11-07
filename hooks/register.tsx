@@ -43,7 +43,6 @@ import {
   resumeContext,
   resumeText,
   shutdownNote,
-  sinceText,
 } from './pause'
 import {
   SHUTDOWN_COUNTDOWN_MS,
@@ -1108,7 +1107,7 @@ export const register: Register = (on, options) => {
     } else if (phase === 'running') {
       pause = (
         <Box flexDirection="row" gap={1}>
-          <Button key="pause" label={`${signs.pause} ${t.pause}`} onPress={() => requestPause($, askAbove)} />
+          <Button key="pause" label={t.pause} onPress={() => requestPause($, askAbove)} />
           {shutdownButton}
         </Box>
       )
@@ -1124,11 +1123,9 @@ export const register: Register = (on, options) => {
         </Box>
       )
     } else {
-      const since = sinceText(await read($, pausedAt), at, lang)
       pause = (
         <Box flexDirection="row" gap={1}>
-          <Button key="resume" label={`${signs.resume} ${t.resume}`} variant="primary" onPress={() => requestResume($)} />
-          <Text color="success">{t.paused(since)}</Text>
+          <Button key="resume" label={t.resume} variant="primary" onPress={() => requestResume($)} />
           {shutdownButton}
         </Box>
       )
@@ -1189,34 +1186,35 @@ export const register: Register = (on, options) => {
     )
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''
+    // The hit rate rides on the cache time („Cache 60 m / 98 %“), the threshold on the context („Ctx 5 % / 97 %“).
+    const hits = isExpired || rate === null ? '' : ` / ${Math.round(rate * 100)} %`
     // In the desktop app a narrow band squeezed the readings until „Hits 100 %“ broke over two lines and the cache time
-    // was cut („Cache 6…“): there they keep their width, and the weather sits closer to its numbers. A terminal lays
-    // the row out as before.
+    // was cut („Cache 6…“): there they keep their width.
     const keep = isTerminal ? {} : { flexShrink: 0 }
+    // Two groups a full gap apart, each close-knit: the readings with keep-warm between them, the buttons.
     return withBelow(
       <Box flexDirection="column">
         <Box flexDirection="row" gap={2}>
-          <Box {...keep}>
-            <Text color={tone} wrap="truncate-end">
-              {`${cacheText}${ttlNote}`}
-            </Text>
-          </Box>
-          {keepWarmControl}
-          <Box flexDirection="row" gap={isTerminal ? 2 : 1} {...keep}>
-            {isExpired ? null : (
-              <Text>
-                {t.hits} {rate === null ? '–' : `${Math.round(rate * 100)} %`}
+          <Box flexDirection="row" gap={1}>
+            <Box {...keep}>
+              <Text color={tone} wrap="truncate-end">
+                {`${cacheText}${ttlNote}${hits}`}
               </Text>
-            )}
-            {skyText}
-            {isExpired ? null : (
-              <Text>
-                {t.ctx} {fillText} / {t.max} {limit.percent} %{limit.isFallback ? '*' : ''}
-              </Text>
-            )}
+            </Box>
+            {keepWarmControl}
+            <Box flexDirection="row" gap={1} {...keep}>
+              {skyText}
+              {isExpired ? null : (
+                <Text>
+                  {t.ctx} {fillText} / {limit.percent} %{limit.isFallback ? '*' : ''}
+                </Text>
+              )}
+            </Box>
           </Box>
-          {compact}
-          {pause}
+          <Box flexDirection="row" gap={1}>
+            {compact}
+            {pause}
+          </Box>
         </Box>
         {bar}
       </Box>,

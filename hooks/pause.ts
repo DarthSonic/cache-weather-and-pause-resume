@@ -155,16 +155,6 @@ export function formatMinutes(minutes: number, lang: Lang): string {
   return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')} min`
 }
 
-/** For the band, kept short: „seit 0 m“ / „for 0 m“, „seit 12 m“, „seit 1 h 05 m“, as the cache time reads. */
-export function sinceText(from: number | null, now: number, lang: Lang): string {
-  const minutes = minutesBetween(from, now) ?? 0
-  const since = lang === 'de' ? 'seit' : 'for'
-  if (minutes < 60) return `${since} ${minutes} m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return `${since} ${h} h ${String(m).padStart(2, '0')} m`
-}
-
 export function askAboveMinutes(options: Readonly<Record<string, unknown>>): number {
   const value = options.askAboveMinutes
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.round(value) : DEFAULT_ASK_ABOVE_MINUTES

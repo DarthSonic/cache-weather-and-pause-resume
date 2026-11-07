@@ -146,9 +146,10 @@ export function terminalWeather(sky: Weather): { sign: string; tone: 'warning' |
   return { sign: '↯', tone: 'error' }
 }
 
-/** The signs of the pause button: emoji where the desktop app draws the band, narrow signs in a terminal. */
-export function pauseSigns(isTerminal: boolean): { pause: string; resume: string; requested: string } {
-  return isTerminal ? { pause: '❚❚', resume: '►', requested: '❚❚' } : { pause: '⏸', resume: '▶', requested: '⏳' }
+/** The sign before „Pause requested“: an emoji where the desktop app draws the band, a narrow sign in a terminal. The
+ * buttons themselves carry no sign (0.8.2). */
+export function pauseSigns(isTerminal: boolean): { requested: string } {
+  return isTerminal ? { requested: '❚❚' } : { requested: '⏳' }
 }
 
 /**
