@@ -249,7 +249,9 @@ to drop the pauses of deleted sessions.
 **Programs.** At each session start it checks whether the shutdown button can work: `whoami /priv` on Windows;
 elsewhere `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and
 runs nothing. Only once you pressed **Shutdown**, the session is paused and the 60-second countdown has run out does it
-run the shutdown command from the table above. It starts no other program.
+run the shutdown command from the table above. It starts no other program, and each one by its full path in the
+system's own folders (`%SystemRoot%\System32` on Windows, `/usr/bin` or `/bin` elsewhere) with that folder as the
+working folder: a program of the same name in the session's folder or on your PATH is never run.
 
 **Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is), `LC_ALL` / `LC_MESSAGES` /
 `LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials.

@@ -8,7 +8,8 @@
   `sudo shutdown`, on macOS a password-free `sudo shutdown`. Each session start checks whether that can happen
   unattended (`whoami /priv`; `uname -s`, `loginctl can-power-off`, `sudo -n -l shutdown`); where not, the button is
   dimmed and a press says what is missing. Picking the work back up cancels it. The mod starts programs again, for
-  this alone.
+  this alone, each by its full path in the system's folders with that folder as the working folder, so a program
+  planted in the session's folder is never run.
 - Keep-warm is on by default: a new session starts with it checked, the option `keepWarm` (`on` / `off`) sets that.
   A session where the person unchecks it keeps it off (`keepWarmOffSessions` in the state file).
 - A pause asked for in any words or language is recognised: the mod gives Claude a tool, `pause_state`, listed from the

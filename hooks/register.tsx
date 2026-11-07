@@ -47,11 +47,13 @@ import {
 } from './pause'
 import {
   SHUTDOWN_COUNTDOWN_MS,
+  UNIX_PROGRAMS,
   hasShutdownRight,
   logindAllows,
   osFromUname,
   secondsLeft,
   shutdownCommand,
+  windowsSystem32,
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
@@ -473,30 +475,54 @@ async function checkShutdown($: EngineInterface): Promise<void> {
   await update($, shutdownReadiness, () => readiness)
 }
 
+// Each program by its full path, from a system folder as the working folder: nothing the session's folder holds runs.
 async function detectShutdown($: EngineInterface): Promise<ShutdownReadiness> {
   if ((await $.env.get('OS')) === 'Windows_NT') {
-    const priv = await $.process.run(['whoami', '/priv'], { timeoutMs: 10_000 })
+    const system32 = windowsSystem32(await $.env.get('SystemRoot'))
+    const priv = await $.process.run([`${system32}\\whoami.exe`, '/priv'], { cwd: system32, timeoutMs: 10_000 })
     return hasShutdownRight(priv.stdout)
-      ? { isReady: true, os: 'windows', command: shutdownCommand('windows', false) }
+      ? { isReady: true, os: 'windows', command: shutdownCommand('windows', false, `${system32}\\shutdown.exe`) }
       : { isReady: false, os: 'windows', reason: 'no-right' }
   }
-  const os = osFromUname((await $.process.run(['uname', '-s'], { timeoutMs: 10_000 })).stdout)
+  const uname = await unixProgram($, 'uname')
+  if (uname === null) return { isReady: false, os: 'unknown', reason: 'unknown-os' }
+  const os = osFromUname((await $.process.run([uname, '-s'], { cwd: '/', timeoutMs: 10_000 })).stdout)
   if (os === null) return { isReady: false, os: 'unknown', reason: 'unknown-os' }
   if (os === 'linux') {
-    try {
-      const logind = await $.process.run(['loginctl', 'can-power-off'], { timeoutMs: 10_000 })
-      if (logind.exitCode === 0 && logindAllows(logind.stdout)) return { isReady: true, os, command: shutdownCommand(os, true) }
-    } catch {
-      // No systemd-logind: sudo may still allow it.
+    const loginctl = await unixProgram($, 'loginctl')
+    const systemctl = await unixProgram($, 'systemctl')
+    if (loginctl !== null && systemctl !== null) {
+      try {
+        const logind = await $.process.run([loginctl, 'can-power-off'], { cwd: '/', timeoutMs: 10_000 })
+        if (logind.exitCode === 0 && logindAllows(logind.stdout)) {
+          return { isReady: true, os, command: shutdownCommand(os, true, systemctl) }
+        }
+      } catch {
+        // systemd-logind does not answer: sudo may still allow it.
+      }
     }
   }
-  try {
-    const sudo = await $.process.run(['sudo', '-n', '-l', 'shutdown'], { timeoutMs: 10_000 })
-    if (sudo.exitCode === 0) return { isReady: true, os, command: shutdownCommand(os, false) }
-  } catch {
-    // No sudo.
+  const sudo = await unixProgram($, 'sudo')
+  if (sudo !== null) {
+    try {
+      const allowed = await $.process.run([sudo, '-n', '-l', 'shutdown'], { cwd: '/', timeoutMs: 10_000 })
+      if (allowed.exitCode === 0) return { isReady: true, os, command: shutdownCommand(os, false, sudo) }
+    } catch {
+      // sudo does not answer.
+    }
   }
   return { isReady: false, os, reason: 'no-permission' }
+}
+
+async function unixProgram($: EngineInterface, name: keyof typeof UNIX_PROGRAMS): Promise<string | null> {
+  for (const path of UNIX_PROGRAMS[name]) {
+    try {
+      if (await $.fs.exists(path)) return path
+    } catch {
+      // Not readable: try the next place.
+    }
+  }
+  return null
 }
 
 // The button: pause as the pause button does, telling Claude to ask its questions now, then count down and shut the
@@ -568,7 +594,9 @@ async function runShutdown($: EngineInterface): Promise<void> {
   await update($, shutdownPhase, () => 'shutting')
   $.ui.log(t.shutdownLog)
   try {
-    const result = await $.process.run(readiness.command, { timeoutMs: 30_000 })
+    const program = readiness.command[0] ?? ''
+    const folder = readiness.os === 'windows' ? program.slice(0, program.lastIndexOf('\\')) : '/'
+    const result = await $.process.run(readiness.command, { cwd: folder, timeoutMs: 30_000 })
     if (result.exitCode !== 0) throw new Error(result.stderr.trim().split('\n')[0] || `exit code ${result.exitCode}`)
   } catch (error) {
     await update($, shutdownPhase, () => 'idle')

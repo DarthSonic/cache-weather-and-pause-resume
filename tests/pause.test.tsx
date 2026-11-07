@@ -371,6 +371,9 @@ describe('the pause by Claude\'s word', () => {
 
 describe('the shutdown button', () => {
   const PRIVILEGES = 'SeShutdownPrivilege   Herunterfahren des Systems   Deaktiviert'
+  // By full path from Windows' own folder (no SystemRoot in the test: the default).
+  const WHOAMI = 'C:\\Windows\\System32\\whoami.exe'
+  const SHUTDOWN = 'C:\\Windows\\System32\\shutdown.exe'
 
   // Windows with or without the right to shut down; the commands the mod runs are recorded, none really runs.
   function windows(on: On, privileges = PRIVILEGES): { runs: string[][]; logs: string[] } {
@@ -378,7 +381,7 @@ describe('the shutdown button', () => {
     const logs: string[] = []
     on('process.run', ($, e) => {
       runs.push([...e.argv])
-      const stdout = e.argv[0] === 'whoami' ? privileges : ''
+      const stdout = e.argv[0] === WHOAMI ? privileges : ''
       return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     })
     on('ui.log', ($, e) => {
@@ -401,7 +404,7 @@ describe('the shutdown button', () => {
     await ui.press({ key: 'shutdown' })
     expect(host.logs.at(-1)).toContain('SeShutdownPrivilege')
     expect(await ui.find({ key: 'pause' })).toBeDefined()
-    expect(host.runs).toEqual([['whoami', '/priv']])
+    expect(host.runs).toEqual([[WHOAMI, '/priv']])
     await ui.unmount()
   })
 
@@ -426,9 +429,9 @@ describe('the shutdown button', () => {
     expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
     await clock.advance(59_000)
     expect(await ui.find({ type: 'Text', text: /^Shutdown in 1 s$/ })).toBeDefined()
-    expect(host.runs.some(argv => argv[0] === 'shutdown')).toBe(false)
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
     await clock.advance(1_000)
-    expect(host.runs.at(-1)?.slice(0, 3)).toEqual(['shutdown', '/s', '/f'])
+    expect(host.runs.at(-1)?.slice(0, 3)).toEqual([SHUTDOWN, '/s', '/f'])
     expect(host.logs.at(-1)).toContain('fährt jetzt herunter')
     expect(await ui.find({ type: 'Text', text: /Fährt herunter/ })).toBeDefined()
     await ui.unmount()
@@ -447,7 +450,7 @@ describe('the shutdown button', () => {
     await $.classic.Stop(stop(undefined, 'x3'))
     await ui.press({ key: 'shutdown-cancel' })
     await clock.advance(120_000)
-    expect(host.runs.some(argv => argv[0] === 'shutdown')).toBe(false)
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
     expect(await ui.find({ key: 'resume' })).toBeDefined()
     await ui.unmount()
   })
@@ -465,7 +468,7 @@ describe('the shutdown button', () => {
     await $.prompt.submit(typed('weitermachen'))
     await $.classic.Stop(stop(undefined, 'x4'))
     await clock.advance(120_000)
-    expect(host.runs.some(argv => argv[0] === 'shutdown')).toBe(false)
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
     expect(await ui.find({ key: 'pause' })).toBeDefined()
     await ui.unmount()
   })

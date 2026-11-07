@@ -258,7 +258,9 @@ Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das 
 **Programme.** Bei jedem Sitzungsstart prüft er, ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
 sonst `uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und
 nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzung pausiert ist und der 60-Sekunden-Countdown
-abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht.
+abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht, und jedes über seinen
+vollen Pfad in den Ordnern des Systems (`%SystemRoot%\System32` unter Windows, sonst `/usr/bin` oder `/bin`), mit
+diesem Ordner als Arbeitsordner: Ein gleichnamiges Programm im Ordner der Sitzung oder auf deinem PATH läuft nie.
 
 **Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt), `LC_ALL` /
 `LC_MESSAGES` / `LANG` (die Sprache) und `OS` (ob er unter Windows läuft). Er liest keine Einstellungen von Claude Code

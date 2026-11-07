@@ -9,15 +9,36 @@ export const SHUTDOWN_COUNTDOWN_MS = 60_000
 // What the Windows shutdown log records as the reason.
 const SHUTDOWN_COMMENT = 'cache-weather-and-pause-resume: the session is paused, shut down from the band'
 
+// Every program runs by its full path in the system's own folders, never looked up by name: Windows would look in the
+// session's folder first, so a repository could plant a `whoami.exe` or `shutdown.exe` there and have it run at a
+// session's start. (`shutdown` after sudo is found by sudo's own secure path, not the person's.)
+
+/** Windows' program folder, from `SystemRoot` when it names a drive's folder, else the default. */
+export function windowsSystem32(systemRoot: string | undefined): string {
+  const base = systemRoot !== undefined && /^[A-Za-z]:\\[^\\/:*?"<>|]+$/.test(systemRoot.replace(/[\\/]+$/, ''))
+    ? systemRoot.replace(/[\\/]+$/, '')
+    : 'C:\\Windows'
+  return `${base}\\System32`
+}
+
+/** Where a Unix system keeps each program the button runs; the first that exists is taken. */
+export const UNIX_PROGRAMS = {
+  uname: ['/usr/bin/uname', '/bin/uname'],
+  loginctl: ['/usr/bin/loginctl', '/bin/loginctl'],
+  systemctl: ['/usr/bin/systemctl', '/bin/systemctl'],
+  sudo: ['/usr/bin/sudo', '/bin/sudo'],
+} as const
+
 /**
- * The command per system. Windows: closing the other programs is forced (`/f`; any time-out implies it) so that no
- * „apps are preventing shutdown“ screen waits for someone who left, after ten seconds of Windows' own notice. Linux:
- * systemd-logind's poweroff where the session may, else sudo without a password. macOS: sudo without a password.
+ * The command per system, `program` the full path of the program it starts (`shutdown.exe`, `systemctl` or `sudo`).
+ * Windows: closing the other programs is forced (`/f`; any time-out implies it) so that no „apps are preventing
+ * shutdown“ screen waits for someone who left, after ten seconds of Windows' own notice. Linux: systemd-logind's
+ * poweroff where the session may, else sudo without a password. macOS: sudo without a password.
  */
-export function shutdownCommand(os: ShutdownOs, viaLogind: boolean): readonly string[] {
-  if (os === 'windows') return ['shutdown', '/s', '/f', '/t', '10', '/d', 'p:0:0', '/c', SHUTDOWN_COMMENT]
-  if (os === 'linux' && viaLogind) return ['systemctl', 'poweroff']
-  return ['sudo', '-n', 'shutdown', '-h', 'now']
+export function shutdownCommand(os: ShutdownOs, viaLogind: boolean, program: string): readonly string[] {
+  if (os === 'windows') return [program, '/s', '/f', '/t', '10', '/d', 'p:0:0', '/c', SHUTDOWN_COMMENT]
+  if (os === 'linux' && viaLogind) return [program, 'poweroff']
+  return [program, '-n', 'shutdown', '-h', 'now']
 }
 
 /** The system from `uname -s`; null for one the button does not know. */

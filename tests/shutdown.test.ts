@@ -1,14 +1,22 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { hasShutdownRight, logindAllows, osFromUname, secondsLeft, shutdownCommand } from '../hooks/shutdown'
+import { hasShutdownRight, logindAllows, osFromUname, secondsLeft, shutdownCommand, windowsSystem32 } from '../hooks/shutdown'
 
 describe('the shutdown command', () => {
   test('Windows forces the other programs closed after its own ten seconds; Linux uses logind or sudo; macOS sudo', async () => {
-    const win = shutdownCommand('windows', false)
-    expect(win.slice(0, 5)).toEqual(['shutdown', '/s', '/f', '/t', '10'])
-    expect(shutdownCommand('linux', true)).toEqual(['systemctl', 'poweroff'])
-    expect(shutdownCommand('linux', false)).toEqual(['sudo', '-n', 'shutdown', '-h', 'now'])
-    expect(shutdownCommand('macos', false)).toEqual(['sudo', '-n', 'shutdown', '-h', 'now'])
+    const win = shutdownCommand('windows', false, 'C:\\Windows\\System32\\shutdown.exe')
+    expect(win.slice(0, 5)).toEqual(['C:\\Windows\\System32\\shutdown.exe', '/s', '/f', '/t', '10'])
+    expect(shutdownCommand('linux', true, '/usr/bin/systemctl')).toEqual(['/usr/bin/systemctl', 'poweroff'])
+    expect(shutdownCommand('linux', false, '/usr/bin/sudo')).toEqual(['/usr/bin/sudo', '-n', 'shutdown', '-h', 'now'])
+    expect(shutdownCommand('macos', false, '/usr/bin/sudo')).toEqual(['/usr/bin/sudo', '-n', 'shutdown', '-h', 'now'])
+  })
+
+  test('Windows programs come from its own folder, never from a name looked up elsewhere', async () => {
+    expect(windowsSystem32('C:\\Windows')).toBe('C:\\Windows\\System32')
+    expect(windowsSystem32('D:\\WINNT\\')).toBe('D:\\WINNT\\System32')
+    expect(windowsSystem32(undefined)).toBe('C:\\Windows\\System32')
+    expect(windowsSystem32('.\\evil')).toBe('C:\\Windows\\System32')
+    expect(windowsSystem32('C:\\Users\\x\\repo')).toBe('C:\\Windows\\System32')
   })
 
   test('reads the system, the Windows right and logind’s answer', async () => {
