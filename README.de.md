@@ -3,12 +3,16 @@
 [![Release](https://img.shields.io/github/v/release/DarthSonic/cache-weather-and-pause-resume)](https://github.com/DarthSonic/cache-weather-and-pause-resume/releases/latest)
 [![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/DarthSonic)
 [![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/darthsonic-cache-weather-and-pause-resume)](https://www.claudepluginhub.com/plugins/darthsonic-cache-weather-and-pause-resume?ref=badge)
 
 *English: [README.md](README.md)*
 
 ![cache-weather-and-pause-resume: die Leiste in der Claude-Desktop-App und im Terminal, mit Cache-Countdown und Balken, Keep-warm, Kontext-Wetter und den Knöpfen Compact, Pause und Shutdown](docs/social-preview.png)
+
+> [!TIP]
+> **Kostenlos und Open Source.** Spart dir die Leiste Zeit oder Cache, kannst du ihre Weiterentwicklung unterstützen:
+>
+> [![Auf GitHub unterstützen](https://img.shields.io/badge/Auf%20GitHub%20unterst%C3%BCtzen-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/DarthSonic)
 
 Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt über dem Eingabefeld. Sie zeigt, wie
 warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf, einem Knopf

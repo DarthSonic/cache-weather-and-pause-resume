@@ -3,12 +3,16 @@
 [![Release](https://img.shields.io/github/v/release/DarthSonic/cache-weather-and-pause-resume)](https://github.com/DarthSonic/cache-weather-and-pause-resume/releases/latest)
 [![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/DarthSonic)
 [![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/darthsonic-cache-weather-and-pause-resume)](https://www.claudepluginhub.com/plugins/darthsonic-cache-weather-and-pause-resume?ref=badge)
 
 *Deutsch: [README.de.md](README.de.md)*
 
 ![cache-weather-and-pause-resume: the band in the Claude desktop app and in a terminal, with the prompt-cache countdown and its bar, keep-warm, the context weather, and the Compact, Pause and Shutdown buttons](docs/social-preview.png)
+
+> [!TIP]
+> **Free and open source.** If the band saves you time or cache, you can support its development:
+>
+> [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor%20on%20GitHub-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/DarthSonic)
 
 A [Claude Code](https://code.claude.com) mod: one slim band directly above the prompt that tells you how warm the
 prompt cache still is and how full the context is, with a **Compact** button, a **Pause / Resume** button that has
