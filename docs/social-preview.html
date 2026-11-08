@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<!-- The repository's social preview (docs/social-preview.png, 1280 x 640). Rendered with a headless browser:
+     msedge --headless=new --window-size=1280,640 --allow-file-access-from-files --screenshot=social-preview.png social-preview.html -->
+<meta charset="utf-8">
+<style>
+  :root {
+    --navy: #1a2450;
+    --teal: #136f7c;
+    --sun: #fbbf2f;
+    --green: #5bd685;
+    --ink: #f4f7fd;
+    --muted: #b9c9dc;
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1280px; height: 640px; overflow: hidden;
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 88% 12%, rgba(251, 191, 47, 0.30), rgba(251, 191, 47, 0) 34%),
+      radial-gradient(circle at 10% 110%, rgba(91, 214, 133, 0.18), rgba(91, 214, 133, 0) 40%),
+      linear-gradient(160deg, var(--navy) 0%, #183a63 45%, var(--teal) 100%);
+    position: relative;
+  }
+  .wrap { position: absolute; inset: 0; padding: 70px 72px; box-sizing: border-box; }
+  .head { display: flex; align-items: center; gap: 36px; }
+  .icon { width: 160px; height: 160px; border-radius: 36px; box-shadow: 0 18px 40px rgba(4, 10, 30, 0.45); }
+  .title { font-size: 52px; font-weight: 650; letter-spacing: -0.5px; line-height: 1.05; }
+  .title .dim { color: var(--muted); font-weight: 500; }
+  .tag { margin-top: 12px; font-size: 25px; color: var(--muted); font-weight: 400; }
+  .tag b { color: var(--ink); font-weight: 600; }
+  .chips { margin-top: 38px; display: flex; flex-wrap: nowrap; gap: 9px; }
+  .chip {
+    font-size: 17px; font-weight: 600; padding: 6px 13px; border-radius: 999px; white-space: nowrap;
+    background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .chip i { font-style: normal; margin-right: 7px; }
+  .chip.sun i { color: var(--sun); }
+  .chip.green i { color: var(--green); }
+  .shots { position: absolute; left: 72px; right: 72px; bottom: 70px; display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    border-radius: 14px; overflow: hidden; box-shadow: 0 16px 36px rgba(3, 8, 24, 0.5);
+    display: flex; align-items: center;
+  }
+  .card.light { background: #f6f6f4; padding: 10px 14px; }
+  .card.dark { background: #0c0c0c; padding: 12px 14px; }
+  .card img { display: block; width: 100%; height: auto; }
+  .label {
+    position: absolute; right: 72px; top: 64px; font-size: 18px; color: var(--muted);
+    text-align: right; line-height: 1.5;
+  }
+  .label b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <img class="icon" src="../.claude-plugin/icon.png" alt="">
+    <div>
+      <div class="title">cache-weather<span class="dim">-and-</span>pause-resume</div>
+      <div class="tag">A <b>Claude Code mod</b>: one band above the prompt</div>
+    </div>
+  </div>
+  <div class="chips">
+    <span class="chip green"><i>━</i>Prompt-cache countdown</span>
+    <span class="chip green"><i>↻</i>Keep-warm</span>
+    <span class="chip sun"><i>☀</i>Context weather</span>
+    <span class="chip"><i>⇲</i>Compact</span>
+    <span class="chip"><i>❚❚</i>Pause / Resume</span>
+    <span class="chip"><i>⏻</i>Shutdown</span>
+  </div>
+  <div class="shots">
+    <div class="card light"><img src="band-desktop.png" alt=""></div>
+    <div class="card dark"><img src="band-terminal.png" alt=""></div>
+  </div>
+</div>
+</body>
+</html>

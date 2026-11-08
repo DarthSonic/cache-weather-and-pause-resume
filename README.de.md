@@ -1,20 +1,19 @@
 # cache-weather-and-pause-resume
 
+[![Release](https://img.shields.io/github/v/release/DarthSonic/cache-weather-and-pause-resume)](https://github.com/DarthSonic/cache-weather-and-pause-resume/releases/latest)
 [![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/darthsonic-cache-weather-and-pause-resume)](https://www.claudepluginhub.com/plugins/darthsonic-cache-weather-and-pause-resume?ref=badge)
 
 *English: [README.md](README.md)*
 
+![cache-weather-and-pause-resume: die Leiste in der Claude-Desktop-App und im Terminal, mit Cache-Countdown und Balken, Keep-warm, Kontext-Wetter und den Knöpfen Compact, Pause und Shutdown](docs/social-preview.png)
+
 Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt über dem Eingabefeld. Sie zeigt, wie
 warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf, einem Knopf
 **Pause / Weiter**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, einem Haken
 **Keep-warm**, der den Cache kurz vor Ablauf auffrischt, und einem Knopf **Shutdown**, der die Sitzung pausiert und
 danach den Rechner herunterfährt.
-
-![Die Leiste im Terminal: Cache noch 60 Minuten, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 6 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
-
-![Die Leiste in der Claude-Desktop-App: Cache noch 58 Minuten einer als 1 Stunde gemerkten Laufzeit, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 42 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken](docs/band-desktop.png)
 
 ## Beispiele
 
@@ -40,6 +39,10 @@ Claude in eigenen Worten darum („lass uns für heute Schluss machen“): Sobal
 und die zeigt **Weiter**.
 
 ## Was die Leiste zeigt
+
+![Die Leiste im Terminal: Cache noch 60 Minuten, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 6 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
+
+![Die Leiste in der Claude-Desktop-App: Cache noch 58 Minuten einer als 1 Stunde gemerkten Laufzeit, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 42 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken](docs/band-desktop.png)
 
 | Teil | Was er zeigt |
 | --- | --- |

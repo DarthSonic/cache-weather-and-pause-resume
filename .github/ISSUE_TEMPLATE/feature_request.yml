@@ -1,0 +1,20 @@
+name: Idea
+description: Something the band could show or do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or German, as you like. / Gern auch auf Deutsch.
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What the band should show or do, and where in it.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What it would help with
+      description: The moment in your work where you missed it.

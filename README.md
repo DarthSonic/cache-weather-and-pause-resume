@@ -1,19 +1,18 @@
 # cache-weather-and-pause-resume
 
+[![Release](https://img.shields.io/github/v/release/DarthSonic/cache-weather-and-pause-resume)](https://github.com/DarthSonic/cache-weather-and-pause-resume/releases/latest)
 [![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/darthsonic-cache-weather-and-pause-resume)](https://www.claudepluginhub.com/plugins/darthsonic-cache-weather-and-pause-resume?ref=badge)
 
 *Deutsch: [README.de.md](README.de.md)*
 
+![cache-weather-and-pause-resume: the band in the Claude desktop app and in a terminal, with the prompt-cache countdown and its bar, keep-warm, the context weather, and the Compact, Pause and Shutdown buttons](docs/social-preview.png)
+
 A [Claude Code](https://code.claude.com) mod: one slim band directly above the prompt that tells you how warm the
 prompt cache still is and how full the context is, with a **Compact** button, a **Pause / Resume** button that has
 Claude finish what is running, save its state and wait, a **Keep-warm** checkbox that refreshes the cache shortly
 before it runs out, and a **Shutdown** button that pauses the session and then shuts the computer down.
-
-![The band in a terminal: cache 60 minutes left, hit rate 100 %, Keep-warm checked, a sun at 6 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar over the band's width](docs/band-terminal.png)
-
-![The band in the Claude desktop app: cache 58 minutes left of a lifetime remembered as 1 hour, hit rate 100 %, Keep-warm checked, a sun at 42 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar](docs/band-desktop.png)
 
 ## Examples
 
@@ -38,6 +37,10 @@ You can also type: “pause” pauses, “continue” resumes (in German “paus
 any words (“let's stop here for today”): once paused, Claude tells the band, which then shows **Resume**.
 
 ## What the band shows
+
+![The band in a terminal: cache 60 minutes left, hit rate 100 %, Keep-warm checked, a sun at 6 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar over the band's width](docs/band-terminal.png)
+
+![The band in the Claude desktop app: cache 58 minutes left of a lifetime remembered as 1 hour, hit rate 100 %, Keep-warm checked, a sun at 42 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar](docs/band-desktop.png)
 
 | Part | What it shows |
 | --- | --- |
