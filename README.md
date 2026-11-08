@@ -12,7 +12,7 @@ before it runs out, and a **Shutdown** button that pauses the session and then s
 
 ![The band in a terminal: cache 58 minutes left, Keep-warm checked, hits 98 %, a sun at 5 % of a 97 % threshold, Compact and Pause; below it the green cache bar over the band's width](docs/band-terminal.png)
 
-![The band in the Claude desktop app: cache 20 minutes left, Keep-warm checked, hits 99 %, a sun at 8 % of a 97 % threshold, Compact and Pause; below it the cache bar, yellow with a third of the hour left](docs/band-desktop.png)
+![The band in the Claude desktop app: cache 58 minutes left of a lifetime remembered as 1 hour, hit rate 100 %, Keep-warm checked, a sun at 42 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar](docs/band-desktop.png)
 
 ## Examples
 
@@ -52,6 +52,8 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.
 
+![The band with the cache expired: the cache time in red, the hit rate and Ctx hidden, the cache bar empty](docs/band-expired.png)
+
 A terminal gets narrow signs instead of emoji: terminals count an emoji's width in their own way (some one column,
 Claude Code two), and the band would keep leftovers of an earlier frame. The desktop app draws the emoji.
 
@@ -65,6 +67,8 @@ with as log lines, which the model does not read.
 | working | `Pause` | A press hands Claude the pause request. |
 | pause requested | `⏳ Pause requested · 2 tasks still running` | Claude lets running work finish, asks about long tasks and saves the state. Typing “continue” takes the request back. |
 | paused | `Resume` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
+
+![The band while paused: Resume beside Shutdown; the context at 78 % of a 97 % threshold, a storm, so Compact is highlighted](docs/band-paused.png)
 
 You can also type: a message that is only “pause” (or “pausieren”) pauses; one that starts with “continue” or
 “resume” (or “weitermachen”) carries on. Both languages are understood whatever the mod's language is.

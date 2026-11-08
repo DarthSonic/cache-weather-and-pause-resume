@@ -13,7 +13,7 @@ danach den Rechner herunterfährt.
 
 ![Die Leiste im Terminal: Cache noch 58 Minuten, Keep-warm gesetzt, Hits 98 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
 
-![Die Leiste in der Claude-Desktop-App: Cache noch 20 Minuten, Keep-warm gesetzt, Hits 99 %, Sonne bei 8 % einer Schwelle von 97 %, Compact und Pause; darunter der Cache-Balken, gelb mit einem Drittel der Stunde Rest](docs/band-desktop.png)
+![Die Leiste in der Claude-Desktop-App: Cache noch 58 Minuten einer als 1 Stunde gemerkten Laufzeit, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 42 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken](docs/band-desktop.png)
 
 ## Beispiele
 
@@ -54,6 +54,8 @@ und die zeigt **Weiter**.
 Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
 
+![Die Leiste mit abgelaufenem Cache: die Cache-Zeit rot, Trefferquote und Ctx ausgeblendet, der Cache-Balken leer](docs/band-expired.png)
+
 Im Terminal zeigt die Leiste schmale Zeichen statt Emoji: Terminals zählen die Breite eines Emoji auf ihre eigene Art
 (manche eine Spalte, Claude Code zwei), und die Leiste behielte sonst Reste eines früheren Bilds. Die Desktop-App
 zeichnet die Emoji.
@@ -68,6 +70,8 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 | läuft | `Pause` | Ein Klick schickt Claude die Pause-Bitte. |
 | Pause angefordert | `⏳ Pause angefordert · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. Getipptes „weitermachen“ nimmt die Bitte zurück. |
 | pausiert | `Weiter` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
+
+![Die Leiste in der Pause: Weiter neben Shutdown; der Kontext bei 78 % einer Schwelle von 97 %, ein Gewitter, darum ist Compact hervorgehoben](docs/band-paused.png)
 
 Tippen geht auch: eine Nachricht, die nur „pausieren“ (oder „pause“) ist, pausiert; eine, die mit „weitermachen“ (oder
 „continue“, „resume“) beginnt, setzt fort. Beide Sprachen werden verstanden, egal in welcher der Mod gerade spricht.
