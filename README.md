@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/darthsonic-cache-weather-and-pause-resume)](https://www.claudepluginhub.com/plugins/darthsonic-cache-weather-and-pause-resume?ref=badge)
 
 *Deutsch: [README.de.md](README.de.md)*
 
