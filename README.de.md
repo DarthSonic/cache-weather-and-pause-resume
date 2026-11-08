@@ -3,6 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/DarthSonic/cache-weather-and-pause-resume)](https://github.com/DarthSonic/cache-weather-and-pause-resume/releases/latest)
 [![CI](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml/badge.svg)](https://github.com/DarthSonic/cache-weather-and-pause-resume/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/DarthSonic)
 [![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/darthsonic-cache-weather-and-pause-resume)](https://www.claudepluginhub.com/plugins/darthsonic-cache-weather-and-pause-resume?ref=badge)
 
 *English: [README.md](README.md)*
@@ -323,6 +324,9 @@ Sitzung.
 
 Fragen, Fehler und Ideen: [GitHub-Issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). Der
 Mod braucht kein Konto und keine Beispieldaten: installieren und eine Sitzung öffnen.
+
+Spart dir die Leiste Zeit oder Cache, kannst du ihre Weiterentwicklung über
+[GitHub Sponsors](https://github.com/sponsors/DarthSonic) unterstützen.
 
 ## Danksagung
 
