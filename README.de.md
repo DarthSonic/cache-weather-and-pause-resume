@@ -324,10 +324,14 @@ fest, damit sie nicht von der Locale des Rechners abhängen. Eine Änderung erre
 höheren Version in `.claude-plugin/plugin.json`, `claude plugin update cache-weather-and-pause-resume@darthsonic` und einer neuen
 Sitzung.
 
+Wie du eine Änderung aus einem Klon ausprobierst und einen Pull Request öffnest: [CONTRIBUTING.md](CONTRIBUTING.md)
+(auf Englisch).
+
 ## Hilfe
 
 Fragen, Fehler und Ideen: [GitHub-Issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). Der
-Mod braucht kein Konto und keine Beispieldaten: installieren und eine Sitzung öffnen.
+Mod braucht kein Konto und keine Beispieldaten: installieren und eine Sitzung öffnen. Eine Sicherheitslücke bitte
+nicht als Issue melden, sondern vertraulich, wie [SECURITY.md](SECURITY.md) beschreibt.
 
 Spart dir die Leiste Zeit oder Cache, kannst du ihre Weiterentwicklung über
 [GitHub Sponsors](https://github.com/sponsors/DarthSonic) unterstützen.

@@ -309,10 +309,13 @@ The tests (`tests/`) run in Claude Code's own test kit on the terminal and deskt
 they do not depend on the machine's locale. A change reaches your own sessions after a version bump in
 `.claude-plugin/plugin.json`, `claude plugin update cache-weather-and-pause-resume@darthsonic` and a new session.
 
+How to try a change from a clone and open a pull request: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Support
 
 Questions, bugs and ideas: [GitHub issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). The
-mod needs no account and no sample data: install it and open a session.
+mod needs no account and no sample data: install it and open a session. Report a security problem privately, as
+[SECURITY.md](SECURITY.md) describes, not in an issue.
 
 If the band saves you time or cache, you can support its development through
 [GitHub Sponsors](https://github.com/sponsors/DarthSonic).
