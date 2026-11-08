@@ -10,7 +10,7 @@ prompt cache still is and how full the context is, with a **Compact** button, a 
 Claude finish what is running, save its state and wait, a **Keep-warm** checkbox that refreshes the cache shortly
 before it runs out, and a **Shutdown** button that pauses the session and then shuts the computer down.
 
-![The band in a terminal: cache 58 minutes left, Keep-warm checked, hits 98 %, a sun at 5 % of a 97 % threshold, Compact and Pause; below it the green cache bar over the band's width](docs/band-terminal.png)
+![The band in a terminal: cache 60 minutes left, hit rate 100 %, Keep-warm checked, a sun at 6 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar over the band's width](docs/band-terminal.png)
 
 ![The band in the Claude desktop app: cache 58 minutes left of a lifetime remembered as 1 hour, hit rate 100 %, Keep-warm checked, a sun at 42 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar](docs/band-desktop.png)
 
@@ -280,7 +280,7 @@ under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads
 
 ## Requirements
 
-Claude Code with mods (function-hook plugins), early access, checked with **2.1.295** (desktop app) and **2.1.300** (CLI). The mod API
+Claude Code with mods (function-hook plugins), early access, checked with **2.1.317** (desktop app) and **2.1.319** (CLI). The mod API
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,

@@ -204,7 +204,7 @@ describe('the pause button', () => {
       // Nothing in flight any more: paused.
       await $.classic.Stop(stop())
       expect(await ui.find({ key: 'resume' })).toBeDefined()
-      // The time paused is not shown (0.8.2).
+      // The time paused is not shown (0.9.0).
       expect(await ui.find({ type: 'Text', text: /pausiert/ })).toBeUndefined()
 
       // A question in the pause carries the note; the session stays paused.

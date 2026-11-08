@@ -11,7 +11,7 @@ warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-K
 **Keep-warm**, der den Cache kurz vor Ablauf auffrischt, und einem Knopf **Shutdown**, der die Sitzung pausiert und
 danach den Rechner herunterfährt.
 
-![Die Leiste im Terminal: Cache noch 58 Minuten, Keep-warm gesetzt, Hits 98 %, Sonne bei 5 % einer Schwelle von 97 %, Compact und Pause; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
+![Die Leiste im Terminal: Cache noch 60 Minuten, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 6 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
 
 ![Die Leiste in der Claude-Desktop-App: Cache noch 58 Minuten einer als 1 Stunde gemerkten Laufzeit, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 42 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken](docs/band-desktop.png)
 
@@ -293,7 +293,7 @@ kostet keine Token.
 
 ## Voraussetzungen
 
-Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.295** (Desktop-App) und **2.1.300** (CLI). Die
+Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.317** (Desktop-App) und **2.1.319** (CLI). Die
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
 
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.2 — unreleased
+## 0.9.0 — 2026-11-08
 
 - **Shutdown**, a button beside Pause: it pauses the session as Pause does, telling Claude to ask about long tasks
   right away, and once paused counts down 60 seconds (with Cancel) and shuts the computer down: on Windows
@@ -21,6 +21,7 @@
   context („Ctx 74 % / 97 %“, no „Max“); the readings with keep-warm between them, and Compact with Pause and
   Shutdown, stand half a gap apart. The Pause and Resume buttons carry no sign any more, the German one reads „Weiter“
   (it still sends „weitermachen“), and the time paused is no longer shown.
+- CI against Claude Code 2.1.319.
 - In the desktop app the cache time and the context keep their width in a narrow band instead of breaking over two
   lines or being cut („Cache 6…“).
 - For the plugin directory: `plugin.json` no longer names `types`, which Claude Code does not read when loading;
