@@ -194,7 +194,7 @@ describe('the pause button', () => {
       expect(await ui.find({ key: 'pause' })).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: /Pause wird vorbereitet/ })).toBeDefined()
       // „Weiter“ stands ready to call the pause off (0.9.3).
-      expect((await ui.find({ key: 'pause-cancel' }))?.props.label).toBe('Weiter')
+      expect((await ui.find({ key: 'pause-cancel' }))?.props.label).toBe(surface === 'terminal' ? 'Weiter' : '▶︎')
       expect(await ui.find({ key: 'compact' })).toBeDefined()
 
       // Claude stops while a run is still in flight: still pausing, the band counts it.
@@ -240,7 +240,8 @@ describe('the pause button', () => {
 
     await $.classic.Stop(stop())
     expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('Weiter')
-    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('Weiter')
+    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶︎')
+    expect(await desktop.find({ type: 'Text', text: /^Weiter: die Pause beenden/ })).toBeDefined()
     await terminal.unmount()
     await desktop.unmount()
   })
@@ -524,7 +525,8 @@ describe('the shutdown button', () => {
     await clock.settle()
     expect(host.runs).toEqual([[WHOAMI, '/priv'], [POWERCFG, '/a']])
     const button = await ui.find({ key: 'shutdown' })
-    expect(button?.props.label).toBe('Standby')
+    expect(button?.props.label).toBe('⏾')
+    expect(await ui.find({ type: 'Text', text: /^Standby: erst alle Sitzungen pausieren, dann den Rechner in den Standby schicken$/ })).toBeDefined()
     expect(button?.props.dimColor).toBe(false)
 
     await ui.press({ key: 'shutdown' })
@@ -553,7 +555,8 @@ describe('the shutdown button', () => {
     await $.classic.SessionStart({ source: 'startup', session_id: 'h1' })
     await clock.settle()
     const button = await ui.find({ key: 'shutdown' })
-    expect(button?.props.label).toBe('Ruhezustand')
+    expect(button?.props.label).toBe('❄︎')
+    expect(await ui.find({ type: 'Text', text: /^Ruhezustand: .* – hier nicht verfügbar, ein Klick sagt, was fehlt$/ })).toBeDefined()
     expect(button?.props.dimColor).toBe(true)
     await ui.press({ key: 'shutdown' })
     expect(host.logs.at(-1)).toContain('powercfg /hibernate on')

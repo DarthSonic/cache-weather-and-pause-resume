@@ -316,7 +316,9 @@ describe('the band', () => {
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('Pause')
+    // In the desktop app the buttons are one-colour icons, each named by a hint under the pointer (0.10.0).
+    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎')
+    expect(await desktop.find({ type: 'Text', text: /^Pause: Claude lässt Laufendes zu Ende laufen/ })).toBeDefined()
     expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()
     await desktop.unmount()
   })

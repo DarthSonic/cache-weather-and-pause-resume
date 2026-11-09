@@ -16,6 +16,7 @@ import type {
 import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
+  BUTTON_ICONS,
   FALLBACK_THRESHOLD_PERCENT,
   FORECAST_SHOW_TURNS,
   FORECAST_WARN_TURNS,
@@ -1790,16 +1791,31 @@ export const register: Register = (on, options) => {
     const phase = await read($, pausePhase)
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
-    const cancelShutdownButton = (
-      <Button key="shutdown-cancel" label={t.shutdownCancel} onPress={() => cancelShutdown($, false)} />
+    // In the desktop app each button is an icon, and its hint names it under the pointer (0.10.0): the hint is drawn
+    // hidden under the band and revealed while the button's group is hovered. The terminal keeps the words.
+    type Hint = { scope: string; text: string }
+    const hints: Hint[] = []
+    const hinted = (scope: string, text: string, control: ReturnType<typeof Button>) => {
+      if (isTerminal) return control
+      hints.push({ scope, text })
+      return <Box hover={{ scope }}>{control}</Box>
+    }
+    const word = (words: string, icon: string): string => (isTerminal ? words : icon)
+    const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
+    const cancelShutdownButton = hinted(
+      'hint-shutdown-cancel',
+      t.hintShutdownCancel,
+      <Button key="shutdown-cancel" label={word(t.shutdownCancel, BUTTON_ICONS.cancel)} onPress={() => cancelShutdown($, false)} />,
     )
-    const shutdownButton = (
+    const shutdownButton = hinted(
+      'hint-shutdown',
+      t.hintShutdown(isShutdownReady),
       <Button
         key="shutdown"
-        label={t.shutdown}
-        dimColor={readiness?.isReady !== true || !readinessFits(readiness, shutdownMode)}
+        label={word(t.shutdown, BUTTON_ICONS[shutdownMode])}
+        dimColor={!isShutdownReady}
         onPress={() => requestShutdown($, askAbove)}
-      />
+      />,
     )
     let pause = null
     if (
@@ -1813,16 +1829,28 @@ export const register: Register = (on, options) => {
     } else if (phase === 'running') {
       pause = (
         <Box flexDirection="row" gap={1}>
-          <Button key="pause" label={t.pause} onPress={() => requestPause($, askAbove)} />
+          {hinted(
+            'hint-pause',
+            t.hintPause,
+            <Button key="pause" label={word(t.pause, BUTTON_ICONS.pause)} onPress={() => requestPause($, askAbove)} />,
+          )}
           {shutdownButton}
         </Box>
       )
     } else if (phase === 'pausing') {
-      pause = <Button key="pause-cancel" label={t.resume} onPress={() => requestResume($)} />
+      pause = hinted(
+        'hint-pause-cancel',
+        t.hintPauseCancel,
+        <Button key="pause-cancel" label={word(t.resume, BUTTON_ICONS.resume)} onPress={() => requestResume($)} />,
+      )
     } else {
       pause = (
         <Box flexDirection="row" gap={1}>
-          <Button key="resume" label={t.resume} variant="primary" onPress={() => requestResume($)} />
+          {hinted(
+            'hint-resume',
+            t.hintResume,
+            <Button key="resume" label={word(t.resume, BUTTON_ICONS.resume)} variant="primary" onPress={() => requestResume($)} />,
+          )}
           {shutdownButton}
         </Box>
       )
@@ -1924,10 +1952,12 @@ export const register: Register = (on, options) => {
       )
     }
 
-    const compact = (
+    const compact = hinted(
+      'hint-compact',
+      t.hintCompact,
       <Button
         key="compact"
-        label={compacting ? t.compacting : t.compact}
+        label={compacting ? word(t.compacting, BUTTON_ICONS.compacting) : word(t.compact, BUTTON_ICONS.compact)}
         variant={isStorm ? 'primary' : 'secondary'}
         onPress={async () => {
           if (await read($, isCompacting)) return
@@ -1946,7 +1976,7 @@ export const register: Register = (on, options) => {
             await update($, isCompacting, () => false)
           }
         }}
-      />
+      />,
     )
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''
@@ -1982,6 +2012,13 @@ export const register: Register = (on, options) => {
         </Box>
         {bar}
         {statusRows}
+        {hints.map(hint => (
+          <Box key={hint.scope} display="none" hover={{ scope: hint.scope, display: 'flex' }}>
+            <Text dimColor wrap="truncate-end">
+              {hint.text}
+            </Text>
+          </Box>
+        ))}
       </Box>,
     )
   })

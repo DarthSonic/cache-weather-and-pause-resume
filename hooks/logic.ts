@@ -454,3 +454,21 @@ export function turnsToCompact(tokens: number | null, thresholdTokens: number, g
   if (typical === null || typical <= 0) return null
   return Math.max(1, Math.ceil((thresholdTokens - tokens) / typical))
 }
+
+// ── The buttons' icons in the desktop app (0.10.0) ───────────────────────────────────────────────────────────────
+
+/**
+ * One-colour signs, each drawn in its text form (U+FE0E) so the desktop app shows no coloured emoji tile: calm beside
+ * the band's readings. The terminal keeps the words: it has no pointer to show a hint, and emoji widths differ there.
+ */
+export const BUTTON_ICONS = {
+  sessions: '\u29C9',
+  compact: '\u21F2',
+  compacting: '\u21F2\u2026',
+  pause: '\u23F8\uFE0E',
+  resume: '\u25B6\uFE0E',
+  shutdown: '\u23FB',
+  sleep: '\u23FE',
+  hibernate: '\u2744\uFE0E',
+  cancel: '\u2715',
+} as const
