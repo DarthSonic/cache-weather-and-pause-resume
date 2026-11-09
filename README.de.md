@@ -60,7 +60,7 @@ und die zeigt **Weiter**.
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
 | **Shutdown** | Pausiert wie **Pause**, die anderen Sitzungen mit, und fährt den Rechner dann nach 5 Minuten Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
-| **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
+| **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
 Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
@@ -219,6 +219,10 @@ Cache kurz vor Ablauf auf:
   nächste Anfrage, statt ihn neu aufzubauen, und sagt das.
 - **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die nächste Anfrage
   schreibt den neuen Cache, und Keep-warm wartet auf sie („Keep-warm: wartet auf die nächste Anfrage“).
+- **Wenn das Kontingent knapp wird:** Mit Abo frischt Keep-warm nichts mehr auf, sobald das 5-Stunden- oder das
+  7-Tage-Fenster bei 90 % oder mehr steht („Keep-warm: hält an, Kontingent bei 92 %“), damit es nicht den Rest
+  verbraucht, und macht von selbst weiter, wenn das Fenster zurückgesetzt ist. Die Statuszeile zeigt jedes Fenster ab
+  80 %, mit der Uhrzeit, zu der es neu beginnt; eine Sitzung mit API-Schlüssel hat keine Fenster und zeigt keine.
 - **Nur beantwortete Anfragen zählen:** Eine fehlgeschlagene hat nichts aus dem Cache gelesen und setzt nichts zurück.
 - **Standardmäßig an, dann schaltest nur du:** Eine neue Sitzung startet mit gesetztem Haken (mit der Option `keepWarm`
   auf `off` ohne). Der Mod setzt oder löscht ihn nie; deine Wahl gilt für diese Sitzung: Ein Neustart oder Fortsetzen
@@ -346,7 +350,8 @@ startet der Countdown. Der Mod startet dafür kein Programm; die Option `notific
 
 **Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt), `LC_ALL` /
 `LC_MESSAGES` / `LANG` (die Sprache) und `OS` (ob er unter Windows läuft). Er liest keine Einstellungen von Claude Code
-und keine Zugangsdaten.
+und keine Zugangsdaten; die Nutzungsfenster kommen von Claude Code selbst, so wie seine Statuszeile sie zeigt, und keine
+Anfrage des Mods fragt danach.
 
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle, und `tool.call` beantwortet die
 eigenen Werkzeuge des Mods und weist während einer Pause einen Fragedialog ab, wie sie sagt. Jeder andere Hook liest nur
@@ -354,7 +359,8 @@ und reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
 `tool.call` sonst (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
-`turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen), `turn.start`,
+`turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen und die
+Nutzungsfenster eines Abos), `turn.start`,
 `turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
 Modell nicht liest. Der Hook auf
 `ui.render` zeichnet die Leiste und stapelt die Leisten anderer Mods darunter.

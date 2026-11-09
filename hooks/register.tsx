@@ -28,6 +28,9 @@ import {
   lifetimeFromResume,
   pauseSigns,
   remainingMinutes,
+  resetClock,
+  usageStopping,
+  usageToShow,
   remainingShare,
   svgBar,
   svgBarHeight,
@@ -96,7 +99,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.9.5'
+const CODE_VERSION = '0.10.0'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -118,6 +121,7 @@ const keepWarm = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarm
 const cacheUsedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'cacheUsedAt' } as const, null)
 const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt' } as const, null)
 const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
+const usageWindows = atom({ plugin: 'cache-weather-and-pause-resume', key: 'usageWindows' } as const, [])
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
@@ -196,9 +200,19 @@ async function currentLang($: EngineInterface): Promise<Lang> {
 }
 
 async function refreshContext($: EngineInterface): Promise<void> {
-  const { context: c } = await $.session.usage()
+  const { context: c, rateLimits } = await $.session.usage()
   const fill: ContextFill = { percent: c.percent ?? null, tokens: c.tokens ?? null, window: c.window }
   await update($, context, () => fill)
+  await update($, usageWindows, () => usageOf(rateLimits))
+}
+
+// The usage windows as the mod keeps them (0.10.0): kind, share used, when they start over.
+function usageOf(windows: readonly { kind: string; percentUsed: number; resetsAt?: string }[] | undefined) {
+  return (windows ?? []).map(w => ({
+    kind: w.kind,
+    percentUsed: w.percentUsed,
+    ...(w.resetsAt === undefined ? {} : { resetsAt: w.resetsAt }),
+  }))
 }
 
 // The session's own auto-compact threshold (a local estimate, no API request); 83 % when it gives none.
@@ -472,6 +486,8 @@ let handledRequestId: string | null = null
 // When this module first saw its session start: a request decided before is no concern of it.
 let moduleStartedAt: number | null = null
 let isRefreshing = false
+// The window keep-warm last said it stops for, until it starts over: said once, not after every input.
+let usageStopSaid: string | null = null
 let retryAt = 0
 
 // Redraws the band once a minute: the cache's countdown and how long the session has been paused. Started by the
@@ -504,7 +520,23 @@ async function markActive($: EngineInterface, at: number, isRequest: boolean): P
 }
 
 async function keepWarmTick($: EngineInterface): Promise<void> {
-  if (isRefreshing || !(await read($, keepWarm)) || (await read($, keepWarmNote)) !== null) return
+  if (isRefreshing || !(await read($, keepWarm))) return
+  // A usage window at or past 90 %: no refresh spends the last of it (0.10.0). Once it starts over, keep-warm goes on.
+  const stopping = usageStopping(await read($, usageWindows))
+  const held = await read($, keepWarmNote)
+  if (stopping !== null) {
+    if (held === null) await update($, keepWarmNote, () => 'limit')
+    const said = `${stopping.kind}@${stopping.resetsAt ?? ''}`
+    if (usageStopSaid !== said) {
+      usageStopSaid = said
+      const t = strings(await currentLang($), shutdownMode)
+      $.ui.log(t.keepWarmLimitLog(t.usageWindow(stopping.kind), Math.round(stopping.percentUsed)))
+    }
+    return
+  }
+  usageStopSaid = null
+  if (held === 'limit') await update($, keepWarmNote, () => null)
+  else if (held !== null) return
   const at = await $.clock.now()
   if (at < retryAt) return
   const life = await read($, ttl)
@@ -1291,6 +1323,7 @@ export const register: Register = (on, options) => {
   handledRequestId = null
   moduleStartedAt = null
   isRefreshing = false
+  usageStopSaid = null
   retryAt = 0
   fallbackLang = langOf(options.language) ?? langOf(runtimeLocale()) ?? 'en'
 
@@ -1393,6 +1426,7 @@ export const register: Register = (on, options) => {
 
   on('session.measure', async ($, e, next) => {
     const result = await next(e)
+    if (e.changed.includes('rateLimits')) await update($, usageWindows, () => usageOf(e.rateLimits))
     if (e.changed.includes('context')) {
       const fill: ContextFill = {
         percent: e.context.percent ?? null,
@@ -1628,7 +1662,9 @@ export const register: Register = (on, options) => {
           ? t.keepWarmEnded(keepWarmSpanText(life.minutes))
           : note === 'cold'
             ? t.keepWarmCold
-            : t.keepWarmMissed
+            : note === 'limit'
+              ? t.keepWarmLimit(Math.round(usageStopping(await read($, usageWindows))?.percentUsed ?? 90))
+              : t.keepWarmMissed
     const keepWarmControl = (
       <Button
         key="keep-warm"
@@ -1714,6 +1750,14 @@ export const register: Register = (on, options) => {
       status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}${from}`, color: 'warning' })
     } else if (phase === 'paused' && shutting !== 'countdown' && shutting !== 'shutting') {
       status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${from}` })
+    }
+    // Usage windows from 80 % on, fullest first: yellow, red from 95 % (0.10.0).
+    for (const { reading, tone } of usageToShow(await read($, usageWindows))) {
+      status.push({
+        key: `usage-${reading.kind}`,
+        text: t.usageLine(t.usageWindow(reading.kind), Math.round(reading.percentUsed), resetClock(reading.resetsAt, at, lang)),
+        color: tone,
+      })
     }
     const withoutMod = await read($, sessionsWithoutMod)
     if (role === 'own' && withoutMod > 0) status.push({ key: 'without-mod', text: t.withoutMod(withoutMod), color: 'subtle' })

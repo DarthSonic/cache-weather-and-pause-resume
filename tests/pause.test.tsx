@@ -1172,6 +1172,41 @@ describe('keep-warm', () => {
     expect(asked.prompts.length).toBe(0)
   })
 
+  // Usage windows (0.10.0): shown in the status row from 80 %; keep-warm stops from 90 % and goes on once it drops.
+  test('a usage window at 92 % stands in the status row and stops keep-warm until it starts over', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    on('session.measure', ($, e) => ({ changed: e.changed }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+    const resetsAt = new Date(START + 3 * HOUR).toISOString()
+    const at = new Date(START + 3 * HOUR)
+    const clockText = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+    const sameDay = new Date(START).toDateString() === at.toDateString()
+    const measure = (percentUsed: number) =>
+      $.session.measure({ context: { window: 200_000 }, rateLimits: [{ kind: 'five_hour', percentUsed, resetsAt }], changed: ['rateLimits'] } as never)
+
+    await measure(84)
+    const shown = sameDay ? `5-h-Limit 84 % · neu um ${clockText}` : `5-h-Limit 84 %`
+    expect(await ui.find({ type: 'Text', text: new RegExp(`^${shown}`) })).toBeDefined()
+
+    await measure(92)
+    await clock.advance(55 * MIN)
+    expect(asked.prompts.length).toBe(0)
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: hält an, Kontingent bei 92 %$/ })).toBeDefined()
+    expect(asked.logs.filter(line => line.includes('hält an')).length).toBe(1)
+
+    // The window starts over: keep-warm refreshes before the cache lapses.
+    await measure(3)
+    await clock.advance(30_000)
+    expect(asked.prompts.length).toBe(1)
+    expect(await ui.find({ type: 'Text', text: /5-h-Limit/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
   test('the hour cache is refreshed five minutes before it lapses, and counts down afresh', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })

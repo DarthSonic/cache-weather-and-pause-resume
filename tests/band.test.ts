@@ -14,13 +14,44 @@ import {
   pauseSigns,
   remainingMinutes,
   remainingShare,
+  resetClock,
   svgBar,
   terminalBar,
   terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
+  usageStopping,
+  usageToShow,
   weather,
 } from '../hooks/logic'
+
+// The usage windows (0.10.0): shown from 80 %, red from 95 %, keep-warm stops from 90 %.
+describe('the usage windows', () => {
+  test('from 80 % on, fullest first; red from 95 %; keep-warm stops from 90 %', async () => {
+    const windows = [
+      { kind: 'seven_day', percentUsed: 81 },
+      { kind: 'five_hour', percentUsed: 96.5 },
+      { kind: 'spend_limit', percentUsed: 40 },
+    ]
+    expect(usageToShow(windows).map(({ reading, tone }) => [reading.kind, tone])).toEqual([
+      ['five_hour', 'error'],
+      ['seven_day', 'warning'],
+    ])
+    expect(usageToShow([{ kind: 'five_hour', percentUsed: 79.9 }])).toEqual([])
+    expect(usageStopping(windows)?.kind).toBe('five_hour')
+    expect(usageStopping([{ kind: 'five_hour', percentUsed: 89 }])).toBeNull()
+    expect(usageStopping([{ kind: 'seven_day', percentUsed: 90 }])?.kind).toBe('seven_day')
+  })
+
+  test('the reset as a clock time, with the weekday where it is not today', async () => {
+    const now = new Date(2026, 10, 9, 12, 30).getTime()
+    expect(resetClock(new Date(2026, 10, 9, 15, 0).toISOString(), now, 'de')).toBe('15:00')
+    expect(resetClock(new Date(2026, 10, 16, 9, 5).toISOString(), now, 'de')).toBe('Mo 09:05')
+    expect(resetClock(new Date(2026, 10, 16, 9, 5).toISOString(), now, 'en')).toBe('Mon 09:05')
+    expect(resetClock(undefined, now, 'de')).toBeNull()
+    expect(resetClock('not a time', now, 'de')).toBeNull()
+  })
+})
 
 const BAND = {
   plugin: 'cache-weather-and-pause-resume',

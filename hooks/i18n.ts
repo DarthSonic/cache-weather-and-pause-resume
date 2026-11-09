@@ -64,6 +64,12 @@ export type Strings = {
   keepWarmEnded: (span: string) => string
   keepWarmMissed: string
   keepWarmCold: string
+  /** Keep-warm stopped for a usage window at or past 90 %. */
+  keepWarmLimit: (percent: number) => string
+  keepWarmLimitLog: (window: string, percent: number) => string
+  /** A usage window as the status row shows it: its name, how full, when it starts over. */
+  usageWindow: (kind: string) => string
+  usageLine: (window: string, percent: number, reset: string | null) => string
   keepWarmRefreshedLog: (read: string, out: string) => string
   keepWarmEndedLog: (span: string, ttl: string) => string
   keepWarmMissedLog: string
@@ -113,6 +119,12 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   keepWarmEnded: span => `endete nach ${span} ohne Eingabe`,
   keepWarmMissed: 'Cache war schon abgelaufen',
   keepWarmCold: 'wartet auf die nächste Anfrage',
+  keepWarmLimit: percent => `hält an, Kontingent bei ${percent} %`,
+  keepWarmLimitLog: (window, percent) =>
+    `Keep-warm: hält an, weil das ${window} bei ${percent} % steht. Eine Auffrischung würde den Rest verbrauchen. Ist das Fenster zurückgesetzt, frischt Keep-warm wieder auf.`,
+  usageWindow: kind =>
+    kind === 'five_hour' ? '5-h-Limit' : kind === 'seven_day' ? '7-Tage-Limit' : kind === 'spend_limit' ? 'Ausgabenlimit' : kind,
+  usageLine: (window, percent, reset) => `${window} ${percent} %${reset === null ? '' : ` · neu ${reset.includes(' ') ? '' : 'um '}${reset}`}`,
   keepWarmRefreshedLog: (read, out) => `↻ Keep-warm: Cache aufgefrischt (${read} Tokens aus dem Cache gelesen, ${out} Tokens Antwort)`,
   keepWarmEndedLog: (span, ttl) =>
     `Keep-warm: nach ${span} ohne Eingabe nicht weiter aufgefrischt. Das ist die Grenze beim ${ttl}-Cache, damit eine vergessene Sitzung kein Kontingent mehr verbraucht. Die nächste Eingabe baut den Cache neu auf, dann hält Keep-warm ihn wieder warm.`,
@@ -150,6 +162,12 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   keepWarmEnded: span => `stopped after ${span} without input`,
   keepWarmMissed: 'the cache had already expired',
   keepWarmCold: 'waiting for the next request',
+  keepWarmLimit: percent => `stopped, usage at ${percent} %`,
+  keepWarmLimitLog: (window, percent) =>
+    `Keep-warm: stopped because the ${window} stands at ${percent} %. A refresh would spend the rest of it. Once the window starts over, keep-warm refreshes again.`,
+  usageWindow: kind =>
+    kind === 'five_hour' ? '5-hour limit' : kind === 'seven_day' ? '7-day limit' : kind === 'spend_limit' ? 'Spend limit' : kind,
+  usageLine: (window, percent, reset) => `${window} ${percent} %${reset === null ? '' : ` · resets ${reset.includes(' ') ? '' : 'at '}${reset}`}`,
   keepWarmRefreshedLog: (read, out) => `↻ Keep-warm: cache refreshed (${read} tokens read from the cache, ${out} tokens of reply)`,
   keepWarmEndedLog: (span, ttl) =>
     `Keep-warm: no more refreshes after ${span} without input. That is the limit for the ${ttl} cache, so a forgotten session spends no more usage. The next input builds the cache afresh, and keep-warm keeps it warm again.`,

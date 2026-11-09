@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0 — unreleased
+
+- **Usage limits.** With a subscription, the status row shows the 5-hour and the 7-day window (and a gateway's spend
+  limit) once one stands at 80 % or more, fullest first, with the time it resets („5-h-Limit 84 % · neu um 15:00“,
+  the weekday where it is not today); red from 95 %. The figures come from Claude Code itself (its status line's,
+  then each change of a whole point); a session on an API key has none and shows none.
+- **Keep-warm stops at 90 %** of any window: a refresh would spend the last of it. It says so once in the status row
+  („Keep-warm: hält an, Kontingent bei 92 %“) and in a line, and refreshes again by itself once the window starts over.
+
 ## 0.9.5 — 2026-11-09
 
 - **Standby or hibernation instead of shutdown**, with the new option `shutdownMode` (`shutdown`, `sleep`,

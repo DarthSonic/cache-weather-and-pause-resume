@@ -21,7 +21,7 @@ export type PausePhase = 'running' | 'pausing' | 'paused'
  * Why keep-warm waits for the next request: the idle span ran out, a refresh found the cache gone, or the cache is
  * `cold` after a compaction or a switch to another model (the next request writes the new one).
  */
-export type KeepWarmNote = 'ended' | 'missed' | 'cold'
+export type KeepWarmNote = 'ended' | 'missed' | 'cold' | 'limit'
 
 /** The systems the shutdown button knows. */
 export type ShutdownOs = 'windows' | 'linux' | 'macos'
@@ -120,6 +120,8 @@ declare module 'claude-code' {
       /** The last request that was no refresh, or keep-warm switched on: the idle span counts from here. */
       activeAt: number | null
       keepWarmNote: KeepWarmNote | null
+      /** The usage windows the last response reported (0.10.0): empty off a subscription. */
+      usageWindows: { kind: string; percentUsed: number; resetsAt?: string }[]
       /** Refreshes since the last request that was none. */
       keepWarmRefreshes: number
       /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */

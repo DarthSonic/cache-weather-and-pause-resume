@@ -39,10 +39,8 @@ Order: the CI matrix and the macOS test; then 0.10.0.
 
 ## 0.10.0 — Next features
 
-- [ ] **Usage limits.** The five-hour and seven-day windows of a subscription, with their reset times. A warning in
-  the band from about 80 % rather than a permanent reading; keep-warm stops when the five-hour window is nearly full,
-  so it does not spend the last of it.
-  *To plan:* the thresholds; what a session on an API key shows instead (it has no windows).
+- [x] **Usage limits.** The 5-hour and 7-day windows in the status row from 80 % on, with the time they reset; red
+  from 95 %. Keep-warm stops from 90 % and goes on once the window starts over. A session on an API key shows none.
 - [ ] **Keep-warm balance.** What the refreshes cost, set against the rebuild of the cache they avoided.
   *To plan:* honest wording (the saving is real only if you come back), prices per model, where it shows (a log
   line, the band).

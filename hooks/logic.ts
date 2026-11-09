@@ -302,3 +302,47 @@ function cutToFit(paragraph: string, max: number): string[] {
   if (rest) out.push(rest)
   return out
 }
+
+// ── Usage limits (0.10.0) ────────────────────────────────────────────────────────────────────────────────────────
+
+/** From this share of a window on, the status row shows it; from the alarm share on, in red. */
+export const USAGE_SHOW_PERCENT = 80
+export const USAGE_ALARM_PERCENT = 95
+/** From this share of any window on, keep-warm refreshes nothing: it would spend the last of it. */
+export const USAGE_KEEP_WARM_STOP_PERCENT = 90
+
+/** One usage window as Claude Code reports it: `five_hour`, `seven_day`, or a gateway's `spend_limit`. */
+export type UsageReading = { kind: string; percentUsed: number; resetsAt?: string }
+
+/** The windows the status row shows, fullest first, each with its tone. */
+export function usageToShow(windows: readonly UsageReading[]): { reading: UsageReading; tone: 'warning' | 'error' }[] {
+  return windows
+    .filter(w => typeof w.percentUsed === 'number' && w.percentUsed >= USAGE_SHOW_PERCENT)
+    .sort((a, b) => b.percentUsed - a.percentUsed)
+    .map(reading => ({ reading, tone: reading.percentUsed >= USAGE_ALARM_PERCENT ? 'error' : 'warning' }))
+}
+
+/** The fullest window at or past the share where keep-warm stops, or null. */
+export function usageStopping(windows: readonly UsageReading[]): UsageReading | null {
+  const full = windows
+    .filter(w => typeof w.percentUsed === 'number' && w.percentUsed >= USAGE_KEEP_WARM_STOP_PERCENT)
+    .sort((a, b) => b.percentUsed - a.percentUsed)
+  return full[0] ?? null
+}
+
+/**
+ * When a window starts over, as a clock time in the computer's own time zone: „15:00“, and with the weekday where it
+ * is not today („Mo 09:00“). Null where Claude Code gives no time.
+ */
+export function resetClock(resetsAt: string | undefined, now: number, lang: 'de' | 'en'): string | null {
+  if (resetsAt === undefined) return null
+  const at = new Date(resetsAt)
+  if (Number.isNaN(at.getTime())) return null
+  const time = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+  const today = new Date(now)
+  const isToday =
+    at.getFullYear() === today.getFullYear() && at.getMonth() === today.getMonth() && at.getDate() === today.getDate()
+  if (isToday) return time
+  const days = lang === 'de' ? ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  return `${days[at.getDay()]} ${time}`
+}

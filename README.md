@@ -58,7 +58,7 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
 | **Shutdown** | Pauses like **Pause**, the other sessions with it, then shuts the computer down after a 5-minute countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
-| **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), why keep-warm waits, the shutdown check a press waits for. |
+| **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), why keep-warm waits, the shutdown check a press waits for. |
 
 Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.
@@ -212,6 +212,10 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
   rather than build it afresh, and says so.
 - **After `/compact` or a switch to another model** there is nothing to keep warm: the next request writes the new
   cache, and keep-warm waits for it (“Keep-warm: waiting for the next request”).
+- **When the usage runs short:** with a subscription, once the 5-hour or the 7-day window stands at 90 % or more,
+  keep-warm refreshes nothing (“Keep-warm: stopped, usage at 92 %”), so it does not spend the last of it, and goes on
+  by itself once the window starts over. The status row shows each window from 80 % on, with the time it resets; a
+  session on an API key has no windows and shows none.
 - **Only answered requests count:** one that failed read nothing from the cache and starts nothing over.
 - **On by default, then your switch alone:** a new session starts with keep-warm checked (with the option `keepWarm`
   set to `off`, unchecked). The mod never checks or unchecks it; your choice holds for this session: a restart or a
@@ -333,7 +337,8 @@ The desktop app draws no terminal: there nothing comes, and the app reports the 
 countdown starts. The mod starts no program for it; the option `notifications` turns it off.
 
 **Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is), `LC_ALL` / `LC_MESSAGES` /
-`LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials.
+`LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials; the
+usage windows come from Claude Code itself, as its status line shows them, and no request of the mod's asks for them.
 
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above, and `tool.call` answers the mod's
 own tools and turns a question dialog away during a pause as it says. Every other hook only reads and passes its event
@@ -341,7 +346,7 @@ on unchanged: `classic.SessionStart` (transcript path, session id, time since th
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
 conversation has run, and when a question to you is answered), `turn.step` (token counts, and when a request reads
-the cache) and `session.measure` (token counts), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,
+the cache) and `session.measure` (token counts, and the usage windows of a subscription), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,
 after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
 band and stacks the bands of other mods beneath it.
 
