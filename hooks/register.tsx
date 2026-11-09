@@ -140,6 +140,10 @@ const sessionsView = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sess
 
 // The pane of the sessions overview (0.10.0).
 const SESSIONS_PANE = 'sessions'
+// The size all of the mod's text is drawn at (2026-11-09): a step under the surface's body text, as the band ran out of
+// room for the buttons' words. One size for the band, its buttons and the sessions pane; a terminal has one size and
+// ignores it.
+const TEXT_SIZE = 'caption'
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
@@ -1778,7 +1782,7 @@ export const register: Register = (on, options) => {
     const isTerminal = e.surface === 'terminal'
     const signs = pauseSigns(isTerminal)
     const terminalSky = terminalWeather(sky)
-    const skyText = isTerminal ? <Text color={terminalSky.tone}>{terminalSky.sign}</Text> : <Text>{sky}</Text>
+    const skyText = isTerminal ? <Text color={terminalSky.tone}>{terminalSky.sign}</Text> : <Text size={TEXT_SIZE}>{sky}</Text>
     const fillText = fill?.percent === null || fill?.percent === undefined ? '–' : `${fill.percent} %`
 
     const cacheText =
@@ -1810,13 +1814,14 @@ export const register: Register = (on, options) => {
             : note === 'limit'
               ? t.keepWarmLimit(Math.round(usageStopping(await read($, usageWindows))?.percentUsed ?? 90))
               : t.keepWarmMissed
-    const keepWarmControl = (
-      <Button
-        key="keep-warm"
-        label={`${box} ${t.keepWarm}${isKeptWarm && refreshes > 0 ? ` ↻${refreshes}` : ''}`}
-        plain
-        onPress={async () => setKeepWarm($, !(await read($, keepWarm)))}
-      />
+    const keepWarmLabel = `${box} ${t.keepWarm}${isKeptWarm && refreshes > 0 ? ` ↻${refreshes}` : ''}`
+    const onKeepWarm = async () => setKeepWarm($, !(await read($, keepWarm)))
+    const keepWarmControl = isTerminal ? (
+      <Button key="keep-warm" label={keepWarmLabel} plain onPress={onKeepWarm} />
+    ) : (
+      <Button key="keep-warm" plain onPress={onKeepWarm}>
+        <Text size={TEXT_SIZE}>{keepWarmLabel}</Text>
+      </Button>
     )
 
     // The pause button: „Pause“, then „Weiter“ while Claude prepares the pause (it calls the pause off) and once it is
@@ -1826,10 +1831,9 @@ export const register: Register = (on, options) => {
     const phase = await read($, pausePhase)
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
-    // In the desktop app each button is its one-colour icon, with its word right beside it in caption size (0.10.0).
-    // The desktop draws a Button as a native button at its own font, a small Text inside it too: the word stands outside
-    // it, as text. Nothing appears or moves under the pointer: a word revealed on hover pushed the buttons away from
-    // it. The terminal keeps the words in the buttons, at its one size.
+    // In the desktop app each button is its one-colour icon with its word, drawn at the mod's smaller size (0.10.0).
+    // Nothing appears or moves under the pointer: a word revealed on hover pushed the buttons away from it; a word
+    // beside the button, outside it, looked poor (2026-11-09). The terminal keeps the words.
     type IconButtonSpec = {
       key: string
       words: string
@@ -1848,16 +1852,11 @@ export const register: Register = (on, options) => {
       }
       if (isTerminal) return <Button key={spec.key} label={spec.words} onPress={press} {...look} />
       return (
-        <Box flexDirection="row" alignItems="center" gap={1} flexShrink={0}>
-          <Button key={spec.key} label={spec.icon} onPress={press} {...look} />
-          <Text size="caption" {...(spec.dimColor === true ? { dimColor: true } : {})}>
-            {spec.words}
-          </Text>
-        </Box>
+        <Button key={spec.key} onPress={press} {...look}>
+          <Text size={TEXT_SIZE}>{`${spec.icon} ${spec.words}`}</Text>
+        </Button>
       )
     }
-    // Between one icon's word and the next icon a wider gap, so each word reads as its icon's.
-    const buttonGap = isTerminal ? 1 : 2
     const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
     const onCancelShutdown = () => cancelShutdown($, false)
     const onShutdown = () => requestShutdown($, askAbove)
@@ -1887,7 +1886,7 @@ export const register: Register = (on, options) => {
       pause = null
     } else if (phase === 'running') {
       pause = (
-        <Box flexDirection="row" gap={buttonGap}>
+        <Box flexDirection="row" gap={1}>
           {iconButton({ key: 'pause', words: t.pause, icon: BUTTON_ICONS.pause, onPress: onPause })}
           {shutdownButton}
         </Box>
@@ -1896,7 +1895,7 @@ export const register: Register = (on, options) => {
       pause = iconButton({ key: 'pause-cancel', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume })
     } else {
       pause = (
-        <Box flexDirection="row" gap={buttonGap}>
+        <Box flexDirection="row" gap={1}>
           {iconButton({ key: 'resume', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume, variant: 'primary' })}
           {shutdownButton}
         </Box>
@@ -1959,7 +1958,7 @@ export const register: Register = (on, options) => {
       status.length === 0 ? null : (
         <Box flexDirection="column">
           {status.map(line => (
-            <Text key={`status-${line.key}`} wrap="truncate-end" {...(line.color === undefined ? {} : { color: line.color })}>
+            <Text key={`status-${line.key}`} size={TEXT_SIZE} wrap="truncate-end" {...(line.color === undefined ? {} : { color: line.color })}>
               {line.text}
             </Text>
           ))}
@@ -2042,7 +2041,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="row" gap={2} {...(isTerminal ? {} : { justifyContent: 'space-between' as const })}>
           <Box flexDirection="row" gap={1}>
             <Box {...keep}>
-              <Text color={tone} wrap="truncate-end">
+              <Text color={tone} size={TEXT_SIZE} wrap="truncate-end">
                 {`${cacheText}${ttlNote}${hits}`}
               </Text>
             </Box>
@@ -2050,13 +2049,13 @@ export const register: Register = (on, options) => {
             <Box flexDirection="row" gap={1} {...keep}>
               {skyText}
               {isExpired ? null : (
-                <Text>
+                <Text size={TEXT_SIZE}>
                   {t.ctx} {fillText} / {limit.percent} %{limit.isFallback ? '*' : ''}
                 </Text>
               )}
             </Box>
           </Box>
-          <Box flexDirection="row" gap={buttonGap}>
+          <Box flexDirection="row" gap={1}>
             {sessionsButton}
             {compact}
             {pause}
@@ -2083,13 +2082,17 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column" gap={1}>
         {usage.length === 0 ? null : (
-          <Text dimColor wrap="truncate-end">
+          <Text dimColor size={TEXT_SIZE} wrap="truncate-end">
             {usage
               .map(w => t.usageLine(t.usageWindow(w.kind), Math.round(w.percentUsed), resetClock(w.resetsAt, at, lang)))
               .join('  ·  ')}
           </Text>
         )}
-        {rows.length === 0 ? <Text dimColor>{t.sessionsNone}</Text> : null}
+        {rows.length === 0 ? (
+          <Text dimColor size={TEXT_SIZE}>
+            {t.sessionsNone}
+          </Text>
+        ) : null}
         {rows.map(({ id, isSelf, entry }) => {
           const state =
             entry.phase === 'paused'
@@ -2112,18 +2115,26 @@ export const register: Register = (on, options) => {
           ].filter((part): part is string => part !== null)
           return (
             <Box key={`session-${id}`} flexDirection="column">
-              <Text bold wrap="truncate-end">
+              <Text bold size={TEXT_SIZE} wrap="truncate-end">
                 {`${entry.folder ?? id.slice(0, 8)}${isSelf ? ` · ${t.thisSession}` : ''}`}
               </Text>
-              <Text color={state === 'paused' ? undefined : state === 'awaiting' ? 'warning' : undefined} wrap="truncate-end">
+              <Text
+                color={state === 'paused' ? undefined : state === 'awaiting' ? 'warning' : undefined}
+                size={TEXT_SIZE}
+                wrap="truncate-end"
+              >
                 {t.sessionState(state, since)}
               </Text>
               {details.length === 0 ? null : (
-                <Text dimColor wrap="truncate-end">
+                <Text dimColor size={TEXT_SIZE} wrap="truncate-end">
                   {details.join('  ·  ')}
                 </Text>
               )}
-              {entry.runs.length === 0 ? null : <Text wrap="truncate-end">{t.sessionRuns(entry.runs)}</Text>}
+              {entry.runs.length === 0 ? null : (
+                <Text size={TEXT_SIZE} wrap="truncate-end">
+                  {t.sessionRuns(entry.runs)}
+                </Text>
+              )}
             </Box>
           )
         })}
