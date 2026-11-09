@@ -52,13 +52,14 @@ und die zeigt **Weiter**.
 | Teil | Was er zeigt |
 | --- | --- |
 | **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. Hinter dem Schrägstrich die Trefferquote: der Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam (`Cache 42 m / 98 %`). |
-| **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; daneben, warum Keep-warm wartet, wenn es wartet. |
+| **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; warum Keep-warm wartet, wenn es wartet, steht in der Statuszeile. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx** | Füllung des Kontexts in Prozent und, hinter dem Schrägstrich, die Auto-Compact-Schwelle (`Ctx 5 % / 97 %`; `*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
 | **Shutdown** | Pausiert wie **Pause** und fährt den Rechner dann nach 60 Sekunden Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
+| **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
 Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
@@ -77,8 +78,8 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 | Zustand | Leiste | Was passiert |
 | --- | --- | --- |
 | läuft | `Pause` | Ein Klick schickt Claude die Pause-Bitte. |
-| Pause angefordert | `⏳ Pause angefordert · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. Getipptes „weitermachen“ nimmt die Bitte zurück. |
-| pausiert | `Weiter` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
+| Pause in Vorbereitung | `Weiter`; Statuszeile `⏳ Pause wird vorbereitet … · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. **Weiter** oder getipptes „weitermachen“ nimmt die Bitte zurück. |
+| pausiert | `Weiter`; Statuszeile `Pausiert seit 12 min` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
 
 ![Die Leiste in der Pause: Weiter neben Shutdown; der Kontext bei 78 % einer Schwelle von 97 %, ein Gewitter, darum ist Compact hervorgehoben](docs/band-paused.png)
 
@@ -121,8 +122,8 @@ Wie der Mod den Zustand verfolgt:
 
 1. Ein Klick schickt Claude die Pause-Bitte (oben) mit einem Zusatz: Danach geht der Rechner aus. Claude fragt deshalb
    sofort nach langen Tasks, solange du noch da bist, und danach nichts mehr.
-2. Die Leiste zeigt „Shutdown angefordert“, die noch laufenden Tasks und einen Knopf **Abbrechen**.
-3. Ist die Sitzung pausiert, zählt die Leiste 60 Sekunden herunter („Shutdown in 47 s“, **Abbrechen**), dann startet der
+2. Die Statuszeile zeigt „Shutdown wird vorbereitet …“ und die noch laufenden Tasks; in der Knopfzeile steht **Abbrechen**.
+3. Ist die Sitzung pausiert, zählt die Statuszeile 60 Sekunden herunter („Shutdown in 47 s“, **Abbrechen** darüber), dann startet der
    Mod den Befehl des Systems und schreibt eine Zeile ins Log. Ist die Sitzung schon pausiert, zählt er sofort herunter.
 
 Nimmst du die Arbeit wieder auf (**Weiter**, „weitermachen“ oder Claude über `pause_state`), fällt ein angeforderter
@@ -162,13 +163,13 @@ Cache kurz vor Ablauf auf:
   graue Zeile: die aus dem Cache gelesenen Tokens und die Tokens der Antwort.
 - **Während Claude arbeitet** (ein langer Lauf, ein Subagent, eine angeforderte Pause): so lange es dauert.
 - **Während die Sitzung ruht, pausiert ist oder Claude auf dich wartet** (eine Berechtigungsfrage, eine Rückfrage): beim 1-Stunden-Cache 8 Stunden, beim 5-Minuten-Cache 45 Minuten, ab
-  der letzten Anfrage oder Eingabe. Dann steht in der Leiste „endete nach 8 h ohne Eingabe“, und eine Zeile erklärt
+  der letzten Anfrage oder Eingabe. Dann steht in der Statuszeile „Keep-warm: endete nach 8 h ohne Eingabe“, und eine Zeile erklärt
   den Grund: Eine vergessene Sitzung soll nicht weiter kosten. Deine nächste Nachricht baut den Cache neu auf, dann
   übernimmt Keep-warm wieder.
 - **Findet eine Auffrischung den Cache schon abgelaufen** (etwa weil der Rechner schlief), wartet Keep-warm auf die
   nächste Anfrage, statt ihn neu aufzubauen, und sagt das.
 - **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die nächste Anfrage
-  schreibt den neuen Cache, und Keep-warm wartet auf sie („wartet auf die nächste Anfrage“).
+  schreibt den neuen Cache, und Keep-warm wartet auf sie („Keep-warm: wartet auf die nächste Anfrage“).
 - **Nur beantwortete Anfragen zählen:** Eine fehlgeschlagene hat nichts aus dem Cache gelesen und setzt nichts zurück.
 - **Standardmäßig an, dann schaltest nur du:** Eine neue Sitzung startet mit gesetztem Haken (mit der Option `keepWarm`
   auf `off` ohne). Der Mod setzt oder löscht ihn nie; deine Wahl gilt für diese Sitzung: Ein Neustart oder Fortsetzen
@@ -315,7 +316,7 @@ Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,
 `classic.Notification`, `classic.PostModelSwitch` und `session.compact` nur für Plugins, die die Organisation in den
 verwalteten Einstellungen nennt. Eine selbst installierte Kopie sieht dann nie, dass Claude anhält: die Pause bleibt bei
-„Pause angefordert“, die Cache-Laufzeit wird nicht aus dem Transkript gelesen, nach `/compact` erscheint keine
+„Pause wird vorbereitet …“, die Cache-Laufzeit wird nicht aus dem Transkript gelesen, nach `/compact` erscheint keine
 Zusammenfassung, und Keep-warm zählt eine offene Berechtigungsfrage als Arbeit und frischt nach einem Compact oder
 Modellwechsel weiter auf, bis eine Auffrischung den Cache kalt vorfindet.
 

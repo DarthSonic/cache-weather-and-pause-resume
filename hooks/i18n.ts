@@ -21,6 +21,15 @@ export function runtimeLocale(): string | null {
   }
 }
 
+// A pause's length as the status row shows it: never „0 min“, and hours from the first hour on.
+function duration(minutes: number): string {
+  if (minutes < 1) return '< 1 min'
+  if (minutes < 60) return `${minutes} min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')} min`
+}
+
 export type Strings = {
   cacheUnknown: string
   cacheNone: string
@@ -32,12 +41,12 @@ export type Strings = {
   pause: string
   resume: string
   pauseRequested: string
+  /** How long the session has been paused, in whole minutes. */
+  pausedFor: (minutes: number) => string
   tasksLeft: (n: number | null) => string
   compactQueued: string
   compactQueueFailed: (error: string) => string
   compactSkipped: (reason: string) => string
-  pauseRequestedToast: string
-  pausedToast: string
   sendFailed: (error: string) => string
   resumeSendFailed: (error: string) => string
   keepWarm: string
@@ -70,13 +79,12 @@ const DE: Strings = {
   compacting: 'Compact …',
   pause: 'Pause',
   resume: 'Weiter',
-  pauseRequested: 'Pause angefordert',
+  pauseRequested: 'Pause wird vorbereitet …',
+  pausedFor: m => `Pausiert seit ${duration(m)}`,
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 Task läuft noch' : ` · ${n} Tasks laufen noch`),
   compactQueued: '/compact eingereiht: startet, sobald Claude fertig ist',
   compactQueueFailed: error => `/compact ließ sich nicht einreihen: ${error}`,
   compactSkipped: reason => `Compact übersprungen: ${reason}`,
-  pauseRequestedToast: '⏸ Pause angefordert: Claude lässt Laufendes zu Ende laufen und sichert den Stand.',
-  pausedToast: '⏸ Sitzung pausiert. „Weiter“ setzt fort.',
   sendFailed: error => `Pause: die Nachricht an Claude ließ sich nicht senden: ${error}`,
   resumeSendFailed: error => `Pause: „weitermachen“ ließ sich nicht senden: ${error}`,
   keepWarm: 'Keep-warm',
@@ -91,7 +99,7 @@ const DE: Strings = {
   cacheBarAlt: cache => `Restlaufzeit des Caches: ${cache}`,
   shutdown: 'Shutdown',
   shutdownCancel: 'Abbrechen',
-  shutdownRequested: 'Shutdown angefordert',
+  shutdownRequested: 'Shutdown wird vorbereitet …',
   shutdownIn: seconds => `Shutdown in ${seconds} s`,
   shutdownRunning: 'Fährt herunter …',
   shutdownCancelled: 'Shutdown abgebrochen. Die Pause bleibt, wie sie ist.',
@@ -120,13 +128,12 @@ const EN: Strings = {
   compacting: 'Compact …',
   pause: 'Pause',
   resume: 'Resume',
-  pauseRequested: 'Pause requested',
+  pauseRequested: 'Preparing the pause …',
+  pausedFor: m => `Paused for ${duration(m)}`,
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 task still running' : ` · ${n} tasks still running`),
   compactQueued: '/compact queued: it starts once Claude is done',
   compactQueueFailed: error => `/compact could not be queued: ${error}`,
   compactSkipped: reason => `Compact skipped: ${reason}`,
-  pauseRequestedToast: '⏸ Pause requested: Claude lets running work finish and saves the state.',
-  pausedToast: '⏸ Session paused. “Resume” carries on.',
   sendFailed: error => `Pause: the message to Claude could not be sent: ${error}`,
   resumeSendFailed: error => `Pause: “continue” could not be sent: ${error}`,
   keepWarm: 'Keep-warm',
@@ -141,7 +148,7 @@ const EN: Strings = {
   cacheBarAlt: cache => `Cache time left: ${cache}`,
   shutdown: 'Shutdown',
   shutdownCancel: 'Cancel',
-  shutdownRequested: 'Shutdown requested',
+  shutdownRequested: 'Preparing the shutdown …',
   shutdownIn: seconds => `Shutdown in ${seconds} s`,
   shutdownRunning: 'Shutting down …',
   shutdownCancelled: 'Shutdown cancelled. The pause stays as it is.',

@@ -56,7 +56,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.9.2'
+const CODE_VERSION = '0.9.3'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -81,6 +81,7 @@ const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keep
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
+const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
 const shutdownPhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPhase' } as const, 'idle')
 const shutdownAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownAt' } as const, null)
 
@@ -408,8 +409,19 @@ let shutdownTimer: Timer | null = null
 let shutdownTicker: Timer | null = null
 let pauseToolRegistered = false
 let keepWarmStarted = false
+let tickerStarted = false
 let isRefreshing = false
 let retryAt = 0
+
+// Redraws the band once a minute: the cache's countdown and how long the session has been paused. Started by the
+// first start the module sees, session.start or classic.SessionStart, whichever comes.
+function startTicker($: EngineInterface): void {
+  if (tickerStarted) return
+  tickerStarted = true
+  $.clock.every(60_000, () => {
+    void tick($)
+  })
+}
 
 function startKeepWarm($: EngineInterface): void {
   if (keepWarmStarted) return
@@ -543,11 +555,14 @@ function checkShutdown($: EngineInterface, force = false): Promise<void> {
 async function shutdownReadinessNow($: EngineInterface): Promise<ShutdownReadiness> {
   const held = await read($, shutdownReadiness)
   if (held !== null && (held.isReady || held.reason !== 'check-failed')) return held
-  $.ui.toast(strings(await currentLang($)).shutdownChecking)
+  // The status row says so meanwhile.
+  await update($, isCheckingShutdown, () => true)
   try {
     await checkShutdown($, true)
   } catch {
     // Not written: told below as a failed check.
+  } finally {
+    await update($, isCheckingShutdown, () => false).catch(() => undefined)
   }
   return (await read($, shutdownReadiness)) ?? { isReady: false, os: 'unknown', reason: 'check-failed' }
 }
@@ -742,7 +757,6 @@ async function enterPaused($: EngineInterface): Promise<void> {
   await update($, now, () => at)
   await setPausePhase($, 'paused')
   await rememberPause($, at)
-  $.ui.toast(strings(await currentLang($)).pausedToast)
   if ((await read($, shutdownPhase)) === 'requested') await startShutdownCountdown($)
 }
 
@@ -782,7 +796,6 @@ async function requestPause($: EngineInterface, askAbove: number, extra?: string
   // An appended row waits for the turn's next request; should the turn end first, the Stop hook hands it on.
   // (Marked after the append: a request racing it at worst hands the model the request twice.)
   if ((await handToModel($, request)) === 'appended') await update($, pauseDelivered, () => false)
-  $.ui.toast(strings(lang).pauseRequestedToast)
 }
 
 async function requestResume($: EngineInterface): Promise<void> {
@@ -836,6 +849,7 @@ export const register: Register = (on, options) => {
   stopShutdownTimers()
   pauseToolRegistered = false
   keepWarmStarted = false
+  tickerStarted = false
   isRefreshing = false
   retryAt = 0
   fallbackLang = langOf(options.language) ?? langOf(runtimeLocale()) ?? 'en'
@@ -864,10 +878,7 @@ export const register: Register = (on, options) => {
     await tick($)
     await detectFromTranscript($)
 
-    // Redraws the countdown once a minute.
-    $.clock.every(60_000, () => {
-      void tick($)
-    })
+    startTicker($)
     startKeepWarm($)
     await registerPauseTool($, askAbove)
     return started
@@ -895,6 +906,7 @@ export const register: Register = (on, options) => {
     const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
     if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
     await applyRememberedTtl($)
+    startTicker($)
     startKeepWarm($)
     await registerPauseTool($, askAbove)
     // Once per session start, a little later: what is remembered of deleted sessions goes.
@@ -1120,8 +1132,8 @@ export const register: Register = (on, options) => {
     const isExpired = share !== null && share <= 0
 
     // Keep-warm's checkbox: the person's choice alone, the mod never switches it. Narrow signs in a terminal; in the
-    // desktop app ☐ / ☑ (emoji were bigger but looked out of place, 2026-10-15). Beside it why keep-warm waits for the
-    // next request, when it does.
+    // desktop app ☐ / ☑ (emoji were bigger but looked out of place, 2026-10-15). Why keep-warm waits for the next
+    // request, when it does, goes into the status row.
     const isKeptWarm = await read($, keepWarm)
     const note = await read($, keepWarmNote)
     const refreshes = await read($, keepWarmRefreshes)
@@ -1135,24 +1147,18 @@ export const register: Register = (on, options) => {
             ? t.keepWarmCold
             : t.keepWarmMissed
     const keepWarmControl = (
-      <Box flexDirection="row" gap={1}>
-        <Button
-          key="keep-warm"
-          label={`${box} ${t.keepWarm}${isKeptWarm && refreshes > 0 ? ` ↻${refreshes}` : ''}`}
-          plain
-          onPress={async () => setKeepWarm($, !(await read($, keepWarm)))}
-        />
-        {noteText === null ? null : (
-          <Text color="warning" wrap="truncate-end">
-            {noteText}
-          </Text>
-        )}
-      </Box>
+      <Button
+        key="keep-warm"
+        label={`${box} ${t.keepWarm}${isKeptWarm && refreshes > 0 ? ` ↻${refreshes}` : ''}`}
+        plain
+        onPress={async () => setKeepWarm($, !(await read($, keepWarm)))}
+      />
     )
 
-    // The pause button: „Pause“, then what Claude is finishing up, then „Weiter“. Beside it the shutdown button, which
-    // pauses the same way and then shuts the computer down: dimmed where that cannot happen unattended (a press says
-    // what is missing), replaced by the countdown and its cancel button once the session is paused.
+    // The pause button: „Pause“, then „Weiter“ while Claude prepares the pause (it calls the pause off) and once it is
+    // paused. Beside it the shutdown button, which pauses the same way and then shuts the computer down: dimmed where
+    // that cannot happen unattended (a press says what is missing); while the shutdown is prepared or counted down,
+    // its cancel button stands there instead. What the pause and the shutdown are at goes into the status row.
     const phase = await read($, pausePhase)
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
@@ -1167,17 +1173,11 @@ export const register: Register = (on, options) => {
         onPress={() => requestShutdown($, askAbove)}
       />
     )
-    let pause
-    if (shutting === 'countdown') {
-      const until = (await read($, shutdownAt)) ?? at
-      pause = (
-        <Box flexDirection="row" gap={1}>
-          <Text color="error">{t.shutdownIn(secondsLeft(until, at))}</Text>
-          {cancelShutdownButton}
-        </Box>
-      )
+    let pause = null
+    if (shutting === 'countdown' || (phase === 'pausing' && shutting === 'requested')) {
+      pause = cancelShutdownButton
     } else if (shutting === 'shutting') {
-      pause = <Text color="error">{t.shutdownRunning}</Text>
+      pause = null
     } else if (phase === 'running') {
       pause = (
         <Box flexDirection="row" gap={1}>
@@ -1186,16 +1186,7 @@ export const register: Register = (on, options) => {
         </Box>
       )
     } else if (phase === 'pausing') {
-      const left = await read($, pauseTasksLeft)
-      const asked = shutting === 'requested' ? t.shutdownRequested : t.pauseRequested
-      pause = (
-        <Box flexDirection="row" gap={1}>
-          <Text color="warning" wrap="truncate-end">
-            {`${signs.requested} ${asked}${t.tasksLeft(left)}`}
-          </Text>
-          {shutting === 'requested' ? cancelShutdownButton : null}
-        </Box>
-      )
+      pause = <Button key="pause-cancel" label={t.resume} onPress={() => requestResume($)} />
     } else {
       pause = (
         <Box flexDirection="row" gap={1}>
@@ -1204,6 +1195,36 @@ export const register: Register = (on, options) => {
         </Box>
       )
     }
+
+    // The status rows under the bar, one per message and only while there is one (0.9.3): what lasts stands here
+    // rather than among the readings and the buttons, the most pressing first. The shutdown's countdown hides how
+    // long the session has been paused, which it then is anyway.
+    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' }
+    const status: StatusLine[] = []
+    if (shutting === 'countdown') {
+      const until = (await read($, shutdownAt)) ?? at
+      status.push({ key: 'shutdown', text: t.shutdownIn(secondsLeft(until, at)), color: 'error' })
+    } else if (shutting === 'shutting') {
+      status.push({ key: 'shutdown', text: t.shutdownRunning, color: 'error' })
+    } else if (phase === 'pausing') {
+      const left = await read($, pauseTasksLeft)
+      const asked = shutting === 'requested' ? t.shutdownRequested : t.pauseRequested
+      status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}`, color: 'warning' })
+    } else if (phase === 'paused') {
+      status.push({ key: 'pause', text: t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0) })
+    }
+    if (noteText !== null) status.push({ key: 'keep-warm', text: `${t.keepWarm}: ${noteText}`, color: 'warning' })
+    if (await read($, isCheckingShutdown)) status.push({ key: 'check', text: t.shutdownChecking, color: 'subtle' })
+    const statusRows =
+      status.length === 0 ? null : (
+        <Box flexDirection="column">
+          {status.map(line => (
+            <Text key={`status-${line.key}`} wrap="truncate-end" {...(line.color === undefined ? {} : { color: line.color })}>
+              {line.text}
+            </Text>
+          ))}
+        </Box>
+      )
 
     // The band is one site with a chain of hooks: what another mod beneath draws (savvy-progress' bar) goes under
     // ours; returning ours alone would hide it. A row's gap sets the two apart and only exists between them.
@@ -1291,6 +1312,7 @@ export const register: Register = (on, options) => {
           </Box>
         </Box>
         {bar}
+        {statusRows}
       </Box>,
     )
   })

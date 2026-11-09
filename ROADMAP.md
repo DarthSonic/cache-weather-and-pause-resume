@@ -16,10 +16,9 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   again where another session's write took it back; a file caught half-written is read again, not written over. Keys
   no code reads any more (`isCollapsed`, `keepAliveSessions`) go. (The plan was a file per session; the mod API can
   write files but not delete them, so they would have piled up for good.)
-- [ ] **A status row.** A third row under the bar, shown only when there is something to say, for states that last:
-  the pause being prepared, waiting for a task, "paused for 12 min" (a duration, "< 1 min" rather than "0 min"), the
-  shutdown countdown, whom the shutdown waits for, keep-warm's notes, the shutdown check. The buttons stay in the
-  main row; toasts remain for one-off events only.
+- [x] **0.9.3: a status row.** Under the bar, one row per message and only while there is one: the shutdown's
+  countdown, the pause being prepared, "paused for 12 min", why keep-warm waits, the shutdown check. While the pause
+  is prepared, Resume calls it off; the toasts that only repeated a state are gone.
 - [ ] **Notifications.** A system notification when the shutdown countdown starts (the last chance to cancel for
   someone working in another window), when keep-warm ends and when the pause is reached.
   *To plan:* which of them are on by default, a setting to turn them off, what the terminal and the desktop app each
@@ -59,8 +58,7 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: the status row next, then notifications, pause and shutdown across sessions, and hibernation; the CI matrix
-alongside.
+Order: notifications next, then pause and shutdown across sessions, and hibernation; the CI matrix alongside.
 
 ## 0.10.0 — Next features
 

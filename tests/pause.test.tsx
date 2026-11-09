@@ -192,8 +192,9 @@ describe('the pause button', () => {
       expect(asked?.text).toContain('⏸ Pause-Knopf: Der Mensch bittet dich, die Sitzung zu pausieren.')
       expect(asked?.origin).toEqual(OWN)
       expect(await ui.find({ key: 'pause' })).toBeUndefined()
-      expect(await ui.find({ type: 'Text', text: /Pause angefordert/ })).toBeDefined()
-      expect(await ui.find({ key: 'pause-cancel' })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: /Pause wird vorbereitet/ })).toBeDefined()
+      // „Weiter“ stands ready to call the pause off (0.9.3).
+      expect((await ui.find({ key: 'pause-cancel' }))?.props.label).toBe('Weiter')
       expect(await ui.find({ key: 'compact' })).toBeDefined()
 
       // Claude stops while a run is still in flight: still pausing, the band counts it.
@@ -204,8 +205,9 @@ describe('the pause button', () => {
       // Nothing in flight any more: paused.
       await $.classic.Stop(stop())
       expect(await ui.find({ key: 'resume' })).toBeDefined()
-      // The time paused is not shown (0.9.0).
-      expect(await ui.find({ type: 'Text', text: /pausiert/ })).toBeUndefined()
+      // How long it has been paused stands in the status row (0.9.3), never as „0 min“.
+      expect(await ui.find({ type: 'Text', text: /^Pausiert seit < 1 min$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /Pause wird vorbereitet/ })).toBeUndefined()
 
       // A question in the pause carries the note; the session stays paused.
       await $.prompt.submit(typed('Wie weit war die Suite?'))
@@ -232,9 +234,9 @@ describe('the pause button', () => {
     const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('Pause')
     await terminal.press({ key: 'pause' })
-    expect(await terminal.find({ type: 'Text', text: /^❚❚ Pause angefordert$/ })).toBeDefined()
+    expect(await terminal.find({ type: 'Text', text: /^❚❚ Pause wird vorbereitet …$/ })).toBeDefined()
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect(await desktop.find({ type: 'Text', text: /^⏳ Pause angefordert$/u })).toBeDefined()
+    expect(await desktop.find({ type: 'Text', text: /^⏳ Pause wird vorbereitet …$/u })).toBeDefined()
 
     await $.classic.Stop(stop())
     expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('Weiter')
@@ -251,7 +253,7 @@ describe('the pause button', () => {
 
     await $.prompt.submit(typed('pausieren'))
     expect(prompts.at(-1)?.context?.[0]).toContain('die Sitzung zu pausieren')
-    expect(await ui.find({ type: 'Text', text: /Pause angefordert/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Pause wird vorbereitet/ })).toBeDefined()
 
     await $.prompt.submit(typed('abbrechen, nach der Pause neu starten'))
     expect(prompts.at(-1)?.context).toEqual([PAUSING_NOTE])
@@ -417,7 +419,7 @@ describe('the shutdown button', () => {
     await ui.press({ key: 'shutdown' })
     expect(prompts.at(-1)?.text).toContain('die Sitzung zu pausieren')
     expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
-    expect(await ui.find({ type: 'Text', text: /Shutdown angefordert/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Shutdown wird vorbereitet/ })).toBeDefined()
 
     await $.classic.Stop(stop(undefined, 'x2'))
     expect(await ui.find({ type: 'Text', text: /^Shutdown in 60 s$/ })).toBeDefined()
@@ -486,7 +488,7 @@ describe('the shutdown button', () => {
     await ui.press({ key: 'shutdown' })
     expect(runs).toEqual([[WHOAMI, '/priv'], [WHOAMI, '/priv']])
     expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
-    expect(await ui.find({ type: 'Text', text: /Shutdown angefordert/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Shutdown wird vorbereitet/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -912,7 +914,57 @@ describe('keep-warm', () => {
 
     await clock.advance(HOUR)
     expect(asked.prompts.length).toBe(0)
-    expect(await ui.find({ type: 'Text', text: /^wartet auf die nächste Anfrage$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  // The status row (0.9.3): one row per message under the bar, the most pressing first, and none while there is
+  // nothing to say; the toasts that only repeated a state are gone.
+  test('the status row holds one row per message, and counts the pause up', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    forks(on)
+    const toasts: string[] = []
+    on('ui.toast', ($, e) => {
+      toasts.push(e.text)
+      return { value: undefined }
+    })
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await resumed($, 2 * MIN, '1h')
+    expect(await ui.find({ type: 'Text', text: /^(Pausiert|Keep-warm:|Pause wird)/ })).toBeUndefined()
+
+    await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' })
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage$/ })).toBeDefined()
+    await ui.press({ key: 'pause' })
+    expect(await ui.find({ type: 'Text', text: /^❚❚ Pause wird vorbereitet …$/ })).toBeDefined()
+    await $.classic.Stop(stop(undefined, 'k1'))
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Pausiert seit < 1 min$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage$/ })).toBeDefined()
+    expect(toasts).toEqual([])
+
+    await clock.advance(12 * MIN)
+    expect(await ui.find({ type: 'Text', text: /^Pausiert seit 12 min$/ })).toBeDefined()
+    await clock.advance(63 * MIN)
+    expect(await ui.find({ type: 'Text', text: /^Pausiert seit 1 h 15 min$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('„Weiter“ while the pause is prepared calls it off', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on)
+    const prompts = engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p1' })
+    await ui.press({ key: 'pause' })
+    expect(await ui.find({ type: 'Text', text: /^⏳ Pause wird vorbereitet …$/u })).toBeDefined()
+    await ui.press({ key: 'pause-cancel' })
+    expect(prompts.at(-1)?.text).toBe('weitermachen')
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Pause wird vorbereitet/ })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -928,7 +980,7 @@ describe('keep-warm', () => {
     await clock.advance(HOUR)
     // At 4, 8, … 44 minutes; the one due at 48 is past the 45 minutes. (The hour cache's 8 hours: the logic's tests.)
     expect(asked.prompts.length).toBe(11)
-    expect(await ui.find({ type: 'Text', text: /^endete nach 45 m ohne Eingabe$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: endete nach 45 m ohne Eingabe$/ })).toBeDefined()
     expect(asked.logs.at(-1)).toContain('nach 45 m ohne Eingabe nicht weiter aufgefrischt')
     // The checkbox stays as the person set it.
     expect((await ui.find({ key: 'keep-warm' }))?.props.label).toMatch(/^☑ Keep-warm/)
@@ -965,7 +1017,7 @@ describe('keep-warm', () => {
 
     await clock.advance(2 * HOUR)
     expect(asked.prompts.length).toBe(1)
-    expect(await ui.find({ type: 'Text', text: /^Cache war schon abgelaufen$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: Cache war schon abgelaufen$/ })).toBeDefined()
     expect(asked.logs.at(-1)).toContain('Der Cache war schon abgelaufen')
     await ui.unmount()
   })
@@ -1012,7 +1064,7 @@ describe('in English', () => {
 
     await ui.press({ key: 'pause' })
     expect(prompts.at(-1)?.text).toContain('⏸ Pause button: the person asks you to pause the session.')
-    expect(await ui.find({ type: 'Text', text: /Pause requested/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Preparing the pause/ })).toBeDefined()
 
     await $.classic.Stop(stop('running'))
     expect(await ui.find({ type: 'Text', text: /1 task still running/ })).toBeDefined()

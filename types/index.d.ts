@@ -78,6 +78,8 @@ declare module 'claude-code' {
       isAwaitingPerson: boolean
       /** Whether and how the computer can be shut down unattended; null until the session start has checked. */
       shutdownReadiness: ShutdownReadiness | null
+      /** Whether a press of Shutdown waits for the check it set off: the status row says so meanwhile. */
+      isCheckingShutdown: boolean
       shutdownPhase: ShutdownPhase
       /** When the countdown ends and the command runs. */
       shutdownAt: number | null

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.3 — unreleased
+
+- **A status row** under the cache bar, one row per message and only while there is one, the most pressing first:
+  the shutdown's countdown („Shutdown in 47 s“) or „Fährt herunter …“, the pause being prepared („⏳ Pause wird
+  vorbereitet … · 1 Task läuft noch“), how long the session has been paused („Pausiert seit 12 min“, never „0 min“),
+  why keep-warm waits („Keep-warm: wartet auf die nächste Anfrage“), and the shutdown check a press waits for. These
+  stood among the readings and buttons before; the time paused was not shown since 0.9.0.
+- While the pause is prepared, **Weiter** / **Resume** stands in the button row and calls it off, as typing
+  „weitermachen“ does; while the shutdown is prepared or counted down, **Abbrechen** / **Cancel** stands there.
+- „Pause angefordert“ / “Pause requested” reads „Pause wird vorbereitet …“ / “Preparing the pause …”, and the same
+  for the shutdown.
+- The toasts that only repeated what the status row now shows are gone: the pause asked for, the session paused, the
+  shutdown check under way.
+- The band's minute tick starts with whichever session start comes first, as keep-warm's does.
+
 ## 0.9.2 — 2026-11-09
 
 - **Fix:** sessions no longer overwrite each other's entries in the state file. Each session writes the file by

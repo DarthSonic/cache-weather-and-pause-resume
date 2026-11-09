@@ -50,13 +50,14 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | Part | What it shows |
 | --- | --- |
 | **Cache** | Minutes left (`m`) of the prompt cache since the last response or keep-warm refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. After the slash the hit rate: the share of the last response's input tokens that came from the cache (`Cache 42 m / 98 %`). |
-| **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; beside it why keep-warm waits, when it does. |
+| **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; why keep-warm waits, when it does, stands in the status row. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
 | **Ctx** | Context fill in percent and, after the slash, the auto-compact threshold (`Ctx 5 % / 97 %`; `*`: the fallback of 83 %, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
 | **Shutdown** | Pauses like **Pause**, then shuts the computer down after a 60-second countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
+| **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), why keep-warm waits, the shutdown check a press waits for. |
 
 Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.
@@ -74,8 +75,8 @@ with as log lines, which the model does not read.
 | State | Band | What happens |
 | --- | --- | --- |
 | working | `Pause` | A press hands Claude the pause request. |
-| pause requested | `⏳ Pause requested · 2 tasks still running` | Claude lets running work finish, asks about long tasks and saves the state. Typing “continue” takes the request back. |
-| paused | `Resume` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
+| pause being prepared | `Resume`; status row `⏳ Preparing the pause … · 2 tasks still running` | Claude lets running work finish, asks about long tasks and saves the state. **Resume**, or typing “continue”, calls the request off. |
+| paused | `Resume`; status row `Paused for 12 min` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
 
 ![The band while paused: Resume beside Shutdown; the context at 78 % of a 97 % threshold, a storm, so Compact is highlighted](docs/band-paused.png)
 
@@ -118,8 +119,8 @@ How the mod tracks the state:
 
 1. A press hands Claude the pause request (above) with one more note: the computer goes off afterwards, so Claude asks
    about long-running tasks right away, while you are still there, and asks nothing after that.
-2. The band shows “Shutdown requested”, the tasks still running and a **Cancel** button.
-3. Once the session is paused, the band counts down 60 seconds (“Shutdown in 47 s”, **Cancel**), then the mod runs the
+2. The status row shows “Preparing the shutdown …” and the tasks still running; **Cancel** stands in the button row.
+3. Once the session is paused, the status row counts down 60 seconds (“Shutdown in 47 s”, **Cancel** above), then the mod runs the
    system's command and logs a line. Pressed while the session is already paused, it counts down at once.
 
 Picking the work back up (**Resume**, “continue”, or Claude through `pause_state`) cancels a shutdown that was asked
@@ -156,13 +157,13 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
   the tokens of the reply.
 - **While Claude works** (a long run, a subagent, a pause being requested): for as long as it takes.
 - **While the session is idle or paused, or Claude waits for you** (a permission prompt, a question): for 8 hours with the 1-hour cache, for 45 minutes with the 5-minute one,
-  counted from the last request or input. Then the band says “stopped after 8 h without input”, and a line explains
+  counted from the last request or input. Then the status row says “Keep-warm: stopped after 8 h without input”, and a line explains
   why: a forgotten session should not keep spending. Your next message builds the cache again and keep-warm takes
   over again.
 - **When a refresh finds the cache already gone** (the machine slept, say), keep-warm waits for the next request
   rather than build it afresh, and says so.
 - **After `/compact` or a switch to another model** there is nothing to keep warm: the next request writes the new
-  cache, and keep-warm waits for it (“waiting for the next request”).
+  cache, and keep-warm waits for it (“Keep-warm: waiting for the next request”).
 - **Only answered requests count:** one that failed read nothing from the cache and starts nothing over.
 - **On by default, then your switch alone:** a new session starts with keep-warm checked (with the option `keepWarm`
   set to `off`, unchecked). The mod never checks or unchecks it; your choice holds for this session: a restart or a
@@ -299,7 +300,7 @@ moves between releases; the CI runs validation and the tests against a pinned ve
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,
 `classic.Notification`, `classic.PostModelSwitch` and `session.compact` run only for plugins the organization lists in
-managed settings. A self-installed copy then never sees Claude stop, so the pause stays at “Pause requested”, the cache
+managed settings. A self-installed copy then never sees Claude stop, so the pause stays at “Preparing the pause …”, the cache
 lifetime is not read off the transcript, no summary is logged after `/compact`, and keep-warm counts an open
 permission prompt as work and goes on after a compaction or a switch of model until a refresh finds the cache cold.
 
