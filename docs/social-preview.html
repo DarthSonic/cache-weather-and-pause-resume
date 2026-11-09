@@ -3,8 +3,9 @@
 <head>
 <!-- The repository's social preview (docs/social-preview.png, 1280 x 640). Rendered with a headless browser:
      msedge --headless=new --window-size=1280,640 --allow-file-access-from-files --screenshot=social-preview.png social-preview.html
-     The desktop band is drawn here in English with the mod's own texts (a shutdown waiting for another session); the
-     terminal band is a screenshot. -->
+     The desktop band is drawn here in English with the mod's own texts and layout of 0.10.0 (the buttons with icon and
+     word in a row of their own over the readings; a shutdown waiting for another session); the terminal band is a
+     screenshot. -->
 <meta charset="utf-8">
 <style>
   :root {
@@ -26,14 +27,14 @@
       linear-gradient(160deg, var(--navy) 0%, #183a63 45%, var(--teal) 100%);
     position: relative;
   }
-  .wrap { position: absolute; inset: 0; padding: 56px 72px; box-sizing: border-box; }
+  .wrap { position: absolute; inset: 0; padding: 44px 72px; box-sizing: border-box; }
   .head { display: flex; align-items: center; gap: 34px; }
   .icon { width: 140px; height: 140px; border-radius: 32px; box-shadow: 0 18px 40px rgba(4, 10, 30, 0.45); }
   .title { font-size: 50px; font-weight: 650; letter-spacing: -0.5px; line-height: 1.05; }
   .title .dim { color: var(--muted); font-weight: 500; }
   .tag { margin-top: 10px; font-size: 24px; color: var(--muted); font-weight: 400; }
   .tag b { color: var(--ink); font-weight: 600; }
-  .chips { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 9px; max-width: 1136px; }
+  .chips { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 9px; max-width: 1136px; }
   .chip {
     font-size: 17px; font-weight: 600; padding: 6px 13px; border-radius: 999px; white-space: nowrap;
     background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.18);
@@ -53,11 +54,11 @@
     background: #f3f3f2; border-radius: 10px; padding: 10px 14px 9px;
     font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #1f1f1f; font-size: 21px;
   }
-  .row { display: flex; align-items: center; gap: 24px; }
-  .row .group { display: flex; align-items: center; gap: 14px; }
+  .row { display: flex; align-items: center; gap: 22px; }
+  .buttons { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
   .cache { color: #2b8a3e; }
   .btn { background: #e4e4e2; border-radius: 7px; padding: 4px 13px; font-size: 20px; }
-  .bar { margin-top: 8px; height: 4px; border-radius: 2px; background: #3aa35a; }
+  .bar { margin-top: 10px; height: 4px; border-radius: 2px; background: #3aa35a; }
   .gap { height: 8px; }
   .status { font-size: 19px; line-height: 1.45; }
   .warning { color: #a3640b; }
@@ -85,23 +86,20 @@
   <div class="shots">
     <div class="card light">
       <div class="band">
+        <div class="buttons">
+          <span class="btn">⇲ Compact</span>
+          <span class="btn">⧉ Sessions</span>
+          <span class="btn">✕ Cancel</span>
+        </div>
         <div class="row">
-          <div class="group">
-            <span class="cache">Cache 60 m / 100 %</span>
-            <span>☑ Keep-warm</span>
-            <span>☀️</span>
-            <span>Ctx 9 % / 97 %</span>
-          </div>
-          <div class="group">
-            <span class="btn">Compact</span>
-            <span class="btn">Cancel</span>
-          </div>
+          <span class="cache">Cache 60 min left · Hits 100 %</span>
+          <span>☑ Keep cache warm</span>
+          <span>☀️ Context 9 % · auto-compact at 97 %</span>
         </div>
         <div class="bar"></div>
         <div class="gap"></div>
         <div class="status warning">Shutdown waits for 1 session: api-server</div>
         <div class="status">Paused for 2 min</div>
-        <div class="status subtle">1 more session is at work without the mod and is not paused</div>
       </div>
     </div>
     <div class="card dark"><img src="band-terminal.png" alt=""></div>

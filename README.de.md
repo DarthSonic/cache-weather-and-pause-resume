@@ -46,9 +46,9 @@ und die zeigt **Weiter**.
 
 ## Was die Leiste zeigt
 
-![Die Leiste im Terminal: Cache noch 60 Minuten, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 6 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
+![Die Leiste im Terminal, englisch: Cache noch 59 Minuten, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 6 % einer Schwelle von 97 %, Compact, Sessions, Pause und Shutdown; darunter der grüne Cache-Balken über die Breite der Leiste](docs/band-terminal.png)
 
-![Die Leiste in der Claude-Desktop-App: Cache noch 58 Minuten einer als 1 Stunde gemerkten Laufzeit, Trefferquote 100 %, Keep-warm gesetzt, Sonne bei 42 % einer Schwelle von 97 %, Compact, Pause und Shutdown; darunter der grüne Cache-Balken](docs/band-desktop.png)
+![Die Leiste in der Claude-Desktop-App, englisch: oben die Knöpfe Compact, Sessions, Pause und Shutdown; darunter Cache noch 55 Minuten, Treffer 100 %, „Keep cache warm“ gesetzt, Sonne, Kontext 28 % bei Auto-Compact ab 97 %; darunter der grüne Cache-Balken](docs/band-desktop.png)
 
 | Teil | Was er zeigt |
 | --- | --- |
@@ -87,7 +87,7 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 | Pause in Vorbereitung | `Weiter`; Statuszeile `⏳ Pause wird vorbereitet … · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. **Weiter** oder getipptes „weitermachen“ nimmt die Bitte zurück. |
 | pausiert | `Weiter`; Statuszeile `Pausiert seit 12 min` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
 
-![Die Leiste in der Pause, in der Desktop-App: Weiter (hervorgehoben) neben Shutdown; unter dem Cache-Balken die Statuszeile „Pausiert seit 2 min“](docs/band-paused.png)
+![Die Leiste in der Pause, in der Desktop-App, englisch: Resume (Weiter, hervorgehoben) zwischen Sessions und Shutdown; unter dem Cache-Balken die Statuszeile „Paused for 7 min“ (pausiert seit 7 Minuten)](docs/band-paused.png)
 
 Tippen geht auch: eine Nachricht, die nur „pausieren“ (oder „pause“) ist, pausiert; eine, die mit „weitermachen“ (oder
 „continue“, „resume“) beginnt, setzt fort. Beide Sprachen werden verstanden, egal in welcher der Mod gerade spricht.
@@ -183,10 +183,12 @@ Sekunden ein Lebenszeichen in die Zustandsdatei (ihren Ordner, ihre Pause, wie l
 Hintergrund-Läufe nach Beschreibung, und für die Übersicht ihren Kontext gegen die Schwelle, wann ihr Cache abläuft,
 Keep-warm und ihr Modell).
 
-**Die Übersicht.** Der Knopf ⧉ („Sitzungen“ im Terminal) öffnet eine Seitenleiste mit jeder von ihnen, diese Sitzung
-zuerst: ihr Zustand (arbeitet seit 12 min, pausiert seit 3 min, untätig, wartet auf eine Freigabe), `Ctx 42 % / 97 %`,
-die Restzeit des Caches, Keep-warm, das Modell und die Läufe im Hintergrund; darüber die Nutzungsfenster eines Abos. Sie
-zeigt nur an; Pause und Shutdown über Sitzungen laufen über die Leiste, wie unten.
+**Die Übersicht.** Der Knopf **Sitzungen** (⧉ in der Desktop-App) öffnet eine Seitenleiste mit jeder von ihnen, diese
+Sitzung zuerst: ihr Zustand (arbeitet seit 12 min, pausiert seit 3 min, untätig, wartet auf eine Freigabe),
+`Ctx 42 % / 97 %`, die Restzeit des Caches, Keep-warm, das Modell und die Läufe im Hintergrund; darüber die
+Nutzungsfenster eines Abos. Sie zeigt nur an; Pause und Shutdown über Sitzungen laufen über die Leiste, wie unten.
+
+![Die Sitzungsübersicht in der Desktop-App, englisch: oben die Nutzungsfenster (5-h-Limit 10 %, 7-Tage-Limit 15 %, jeweils mit dem Zeitpunkt, zu dem es neu beginnt); darunter drei Sitzungen, diese seit 9 Minuten pausiert und zwei untätig, jede mit Kontext gegen ihre Schwelle, Restzeit des Caches, Keep-warm und Modell; eine mit einem Lauf im Hintergrund](docs/sessions-pane.png)
 
 - **Pause** bleibt bei der eigenen Sitzung, solange du nichts anderes sagst. Arbeiten andere Sitzungen gerade, nennt
   die Pause-Bitte sie, und Claude fragt einmal, in derselben Rückfrage wie zu seinen langen Tasks: nur diese Sitzung

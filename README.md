@@ -44,9 +44,9 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 
 ## What the band shows
 
-![The band in a terminal: cache 60 minutes left, hit rate 100 %, Keep-warm checked, a sun at 6 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar over the band's width](docs/band-terminal.png)
+![The band in a terminal: cache 59 minutes left, hit rate 100 %, Keep-warm checked, a sun at 6 % of a 97 % threshold, Compact, Sessions, Pause and Shutdown; below it the green cache bar over the band's width](docs/band-terminal.png)
 
-![The band in the Claude desktop app: cache 58 minutes left of a lifetime remembered as 1 hour, hit rate 100 %, Keep-warm checked, a sun at 42 % of a 97 % threshold, Compact, Pause and Shutdown; below it the green cache bar](docs/band-desktop.png)
+![The band in the Claude desktop app: the buttons Compact, Sessions, Pause and Shutdown in the first row; below them cache 55 minutes left, hits 100 %, Keep cache warm checked, a sun, context 28 % with auto-compact at 97 %; below it the green cache bar](docs/band-desktop.png)
 
 | Part | What it shows |
 | --- | --- |
@@ -84,7 +84,7 @@ with as log lines, which the model does not read.
 | pause being prepared | `Resume`; status row `⏳ Preparing the pause … · 2 tasks still running` | Claude lets running work finish, asks about long tasks and saves the state. **Resume**, or typing “continue”, calls the request off. |
 | paused | `Resume`; status row `Paused for 12 min` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
 
-![The band while paused, in the desktop app: Resume (highlighted) beside Shutdown; under the cache bar the status row “Pausiert seit 2 min” (paused for 2 minutes)](docs/band-paused.png)
+![The band while paused, in the desktop app: Resume (highlighted) between Sessions and Shutdown; under the cache bar the status row “Paused for 7 min”](docs/band-paused.png)
 
 You can also type: a message that is only “pause” (or “pausieren”) pauses; one that starts with “continue” or
 “resume” (or “weitermachen”) carries on. Both languages are understood whatever the mod's language is.
@@ -176,10 +176,12 @@ The band knows the other Claude Code sessions on the computer that run the mod: 
 state file every 15 seconds (its folder, its pause, how long Claude has been working there, its background runs by
 description, and for the overview its context against its threshold, when its cache lapses, keep-warm and its model).
 
-**The overview.** The ⧉ button (“Sessions” in a terminal) opens a pane with each of them, this session first: its
-state (working for 12 min, paused for 3 min, idle, waiting for an approval), `Ctx 42 % / 97 %`, the cache time left,
-keep-warm, the model and the runs in the background; above them the usage windows of a subscription. It only shows;
-pausing and shutting down across sessions go through the band, as below.
+**The overview.** The **Sessions** button (⧉ in the desktop app) opens a pane with each of them, this session first:
+its state (working for 12 min, paused for 3 min, idle, waiting for an approval), `Ctx 42 % / 97 %`, the cache time
+left, keep-warm, the model and the runs in the background; above them the usage windows of a subscription. It only
+shows; pausing and shutting down across sessions go through the band, as below.
+
+![The sessions overview in the desktop app: on top the usage windows (5-hour limit 10 %, 7-day limit 15 %, each with the time it resets); then three sessions, this one paused for 9 minutes and two idle, each with its context against its threshold, the cache time left, keep-warm and the model; one with a run in the background](docs/sessions-pane.png)
 
 - **Pause** stays with its own session unless you say otherwise. Where other sessions have work running, the pause
   request lists them, and Claude asks once, in the same question as about its own long tasks: this session only, or
