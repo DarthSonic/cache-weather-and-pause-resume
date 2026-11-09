@@ -139,15 +139,16 @@ describe('the cache countdown', () => {
   })
 
   test('the picture bar is a grey track, lit in the cache colour for what is left', async () => {
-    expect(svgBar(0.5)).toContain('<rect y="6" height="4" width="2000" fill="#f5a524"/>')
-    expect(svgBar(0.5)).toContain('height="10" viewBox="0 0 4000 10"')
+    // 10 px between the row above and the bar (2026-11-09).
+    expect(svgBar(0.5)).toContain('<rect y="10" height="4" width="2000" fill="#f5a524"/>')
+    expect(svgBar(0.5)).toContain('height="14" viewBox="0 0 4000 14"')
     expect(svgBar(0.9)).toContain('fill="#30a46c"')
     expect(svgBar(0.1)).toContain('fill="#e5484d"')
     expect(svgBar(0)).not.toContain('#e5484d')
     expect(svgBar(null)).toContain('preserveAspectRatio="none"')
-    // Above a status row the picture keeps as much room below the bar as above it (0.9.3).
-    expect(svgBar(0.5, true)).toContain('height="16" viewBox="0 0 4000 16"')
-    expect(svgBar(0.5, true)).toContain('<rect y="6" height="4" width="2000" fill="#f5a524"/>')
+    // Above a status row the picture keeps room below the bar too (0.9.3).
+    expect(svgBar(0.5, true)).toContain('height="20" viewBox="0 0 4000 20"')
+    expect(svgBar(0.5, true)).toContain('<rect y="10" height="4" width="2000" fill="#f5a524"/>')
   })
 })
 
@@ -317,13 +318,13 @@ describe('the band', () => {
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    // In the desktop app each button is a one-colour icon with its word (0.10.0), in a row of its own under the
-    // readings, on the left and a spacing step below them (2026-11-09); a terminal keeps one row.
+    // In the desktop app each button is a one-colour icon with its word (0.10.0), in a row of its own over the
+    // readings, on the left, a spacing step between the rows (2026-11-09); a terminal keeps one row.
     expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎ Pause')
-    const isButtonRow = (box: { props: Record<string, unknown> }) => box.props.marginTop === 'sm'
-    expect((await desktop.findAll({ type: 'Box' })).filter(isButtonRow)).toHaveLength(1)
+    const isSpaced = (box: { props: Record<string, unknown> }) => box.props.marginTop === 'sm'
+    expect((await desktop.findAll({ type: 'Box' })).filter(isSpaced)).toHaveLength(1)
     // Compact first, then Sessions, then Pause and Shutdown.
-    expect((await desktop.findAll({ type: 'Button' })).map(button => button.props.key).slice(-4)).toEqual([
+    expect((await desktop.findAll({ type: 'Button' })).map(button => button.props.key).filter(key => key !== 'keep-warm')).toEqual([
       'compact',
       'sessions',
       'pause',
@@ -342,7 +343,7 @@ describe('the band', () => {
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect((await desktop.find({ type: 'Svg' }))?.props.height).toBe(10)
+    expect((await desktop.find({ type: 'Svg' }))?.props.height).toBe(14)
     await desktop.unmount()
   })
 

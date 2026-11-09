@@ -42,16 +42,18 @@ export function terminalBar(share: number | null, columns: number): { lit: strin
   return { lit: '━'.repeat(lit), spent: '─'.repeat(width - lit) }
 }
 
-// The picture's bar: a few pixels high, below a gap that sets it off from the row above.
-const BAR_GAP = 6
+// The picture's bar: a few pixels high, below a gap that sets it off from the row above (10 px since 2026-11-09, the
+// person wanted it further from the rows; 6 before), and above one to the status row where that follows (0.9.3).
+const BAR_GAP_ABOVE = 10
+const BAR_GAP_BELOW = 6
 const BAR_THICKNESS = 4
 
 /**
  * How high the desktop app, VS Code and the phone draw the cache bar's picture (CSS px): its gap above and the bar,
- * and the same gap again below it where the status row follows (0.9.3), so the bar sits between the two rows.
+ * and a gap below it where the status row follows (0.9.3), so the bar sits between the two rows.
  */
 export function svgBarHeight(hasRoomBelow: boolean): number {
-  return BAR_GAP + BAR_THICKNESS + (hasRoomBelow ? BAR_GAP : 0)
+  return BAR_GAP_ABOVE + BAR_THICKNESS + (hasRoomBelow ? BAR_GAP_BELOW : 0)
 }
 
 // Fixed colours: an SVG drawn as an image reads no theme. Each reads on a light and a dark background alike.
@@ -66,7 +68,7 @@ export function svgBar(share: number | null, hasRoomBelow = false): string {
   const width = 4000
   const height = svgBarHeight(hasRoomBelow)
   const lit = share === null ? 0 : Math.round(Math.max(0, Math.min(1, share)) * width)
-  const bar = `y="${BAR_GAP}" height="${BAR_THICKNESS}"`
+  const bar = `y="${BAR_GAP_ABOVE}" height="${BAR_THICKNESS}"`
   const fill = share === null ? '' : `<rect ${bar} width="${lit}" fill="${BAR_COLOURS[cacheTone(share)]}"/>`
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +

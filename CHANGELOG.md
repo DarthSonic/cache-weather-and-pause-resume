@@ -13,7 +13,8 @@
   approval, for how long), its context against its threshold, the cache time left, keep-warm, the model and the runs
   in the background, with the usage windows above. The signs of life carry these now; the pane only shows.
 - **Icons in the desktop app**: each button is a one-colour icon in text form (⇲ ⧉ ⏸ ▶ ⏻ ⏾ ❄ ✕) with its word, in a
-  row of their own under the readings: beside the readings there was no room for them. A terminal keeps the words in
+  row of their own over the readings: beside the readings there was no room for them. The cache bar keeps 10 px from
+  the row above it (6 before). A terminal keeps the words in
   one row. In both, Compact comes before the new Sessions button.
 - **What a model switch costs**: where a switch forfeits a cache that was still warm, a line with the tokens the next
   request writes again and Claude Code's own estimate in dollars (list price, a configured price, or estimated).

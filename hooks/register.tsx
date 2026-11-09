@@ -2022,12 +2022,12 @@ export const register: Register = (on, options) => {
     // was cut („Cache 6…“): there they keep their width.
     const keep = isTerminal ? {} : { flexShrink: 0 }
     // Two groups, each close-knit: the readings with keep-warm between them, and the buttons. A terminal sets them a
-    // full gap apart in one row. In the desktop app the buttons, icon and word, stand in a row of their own under the
-    // readings, on the left and a spacing step below them (2026-11-09): beside the readings they had no room, and the
-    // person chose a band one row taller that never changes its height over icons alone or words shown on hover.
-    // Compact comes first, then Sessions (the person's order).
+    // full gap apart in one row. In the desktop app the buttons, icon and word, stand in a row of their own over the
+    // readings, on the left, a spacing step between the two rows (2026-11-09): beside the readings they had no room,
+    // and the person chose a band one row taller that never changes its height over icons alone or words shown on
+    // hover, the buttons first. Compact comes first, then Sessions (the person's order).
     const readings = (
-      <Box flexDirection="row" gap={1}>
+      <Box flexDirection="row" gap={1} {...(isTerminal ? {} : { marginTop: 'sm' as const })}>
         <Box {...keep}>
           <Text color={tone} wrap="truncate-end">
             {`${cacheText}${ttlNote}${hits}`}
@@ -2045,7 +2045,7 @@ export const register: Register = (on, options) => {
       </Box>
     )
     const buttons = (
-      <Box flexDirection="row" gap={1} {...(isTerminal ? {} : { marginTop: 'sm' as const })}>
+      <Box flexDirection="row" gap={1}>
         {compact}
         {sessionsButton}
         {pause}
@@ -2059,9 +2059,9 @@ export const register: Register = (on, options) => {
             {buttons}
           </Box>
         ) : (
-          readings
+          buttons
         )}
-        {isTerminal ? null : buttons}
+        {isTerminal ? null : readings}
         {bar}
         {statusRows}
       </Box>,
