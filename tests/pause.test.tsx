@@ -226,6 +226,21 @@ describe('the pause button', () => {
     }
   })
 
+  test('in the desktop app the word beside the icon does what the icon does; a terminal has none', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 1_000_000 })
+    mock.session(on)
+    const prompts = engine(on)
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await terminal.find({ key: 'hint-pause-words' })).toBeUndefined()
+    await terminal.unmount()
+    const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await desktop.press({ key: 'hint-pause-words' })
+    expect(prompts.at(-1)?.text).toContain('⏸ Pause-Knopf: Der Mensch bittet dich, die Sitzung zu pausieren.')
+    expect((await desktop.find({ key: 'hint-pause-cancel-words' }))?.props.label).toBe('Weiter')
+    await desktop.unmount()
+  })
+
   test('in a terminal the pause signs are narrow (❚❚, ►), in the desktop app emoji (⏸, ⏳, ▶)', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 1_000_000 })

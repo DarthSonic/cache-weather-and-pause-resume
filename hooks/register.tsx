@@ -1826,31 +1826,50 @@ export const register: Register = (on, options) => {
     const phase = await read($, pausePhase)
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
-    // In the desktop app each button is an icon, and its hint names it under the pointer (0.10.0): the hint is drawn
-    // hidden under the band and revealed while the button's group is hovered. The terminal keeps the words.
+    // In the desktop app each button is an icon (0.10.0). Under the pointer its word appears right beside it, a plain
+    // button that does the same, and a hint under the band says what it does: both are drawn hidden and revealed while
+    // the button's group is hovered. A Button holds text alone, so the word cannot go inside it. The terminal keeps
+    // the words.
     type Hint = { scope: string; text: string }
+    type Reveal = { words: string; onPress: () => unknown; dimColor?: boolean }
     const hints: Hint[] = []
-    const hinted = (scope: string, text: string, control: ReturnType<typeof Button>) => {
+    const hinted = (scope: string, text: string, control: ReturnType<typeof Button>, reveal: Reveal) => {
       if (isTerminal) return control
       hints.push({ scope, text })
-      return <Box hover={{ scope }}>{control}</Box>
+      return (
+        <Box flexDirection="row" gap={1} hover={{ scope }}>
+          {control}
+          <Box display="none" hover={{ scope, display: 'flex' }}>
+            <Button
+              key={`${scope}-words`}
+              plain
+              label={reveal.words}
+              {...(reveal.dimColor === true ? { dimColor: true } : {})}
+              onPress={() => {
+                void reveal.onPress()
+              }}
+            />
+          </Box>
+        </Box>
+      )
     }
     const word = (words: string, icon: string): string => (isTerminal ? words : icon)
     const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
+    const onCancelShutdown = () => cancelShutdown($, false)
+    const onShutdown = () => requestShutdown($, askAbove)
+    const onPause = () => requestPause($, askAbove)
+    const onResume = () => requestResume($)
     const cancelShutdownButton = hinted(
       'hint-shutdown-cancel',
       t.hintShutdownCancel,
-      <Button key="shutdown-cancel" label={word(t.shutdownCancel, BUTTON_ICONS.cancel)} onPress={() => cancelShutdown($, false)} />,
+      <Button key="shutdown-cancel" label={word(t.shutdownCancel, BUTTON_ICONS.cancel)} onPress={onCancelShutdown} />,
+      { words: t.shutdownCancel, onPress: onCancelShutdown },
     )
     const shutdownButton = hinted(
       'hint-shutdown',
       t.hintShutdown(isShutdownReady),
-      <Button
-        key="shutdown"
-        label={word(t.shutdown, BUTTON_ICONS[shutdownMode])}
-        dimColor={!isShutdownReady}
-        onPress={() => requestShutdown($, askAbove)}
-      />,
+      <Button key="shutdown" label={word(t.shutdown, BUTTON_ICONS[shutdownMode])} dimColor={!isShutdownReady} onPress={onShutdown} />,
+      { words: t.shutdown, onPress: onShutdown, dimColor: !isShutdownReady },
     )
     let pause = null
     if (
@@ -1864,11 +1883,10 @@ export const register: Register = (on, options) => {
     } else if (phase === 'running') {
       pause = (
         <Box flexDirection="row" gap={1}>
-          {hinted(
-            'hint-pause',
-            t.hintPause,
-            <Button key="pause" label={word(t.pause, BUTTON_ICONS.pause)} onPress={() => requestPause($, askAbove)} />,
-          )}
+          {hinted('hint-pause', t.hintPause, <Button key="pause" label={word(t.pause, BUTTON_ICONS.pause)} onPress={onPause} />, {
+            words: t.pause,
+            onPress: onPause,
+          })}
           {shutdownButton}
         </Box>
       )
@@ -1876,7 +1894,8 @@ export const register: Register = (on, options) => {
       pause = hinted(
         'hint-pause-cancel',
         t.hintPauseCancel,
-        <Button key="pause-cancel" label={word(t.resume, BUTTON_ICONS.resume)} onPress={() => requestResume($)} />,
+        <Button key="pause-cancel" label={word(t.resume, BUTTON_ICONS.resume)} onPress={onResume} />,
+        { words: t.resume, onPress: onResume },
       )
     } else {
       pause = (
@@ -1884,7 +1903,8 @@ export const register: Register = (on, options) => {
           {hinted(
             'hint-resume',
             t.hintResume,
-            <Button key="resume" label={word(t.resume, BUTTON_ICONS.resume)} variant="primary" onPress={() => requestResume($)} />,
+            <Button key="resume" label={word(t.resume, BUTTON_ICONS.resume)} variant="primary" onPress={onResume} />,
+            { words: t.resume, onPress: onResume },
           )}
           {shutdownButton}
         </Box>
@@ -1987,19 +2007,34 @@ export const register: Register = (on, options) => {
       )
     }
 
+    const onSessions = async () => {
+      await writeHeartbeat($)
+      await refreshSessionsView($)
+      await $.ui.open({ id: SESSIONS_PANE, title: t.sessionsTitle })
+    }
     const sessionsButton = hinted(
       'hint-sessions',
       t.hintSessions,
-      <Button
-        key="sessions"
-        label={word(t.sessions, BUTTON_ICONS.sessions)}
-        onPress={async () => {
-          await writeHeartbeat($)
-          await refreshSessionsView($)
-          await $.ui.open({ id: SESSIONS_PANE, title: t.sessionsTitle })
-        }}
-      />,
+      <Button key="sessions" label={word(t.sessions, BUTTON_ICONS.sessions)} onPress={onSessions} />,
+      { words: t.sessions, onPress: onSessions },
     )
+    const onCompact = async () => {
+      if (await read($, isCompacting)) return
+      if (e.surface === 'desktop' || e.props.isWorking) {
+        await queueCompact($)
+        return
+      }
+      await update($, isCompacting, () => true)
+      try {
+        const result = await $.session.compact({})
+        if (result.skip !== undefined) $.ui.toast(t.compactSkipped(result.skip))
+      } catch {
+        // A turn started in between: queue it instead.
+        await queueCompact($)
+      } finally {
+        await update($, isCompacting, () => false)
+      }
+    }
     const compact = hinted(
       'hint-compact',
       t.hintCompact,
@@ -2007,24 +2042,9 @@ export const register: Register = (on, options) => {
         key="compact"
         label={compacting ? word(t.compacting, BUTTON_ICONS.compacting) : word(t.compact, BUTTON_ICONS.compact)}
         variant={isStorm ? 'primary' : 'secondary'}
-        onPress={async () => {
-          if (await read($, isCompacting)) return
-          if (e.surface === 'desktop' || e.props.isWorking) {
-            await queueCompact($)
-            return
-          }
-          await update($, isCompacting, () => true)
-          try {
-            const result = await $.session.compact({})
-            if (result.skip !== undefined) $.ui.toast(t.compactSkipped(result.skip))
-          } catch {
-            // A turn started in between: queue it instead.
-            await queueCompact($)
-          } finally {
-            await update($, isCompacting, () => false)
-          }
-        }}
+        onPress={onCompact}
       />,
+      { words: compacting ? t.compacting : t.compact, onPress: onCompact },
     )
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''

@@ -319,6 +319,10 @@ describe('the band', () => {
     // In the desktop app the buttons are one-colour icons, each named by a hint under the pointer (0.10.0).
     expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎')
     expect(await desktop.find({ type: 'Text', text: /^Pause: Claude lässt Laufendes zu Ende laufen/ })).toBeDefined()
+    // Under the pointer the word appears beside the icon, a plain button that does the same.
+    const words = await desktop.find({ key: 'hint-pause-words' })
+    expect(words?.props.label).toBe('Pause')
+    expect(words?.props.plain).toBe(true)
     expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()
     await desktop.unmount()
   })
