@@ -316,14 +316,11 @@ describe('the band', () => {
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    // In the desktop app the buttons are one-colour icons (0.10.0), on the right of the band.
-    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎')
-    // Under the pointer the word appears beside the icon, a plain button that does the same.
-    const words = await desktop.find({ key: 'hint-pause-words' })
-    expect(words?.props.label).toBe('Pause')
-    expect(words?.props.plain).toBe(true)
-    // The pointer lights only a keyed Box: the icon's group has one, the word waits hidden in it (2026-11-09).
-    expect((await desktop.find({ key: 'hint-pause-group' }))?.type).toBe('Box')
+    // In the desktop app each button is a one-colour icon with its word beside it in small type (0.10.0), on the
+    // right of the band; one button, so nothing appears or moves under the pointer (2026-11-09).
+    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎ Pause')
+    expect((await desktop.find({ type: 'Text', text: /^Pause$/ }))?.props.size).toBe('caption')
+    expect(await desktop.find({ key: 'hint-pause-words' })).toBeUndefined()
     expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()
     await desktop.unmount()
   })

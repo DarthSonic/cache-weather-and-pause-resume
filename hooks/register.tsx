@@ -1826,48 +1826,51 @@ export const register: Register = (on, options) => {
     const phase = await read($, pausePhase)
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
-    // In the desktop app each button is an icon (0.10.0). Under the pointer its word appears right beside it, a plain
-    // button that does the same: drawn hidden in the icon's keyed Box, which the pointer lights (a Box without a key
-    // lights nothing), and revealed while it is. A Button holds text alone, so the word cannot go inside it. With the
-    // buttons on the right, the group grows to the left and the word comes to lie under the pointer: nothing flickers.
-    // A line under the band would make the band a row taller and move it up from under the pointer: there is none.
-    // The terminal keeps the words.
-    type Reveal = { words: string; onPress: () => unknown; dimColor?: boolean }
-    const hinted = (scope: string, control: ReturnType<typeof Button>, reveal: Reveal) => {
-      if (isTerminal) return control
-      return (
-        <Box key={`${scope}-group`} flexDirection="row" gap={1}>
-          {control}
-          <Box display="none" hover={{ display: 'flex' }}>
-            <Button
-              key={`${scope}-words`}
-              plain
-              label={reveal.words}
-              {...(reveal.dimColor === true ? { dimColor: true } : {})}
-              onPress={() => {
-                void reveal.onPress()
-              }}
-            />
-          </Box>
-        </Box>
+    // In the desktop app each button is one control: its one-colour icon and, right beside it, its word in caption size
+    // (0.10.0). Nothing appears or moves under the pointer: a word revealed on hover pushed the buttons away from it.
+    // The terminal keeps the words, at its one size.
+    type IconButtonSpec = {
+      key: string
+      words: string
+      icon: string
+      onPress: () => unknown
+      variant?: 'primary' | 'secondary'
+      dimColor?: boolean
+    }
+    const iconButton = (spec: IconButtonSpec) => {
+      const press = () => {
+        void spec.onPress()
+      }
+      const look = {
+        ...(spec.variant === undefined ? {} : { variant: spec.variant }),
+        ...(spec.dimColor === undefined ? {} : { dimColor: spec.dimColor }),
+      }
+      return isTerminal ? (
+        <Button key={spec.key} label={spec.words} onPress={press} {...look} />
+      ) : (
+        <Button key={spec.key} onPress={press} {...look}>
+          {spec.icon} <Text size="caption">{spec.words}</Text>
+        </Button>
       )
     }
-    const word = (words: string, icon: string): string => (isTerminal ? words : icon)
     const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
     const onCancelShutdown = () => cancelShutdown($, false)
     const onShutdown = () => requestShutdown($, askAbove)
     const onPause = () => requestPause($, askAbove)
     const onResume = () => requestResume($)
-    const cancelShutdownButton = hinted(
-      'hint-shutdown-cancel',
-      <Button key="shutdown-cancel" label={word(t.shutdownCancel, BUTTON_ICONS.cancel)} onPress={onCancelShutdown} />,
-      { words: t.shutdownCancel, onPress: onCancelShutdown },
-    )
-    const shutdownButton = hinted(
-      'hint-shutdown',
-      <Button key="shutdown" label={word(t.shutdown, BUTTON_ICONS[shutdownMode])} dimColor={!isShutdownReady} onPress={onShutdown} />,
-      { words: t.shutdown, onPress: onShutdown, dimColor: !isShutdownReady },
-    )
+    const cancelShutdownButton = iconButton({
+      key: 'shutdown-cancel',
+      words: t.shutdownCancel,
+      icon: BUTTON_ICONS.cancel,
+      onPress: onCancelShutdown,
+    })
+    const shutdownButton = iconButton({
+      key: 'shutdown',
+      words: t.shutdown,
+      icon: BUTTON_ICONS[shutdownMode],
+      onPress: onShutdown,
+      dimColor: !isShutdownReady,
+    })
     let pause = null
     if (
       shutting === 'countdown' ||
@@ -1880,27 +1883,16 @@ export const register: Register = (on, options) => {
     } else if (phase === 'running') {
       pause = (
         <Box flexDirection="row" gap={1}>
-          {hinted('hint-pause', <Button key="pause" label={word(t.pause, BUTTON_ICONS.pause)} onPress={onPause} />, {
-            words: t.pause,
-            onPress: onPause,
-          })}
+          {iconButton({ key: 'pause', words: t.pause, icon: BUTTON_ICONS.pause, onPress: onPause })}
           {shutdownButton}
         </Box>
       )
     } else if (phase === 'pausing') {
-      pause = hinted(
-        'hint-pause-cancel',
-        <Button key="pause-cancel" label={word(t.resume, BUTTON_ICONS.resume)} onPress={onResume} />,
-        { words: t.resume, onPress: onResume },
-      )
+      pause = iconButton({ key: 'pause-cancel', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume })
     } else {
       pause = (
         <Box flexDirection="row" gap={1}>
-          {hinted(
-            'hint-resume',
-            <Button key="resume" label={word(t.resume, BUTTON_ICONS.resume)} variant="primary" onPress={onResume} />,
-            { words: t.resume, onPress: onResume },
-          )}
+          {iconButton({ key: 'resume', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume, variant: 'primary' })}
           {shutdownButton}
         </Box>
       )
@@ -2007,11 +1999,7 @@ export const register: Register = (on, options) => {
       await refreshSessionsView($)
       await $.ui.open({ id: SESSIONS_PANE, title: t.sessionsTitle })
     }
-    const sessionsButton = hinted(
-      'hint-sessions',
-      <Button key="sessions" label={word(t.sessions, BUTTON_ICONS.sessions)} onPress={onSessions} />,
-      { words: t.sessions, onPress: onSessions },
-    )
+    const sessionsButton = iconButton({ key: 'sessions', words: t.sessions, icon: BUTTON_ICONS.sessions, onPress: onSessions })
     const onCompact = async () => {
       if (await read($, isCompacting)) return
       if (e.surface === 'desktop' || e.props.isWorking) {
@@ -2029,16 +2017,13 @@ export const register: Register = (on, options) => {
         await update($, isCompacting, () => false)
       }
     }
-    const compact = hinted(
-      'hint-compact',
-      <Button
-        key="compact"
-        label={compacting ? word(t.compacting, BUTTON_ICONS.compacting) : word(t.compact, BUTTON_ICONS.compact)}
-        variant={isStorm ? 'primary' : 'secondary'}
-        onPress={onCompact}
-      />,
-      { words: compacting ? t.compacting : t.compact, onPress: onCompact },
-    )
+    const compact = iconButton({
+      key: 'compact',
+      words: compacting ? t.compacting : t.compact,
+      icon: BUTTON_ICONS.compact,
+      onPress: onCompact,
+      variant: isStorm ? 'primary' : 'secondary',
+    })
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''
     // The hit rate rides on the cache time („Cache 60 m / 98 %“), the threshold on the context („Ctx 5 % / 97 %“).

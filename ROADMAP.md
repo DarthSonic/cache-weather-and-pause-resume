@@ -50,7 +50,7 @@ Order: the CI matrix and the macOS test; then 0.10.0.
   the median growth of the last five turns, once there are three; only where the session reports its own threshold.
 - [x] **Sessions overview**: a button (⧉, “Sessions” in a terminal) opens a pane with every session that runs the
   mod: state, context, cache, keep-warm, model, runs.
-- [x] **Icons in the desktop app**, with a hint under the pointer; the terminal keeps words.
+- [x] **Icons in the desktop app**, each with its word beside it in small type; the terminal keeps words.
 - [x] **What a model switch costs**, where it forfeits a warm cache: a line with the tokens and Claude Code's estimate.
 
 ## Docs and reach

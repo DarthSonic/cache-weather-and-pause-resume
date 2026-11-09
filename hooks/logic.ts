@@ -464,7 +464,6 @@ export function turnsToCompact(tokens: number | null, thresholdTokens: number, g
 export const BUTTON_ICONS = {
   sessions: '\u29C9',
   compact: '\u21F2',
-  compacting: '\u21F2\u2026',
   pause: '\u23F8\uFE0E',
   resume: '\u25B6\uFE0E',
   shutdown: '\u23FB',
