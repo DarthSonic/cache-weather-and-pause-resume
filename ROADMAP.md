@@ -22,30 +22,10 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
 - [x] **0.9.4: a notification as the shutdown countdown starts**, through Claude Code's own channel (terminals such as
   iTerm2, kitty, Ghostty), option `notifications`. Notifications at the pause and at keep-warm's end were dropped: the
   desktop app already reports when Claude finishes a step, which is when a pause is reached and the countdown starts.
-- [ ] **Pause and shutdown across sessions.** Today the shutdown pauses only the session where it was pressed; other
-  Claude sessions on the computer end with it, their runs cut off. One Shutdown button, which shuts down once every
-  session is done, whether it already is or the runs are waited for:
-  - Each session keeps a sign of life in the state file, with its phase and what the mod knows of its work (a turn
-    running since …, background runs, an open dialog).
-  - The session where Pause or Shutdown was pressed writes `request.json` (which of the two, its id, the time, the
-    decisions); no other session writes it.
-  - Its Claude asks once: about its own long tasks, end or wait (as today); for a pause, whether the other sessions
-    pause too (a shutdown always takes them); for each other session with runs, end or wait. A tool takes the answer
-    into `request.json`. A pause stays with its own session unless the answer says otherwise.
-  - From the request on, the other sessions ask nothing: the mod turns a question dialog away with "keep it for the
-    resume". They report their runs, end them or let them finish as decided, then pause. After its answer the
-    triggering session asks nothing more either.
-  - A session with no run, no prompt being worked on and no open dialog counts as paused at once, and shows Resume.
-  - Runs the person chose to wait for are waited for without limit. A session that does not answer (no sign of life,
-    no report) is waited for 15 minutes at most.
-  - Then a countdown of 300 seconds (60 today), and the shutdown. Cancel in the triggering session cancels it for all;
-    the pauses stay.
-  - Only sessions that run the mod can be paused. A transcript written in the last minutes that belongs to none of
-    them is named in the status row: "runs without the mod, not paused".
-  - The README's section on what the mod does on your machine names the new files and the prompts another session
-    sets off.
-  *To check while building:* whether the mod can cut short a long step that another session's Claude is in the middle
-  of; if not, "end" means at the end of that step.
+- [x] **0.9.4: pause and shutdown across sessions.** Each session's sign of life in the state file; Claude asks once
+  where the Pause or Shutdown button was pressed (this session or all of them; per session at work, end its runs or
+  wait for them); the others pause without a question, an idle one at once; the shutdown waits for them, then counts
+  down 5 minutes. Cancel keeps the pauses, Resume picks them all up.
 - [ ] **Hibernate instead of shutdown.** A setting to choose: shutdown, or hibernate (`shutdown /h` on Windows,
   `systemctl hibernate` on Linux). Why: the Windows shutdown closes other programs without asking, so unsaved work in
   them is lost; hibernation keeps them, and the Claude session.
@@ -57,7 +37,7 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: pause and shutdown across sessions next, then hibernation; the CI matrix alongside.
+Order: hibernation next; the CI matrix alongside.
 
 ## 0.10.0 — Next features
 

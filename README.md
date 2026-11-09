@@ -36,7 +36,8 @@ before it runs out, and a **Shutdown** button that pauses the session and then s
    in a meeting. **Keep-warm**, on by default, refreshes the cache shortly before it runs out, so the next request
    reads the conversation from the cache instead of writing all of it again.
 5. **Leave for the night.** Press **Shutdown**: Claude asks right away about anything long still running, then pauses
-   as with **Pause**; once paused, the band counts down 60 seconds and shuts the computer down.
+   as with **Pause**, the other sessions with it; once all are paused, the band counts down 5 minutes and shuts the
+   computer down.
 
 You can also type: “pause” pauses, “continue” resumes (in German “pausieren” and „weitermachen“). Or ask Claude in
 any words (“let's stop here for today”): once paused, Claude tells the band, which then shows **Resume**.
@@ -55,7 +56,7 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Ctx** | Context fill in percent and, after the slash, the auto-compact threshold (`Ctx 5 % / 97 %`; `*`: the fallback of 83 %, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
-| **Shutdown** | Pauses like **Pause**, then shuts the computer down after a 60-second countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
+| **Shutdown** | Pauses like **Pause**, the other sessions with it, then shuts the computer down after a 5-minute countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
 | **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), why keep-warm waits, the shutdown check a press waits for. |
 
@@ -118,9 +119,10 @@ How the mod tracks the state:
 **Shutdown** sits beside **Pause** and ends the day for you:
 
 1. A press hands Claude the pause request (above) with one more note: the computer goes off afterwards, so Claude asks
-   about long-running tasks right away, while you are still there, and asks nothing after that.
+   about long-running tasks right away, while you are still there, and about the runs of the other sessions at work
+   (below), and asks nothing after that.
 2. The status row shows “Preparing the shutdown …” and the tasks still running; **Cancel** stands in the button row.
-3. Once the session is paused, the status row counts down 60 seconds (“Shutdown in 47 s”, **Cancel** above), then the mod runs the
+3. Once this session and the others are paused, the status row counts down 5 minutes (“Shutdown in 4:47”, **Cancel** above), then the mod runs the
    system's command and logs a line. Pressed while the session is already paused, it counts down at once. As the
    countdown starts, a notification goes out through your terminal's notification channel (below).
 
@@ -140,9 +142,35 @@ says what is missing. The mod checks at each session start, and again at a press
 
 - On Windows the other programs are closed without asking (`/f`; Windows implies it for any delay), so that no “apps
   are preventing shutdown” screen waits for someone who left. Save your work in other programs first.
-- Other Claude Code sessions on the computer end with it.
+- Sessions that run the mod pause first ([Other sessions](#other-sessions)); sessions without it end with the computer.
 - macOS is not yet tested on a real Mac: the button follows the same path as on Linux (a password-free sudo), and
   where that fails the band says so. Reports are welcome as an issue.
+
+## Other sessions
+
+The band knows the other Claude Code sessions on the computer that run the mod: each writes a sign of life into the
+state file every 15 seconds (its folder, its pause, how long Claude has been working there, its background runs by
+description).
+
+- **Pause** stays with its own session unless you say otherwise. Where other sessions have work running, the pause
+  request lists them, and Claude asks once, in the same question as about its own long tasks: this session only, or
+  all of them, and for each session at work whether its runs end now or finish first.
+- **Shutdown** always takes them; Claude only asks, for each session at work, whether its runs end now or are waited
+  for.
+- Claude passes your answer on through a second tool, `pause_sessions`. From then on the band turns question dialogs
+  away until the pause is over: what Claude still wants to ask waits for “continue”.
+- The other sessions take the request up within 15 seconds. One with no run, no prompt being worked on and no dialog
+  open counts as paused at once and shows **Resume**, without a prompt. One at work gets the pause with no question to
+  ask (“ask the person nothing now”), its runs ended or let finish as you answered; its status row says where the pause
+  came from (`Paused for 3 min · from repo-a`).
+- The shutdown waits for the sessions still at work (`Shutdown waits for 1 session: repo-b`): for runs you chose to
+  wait for without limit, for a session that never took the request up 15 minutes at most, and not at all for one whose
+  sign of life stopped. Then it counts down 5 minutes.
+- **Cancel** calls the shutdown off everywhere; the pauses stay. **Resume** where you pressed Pause or Shutdown picks
+  the other sessions back up too; **Resume** in one of them picks up that one alone.
+- Sessions without the mod, or with a version before 0.9.4, are not paused: the status row counts the ones at work
+  (`1 more session is at work without the mod and is not paused`). A session opened after the request was decided is
+  no part of it.
 
 ## Keep-warm
 
@@ -253,27 +281,32 @@ the shutdown button (below). What it hands Claude enters the conversation like a
 | a note added to your prompt | a pause is requested or on, or you type “pause” or “continue” | a fixed note (the request, “the session is paused”, “the pause is over”); the text you typed is never changed, and no prompt is held back |
 | the slash command `/compact` | you press **Compact** while Claude works, or in the desktop app | queued like a typed `/compact`; otherwise the button compacts through the session's own compaction call |
 | the Stop hook's answer | Claude stops before it read the pause request | Claude goes on once, with the pause request as the reason |
+| a list in the pause or shutdown request | you press **Pause** or **Shutdown** while other sessions are at work | each one's short id and folder, how long Claude has been working there and the descriptions of its background runs, from their signs of life; then the question to ask you and the tool to pass the answer on |
+| a prompt or a row in your name | another session's pause (where you answered that all pause) or shutdown reaches a session at work | the pause from another session: fixed text from [`hooks/sessions.ts`](hooks/sessions.ts), naming that session's folder and whether the runs end or finish; ask nothing now |
+| a tool Claude can call, `pause_sessions` | Claude passes on your answer about the other sessions | listed with a fixed description; a call writes the answer into the request and changes nothing else |
+| a dialog turned away | a question dialog once the pause's question is answered, or in a session paused from another | refused with fixed text: keep the question for “continue” |
 | a tool Claude can call, `pause_state` | Claude has paused the session, or picks the paused work back up | listed for Claude with a fixed description (in [`hooks/pause.ts`](hooks/pause.ts)); a call changes only the band's pause state and the state file, is answered by the mod and runs nothing else |
 | a question beside the conversation | **Keep-warm** is checked and the cache is about to run out | a model request over the conversation as its last request sent it, through the session's own client: fixed text asking for “OK”, no tools; the answer is discarded and stays out of the conversation |
 
-No file content, transcript text or setting goes into these texts. Keep-warm's request carries the conversation the
+No file content, transcript text or setting goes into these texts; the list of other sessions names their folders and the descriptions of their background runs. Keep-warm's request carries the conversation the
 session sends with every request anyway, to the same API.
 
-**Files.** The mod writes one file, `~/.claude/cache-weather-and-pause-resume/state.json` (below), and no other: no settings,
-instructions, hooks or build files. It reads that file, the session's transcript when it is at most 3.5 MiB (for the
-cache lifetime and the time of the last response), and the file names — not the contents — in `~/.claude/projects/*/`,
-to drop the pauses of deleted sessions.
+**Files.** The mod writes two files, `~/.claude/cache-weather-and-pause-resume/state.json` and, for a pause or
+shutdown across sessions, `request.json` beside it (below), and no other: no settings, instructions, hooks or build
+files. It reads those, the session's transcript when it is at most 3.5 MiB (for the cache lifetime and the time of the
+last response), and the file names and times — not the contents — in `~/.claude/projects/*/`, to drop the pauses of
+deleted sessions and, during a shutdown, to count the sessions at work without the mod.
 
 **Programs.** At each session start (and at a press of **Shutdown** that finds no answer) it checks whether the
 shutdown button can work: `whoami /priv` on Windows;
 elsewhere `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and
-runs nothing. Only once you pressed **Shutdown**, the session is paused and the 60-second countdown has run out does it
+runs nothing. Only once you pressed **Shutdown**, the sessions are paused and the 5-minute countdown has run out does it
 run the shutdown command from the table above. It starts no other program, and each one by its full path in the
 system's own folders (`%SystemRoot%\System32` on Windows, `/usr/bin` or `/bin` elsewhere) with that folder as the
 working folder: a program of the same name in the session's folder or on your PATH is never run.
 
 **Notifications.** As the shutdown countdown starts, the mod raises one notification through Claude Code's own
-channel, the one your `preferredNotifChannel` setting names: “Shutdown in 60 s” and the session's folder name, fixed
+channel, the one your `preferredNotifChannel` setting names: “Shutdown in 5 min” and the session's folder name, fixed
 text otherwise. Terminals that show notifications (iTerm2, kitty, Ghostty) show it; elsewhere it is at most the bell.
 The desktop app draws no terminal: there nothing comes, and the app reports the pause itself, which is when the
 countdown starts. The mod starts no program for it; the option `notifications` turns it off.
@@ -281,11 +314,12 @@ countdown starts. The mod starts no program for it; the option `notifications` t
 **Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is), `LC_ALL` / `LC_MESSAGES` /
 `LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials.
 
-**Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above. Every other hook only reads and
-passes its event on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
+**Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above, and `tool.call` answers the mod's
+own tools and turns a question dialog away during a pause as it says. Every other hook only reads and passes its event
+on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
-whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` (when a call of the
-conversation has run, and when a question to you is answered; it also answers the mod's own `pause_state`), `turn.step` (token counts, and when a request reads
+whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
+conversation has run, and when a question to you is answered), `turn.step` (token counts, and when a request reads
 the cache) and `session.measure` (token counts), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,
 after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
 band and stacks the bands of other mods beneath it.
@@ -296,6 +330,10 @@ band and stacks the bands of other mods beneath it.
 off (by session id), the cache lifetime last seen and the version last loaded. It keeps at most the 20
 latest of each, and ten seconds after a session starts it drops what it holds of deleted sessions (no transcript left
 under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
+
+It also holds each session's sign of life (`liveSessions`, see [Other sessions](#other-sessions)): written every 15
+seconds, taken out when the session ends, forgotten an hour after its last one. `request.json` beside it holds the
+last pause or shutdown across sessions; only the session that made it writes it.
 
 Every session writes the file, each by reading it, changing it and writing it whole. So that two writing at the same
 moment lose nothing, a write is looked at again a quarter of a second later and made again where another session's

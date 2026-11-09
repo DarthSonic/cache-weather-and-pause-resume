@@ -2,8 +2,23 @@
 
 ## 0.9.4 — unreleased
 
+- **Pause and shutdown across sessions.** Each session that runs the mod writes a sign of life into the state file
+  every 15 seconds (its folder, its pause, how long Claude has been working, its background runs by description).
+  Pressing Pause or Shutdown while other sessions are at work lists them in the request, and Claude asks once: for a
+  pause, this session only or all of them; for each session at work, whether its runs end now or finish first (a
+  shutdown always takes the others). Claude passes the answer on with a new tool, `pause_sessions`; the request goes
+  into `request.json`, which only the session that made it writes. The other sessions take it up within 15 seconds: an
+  idle one counts as paused at once, without a prompt; one at work gets the pause with no question to ask, its runs
+  ended or let finish as answered, and its status row names where the pause came from. From the answer on, and in a
+  session paused from elsewhere, question dialogs are turned away until „weitermachen“. The shutdown waits for the
+  sessions at work (for runs it was told to wait for without limit, for a session that never took the request up 15
+  minutes at most, not for one whose sign of life stopped); Cancel keeps the pauses, and Resume where the request was
+  made picks the others up too. A session opened after a request was decided is no part of it; one that ran the mod
+  before a restart of the app finds its own request again. Sessions at work without the mod are counted in the status
+  row.
+- The shutdown counts down **5 minutes** instead of 60 seconds, shown as „Shutdown in 4:47“.
 - **A notification as the shutdown countdown starts**, the last chance to cancel for someone in another window: through
-  Claude Code's own channel, the one `preferredNotifChannel` names, with „Shutdown in 60 s“ and the session's folder.
+  Claude Code's own channel, the one `preferredNotifChannel` names, with „Shutdown in 5 min“ and the session's folder.
   Terminals that show notifications (iTerm2, kitty, Ghostty) show it, elsewhere it is at most the bell; the desktop app
   draws no terminal and reports the pause itself, which is when the countdown starts. No program of the mod's own runs
   for it. The new option `notifications` (`on` / `off`, default `on`) turns it off.

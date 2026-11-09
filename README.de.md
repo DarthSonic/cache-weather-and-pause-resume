@@ -37,7 +37,8 @@ danach den Rechner herunterfährt.
    dauert, oder du bist in einer Besprechung. **Keep-warm**, standardmäßig an, frischt den Cache kurz vor Ablauf auf,
    und die nächste Anfrage liest die Unterhaltung aus dem Cache, statt alles neu zu schreiben.
 5. **Feierabend.** Drück **Shutdown**: Claude fragt sofort nach allem Langen, das noch läuft, und pausiert dann wie bei
-   **Pause**; sobald pausiert ist, zählt die Leiste 60 Sekunden herunter und fährt den Rechner herunter.
+   **Pause**, die anderen Sitzungen mit; sobald alle pausiert sind, zählt die Leiste 5 Minuten herunter und fährt den
+   Rechner herunter.
 
 Tippen geht auch: „pausieren“ pausiert, „weitermachen“ setzt fort (auf Englisch “pause” und “continue”). Oder bitte
 Claude in eigenen Worten darum („lass uns für heute Schluss machen“): Sobald pausiert ist, sagt Claude es der Leiste,
@@ -57,7 +58,7 @@ und die zeigt **Weiter**.
 | **Ctx** | Füllung des Kontexts in Prozent und, hinter dem Schrägstrich, die Auto-Compact-Schwelle (`Ctx 5 % / 97 %`; `*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
-| **Shutdown** | Pausiert wie **Pause** und fährt den Rechner dann nach 60 Sekunden Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
+| **Shutdown** | Pausiert wie **Pause**, die anderen Sitzungen mit, und fährt den Rechner dann nach 5 Minuten Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 | **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
@@ -121,9 +122,10 @@ Wie der Mod den Zustand verfolgt:
 **Shutdown** steht neben **Pause** und beendet den Tag für dich:
 
 1. Ein Klick schickt Claude die Pause-Bitte (oben) mit einem Zusatz: Danach geht der Rechner aus. Claude fragt deshalb
-   sofort nach langen Tasks, solange du noch da bist, und danach nichts mehr.
+   sofort nach langen Tasks, solange du noch da bist, und nach den Läufen der anderen arbeitenden Sitzungen (unten),
+   und danach nichts mehr.
 2. Die Statuszeile zeigt „Shutdown wird vorbereitet …“ und die noch laufenden Tasks; in der Knopfzeile steht **Abbrechen**.
-3. Ist die Sitzung pausiert, zählt die Statuszeile 60 Sekunden herunter („Shutdown in 47 s“, **Abbrechen** darüber), dann startet der
+3. Sind diese und die anderen Sitzungen pausiert, zählt die Statuszeile 5 Minuten herunter („Shutdown in 4:47“, **Abbrechen** darüber), dann startet der
    Mod den Befehl des Systems und schreibt eine Zeile ins Log. Ist die Sitzung schon pausiert, zählt er sofort herunter.
    Beim Start des Countdowns geht eine Benachrichtigung über den Benachrichtigungsweg deines Terminals (unten).
 
@@ -145,9 +147,35 @@ Antwort vorfindet:
 - Unter Windows werden andere Programme ohne Rückfrage geschlossen (`/f`; Windows setzt es bei jedem Vorlauf ohnehin),
   damit kein Bildschirm „Apps verhindern das Herunterfahren“ auf jemanden wartet, der gegangen ist. Speichere deine
   Arbeit in anderen Programmen vorher.
-- Andere Claude-Code-Sitzungen auf dem Rechner enden mit.
+- Sitzungen mit dem Mod pausieren vorher ([Andere Sitzungen](#andere-sitzungen)); Sitzungen ohne ihn enden mit dem Rechner.
 - macOS ist auf einem echten Mac noch ungetestet: Der Knopf nimmt denselben Weg wie unter Linux (sudo ohne Passwort),
   und wo das scheitert, sagt es die Leiste. Rückmeldungen gern als Issue.
+
+## Andere Sitzungen
+
+Die Leiste kennt die anderen Claude-Code-Sitzungen auf dem Rechner, in denen der Mod läuft: Jede schreibt alle 15
+Sekunden ein Lebenszeichen in die Zustandsdatei (ihren Ordner, ihre Pause, wie lange Claude dort schon arbeitet, ihre
+Hintergrund-Läufe nach Beschreibung).
+
+- **Pause** bleibt bei der eigenen Sitzung, solange du nichts anderes sagst. Arbeiten andere Sitzungen gerade, nennt
+  die Pause-Bitte sie, und Claude fragt einmal, in derselben Rückfrage wie zu seinen langen Tasks: nur diese Sitzung
+  oder alle, und je arbeitender Sitzung, ob ihre Läufe jetzt enden oder zu Ende laufen.
+- **Shutdown** nimmt sie immer mit; Claude fragt nur je arbeitender Sitzung, ob ihre Läufe jetzt enden oder
+  abgewartet werden.
+- Deine Antwort gibt Claude über ein zweites Werkzeug weiter, `pause_sessions`. Ab dann weist die Leiste Fragedialoge
+  bis zum Ende der Pause ab: Was Claude noch fragen will, wartet auf „weitermachen“.
+- Die anderen Sitzungen übernehmen die Anforderung binnen 15 Sekunden. Eine ohne Lauf, ohne Prompt in Arbeit und ohne
+  offenen Dialog gilt sofort als pausiert und zeigt **Weiter**, ohne Prompt. Eine arbeitende bekommt die Pause ohne
+  Rückfrage („frag den Menschen jetzt nichts“), ihre Läufe beendet oder zu Ende laufen gelassen, wie du geantwortet
+  hast; ihre Statuszeile sagt, woher die Pause kam (`Pausiert seit 3 min · aus repo-a`).
+- Der Shutdown wartet auf die Sitzungen, die noch arbeiten (`Shutdown wartet auf 1 Sitzung: repo-b`): auf Läufe, die
+  du abwarten wolltest, ohne Grenze, auf eine Sitzung, die die Anforderung nie übernommen hat, höchstens 15 Minuten,
+  und gar nicht auf eine, deren Lebenszeichen ausbleibt. Danach zählt er 5 Minuten herunter.
+- **Abbrechen** sagt den Shutdown überall ab; die Pausen bleiben. **Weiter** dort, wo du Pause oder Shutdown gedrückt
+  hast, setzt die anderen Sitzungen mit fort; **Weiter** in einer von ihnen nur diese.
+- Sitzungen ohne den Mod, oder mit einer Fassung vor 0.9.4, werden nicht pausiert: Die Statuszeile zählt die
+  arbeitenden (`1 weitere Sitzung arbeitet ohne den Mod und wird nicht pausiert`). Eine Sitzung, die nach der
+  Entscheidung geöffnet wurde, gehört nicht dazu.
 
 ## Keep-warm
 
@@ -263,27 +291,33 @@ Unterhaltung:
 | ein Hinweis an deinem Prompt | eine Pause ist angefordert oder läuft, oder du tippst „pausieren“ oder „weitermachen“ | ein fester Hinweis (die Bitte, „die Sitzung ist pausiert“, „die Pause ist beendet“); dein getippter Text bleibt unverändert, und kein Prompt wird zurückgehalten |
 | der Slash-Befehl `/compact` | du drückst **Compact**, während Claude arbeitet, oder in der Desktop-App | eingereiht wie ein getipptes `/compact`; sonst verdichtet der Knopf über den eigenen Compact-Aufruf der Sitzung |
 | die Antwort des Stop-Hooks | Claude hält an, bevor es die Pause-Bitte gelesen hat | Claude macht einmal weiter, mit der Pause-Bitte als Grund |
+| eine Liste in der Pause- oder Shutdown-Bitte | du drückst **Pause** oder **Shutdown**, während andere Sitzungen arbeiten | je Sitzung ihre Kurz-ID und ihr Ordner, wie lange Claude dort arbeitet und die Beschreibungen ihrer Hintergrund-Läufe, aus ihren Lebenszeichen; dazu die Frage an dich und das Werkzeug für die Antwort |
+| ein Prompt oder eine Zeile in deinem Namen | die Pause einer anderen Sitzung (wo du „alle pausieren“ geantwortet hast) oder ihr Shutdown erreicht eine arbeitende Sitzung | die Pause aus einer anderen Sitzung: fester Text aus [`hooks/sessions.ts`](hooks/sessions.ts), mit dem Ordner jener Sitzung und ob die Läufe enden oder zu Ende laufen; jetzt nichts fragen |
+| ein Werkzeug für Claude, `pause_sessions` | Claude gibt deine Antwort zu den anderen Sitzungen weiter | mit fester Beschreibung gelistet; ein Aufruf schreibt die Antwort in die Anforderung und ändert sonst nichts |
+| ein abgewiesener Dialog | ein Fragedialog, sobald die Frage der Pause beantwortet ist, oder in einer Sitzung, die eine andere pausiert hat | abgelehnt mit festem Text: die Frage für „weitermachen“ aufheben |
 | ein Werkzeug für Claude, `pause_state` | Claude hat die Sitzung pausiert oder nimmt die pausierte Arbeit wieder auf | für Claude mit fester Beschreibung gelistet (in [`hooks/pause.ts`](hooks/pause.ts)); ein Aufruf ändert nur den Pause-Zustand der Leiste und die Zustandsdatei, der Mod beantwortet ihn selbst, sonst läuft nichts |
 | eine Frage neben der Unterhaltung | **Keep-warm** ist gesetzt und der Cache läuft gleich ab | eine Modell-Anfrage über die Unterhaltung, so wie ihre letzte Anfrage sie geschickt hat, über den eigenen Client der Sitzung: fester Text, der um „OK“ bittet, keine Werkzeuge; die Antwort wird verworfen und bleibt außerhalb der Unterhaltung |
 
-In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung. Die Anfrage von Keep-warm trägt
+In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung; die Liste der anderen Sitzungen nennt ihre Ordner und die Beschreibungen ihrer Hintergrund-Läufe. Die Anfrage von Keep-warm trägt
 die Unterhaltung, die die Sitzung mit jeder Anfrage ohnehin schickt, an dieselbe API.
 
-**Dateien.** Der Mod schreibt genau eine Datei, `~/.claude/cache-weather-and-pause-resume/state.json` (unten), und keine andere: keine
-Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das Transkript der Sitzung, wenn es höchstens
-3,5 MiB groß ist (für Cache-Laufzeit und Zeitpunkt der letzten Antwort), und die Dateinamen — nicht die Inhalte — in
-`~/.claude/projects/*/`, um die Pausen gelöschter Sitzungen zu streichen.
+**Dateien.** Der Mod schreibt zwei Dateien, `~/.claude/cache-weather-and-pause-resume/state.json` und, für eine Pause
+oder einen Shutdown über Sitzungen, `request.json` daneben (unten), und keine andere: keine Einstellungen, Anweisungen,
+Hooks oder Build-Dateien. Er liest diese, das Transkript der Sitzung, wenn es höchstens 3,5 MiB groß ist (für
+Cache-Laufzeit und Zeitpunkt der letzten Antwort), und die Dateinamen und -zeiten — nicht die Inhalte — in
+`~/.claude/projects/*/`, um die Pausen gelöschter Sitzungen zu streichen und während eines Shutdowns die arbeitenden
+Sitzungen ohne den Mod zu zählen.
 
 **Programme.** Bei jedem Sitzungsstart (und bei einem Klick auf **Shutdown**, der keine Antwort vorfindet) prüft er,
 ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
 sonst `uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und
-nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzung pausiert ist und der 60-Sekunden-Countdown
+nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzungen pausiert sind und der 5-Minuten-Countdown
 abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht, und jedes über seinen
 vollen Pfad in den Ordnern des Systems (`%SystemRoot%\System32` unter Windows, sonst `/usr/bin` oder `/bin`), mit
 diesem Ordner als Arbeitsordner: Ein gleichnamiges Programm im Ordner der Sitzung oder auf deinem PATH läuft nie.
 
 **Benachrichtigungen.** Startet der Shutdown-Countdown, schickt der Mod eine Benachrichtigung über Claude Codes eigenen
-Weg, den deine Einstellung `preferredNotifChannel` nennt: „Shutdown in 60 s“ und den Ordnernamen der Sitzung, sonst
+Weg, den deine Einstellung `preferredNotifChannel` nennt: „Shutdown in 5 min“ und den Ordnernamen der Sitzung, sonst
 fester Text. Terminals, die Benachrichtigungen zeigen (iTerm2, kitty, Ghostty), zeigen sie; anderswo ist es höchstens
 die Glocke. Die Desktop-App hat kein Terminal: Dort kommt nichts an, und die App meldet die Pause selbst, und mit ihr
 startet der Countdown. Der Mod startet dafür kein Programm; die Option `notifications` schaltet sie ab.
@@ -292,12 +326,12 @@ startet der Countdown. Der Mod startet dafür kein Programm; die Option `notific
 `LC_MESSAGES` / `LANG` (die Sprache) und `OS` (ob er unter Windows läuft). Er liest keine Einstellungen von Claude Code
 und keine Zugangsdaten.
 
-**Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle. Jeder andere Hook liest nur und
-reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
+**Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle, und `tool.call` beantwortet die
+eigenen Werkzeuge des Mods und weist während einer Pause einen Fragedialog ab, wie sie sagt. Jeder andere Hook liest nur
+und reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
-`tool.call` (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist; er
-beantwortet auch das eigene Werkzeug `pause_state`),
+`tool.call` sonst (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
 `turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen), `turn.start`,
 `turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
 Modell nicht liest. Der Hook auf
@@ -310,6 +344,10 @@ oder abgeschaltet hast (je Sitzungs-ID), die zuletzt gesehene Cache-Laufzeit und
 behält von beidem höchstens die 20 jüngsten, und zehn Sekunden nach einem Sitzungsstart fällt heraus, was sie von
 gelöschten Sitzungen hält (kein Transkript mehr unter `~/.claude/projects/`); im Zweifel bleibt alles stehen. Die Datei liest nur der Mod — sie gelangt nie zum Modell und
 kostet keine Token.
+
+Sie hält auch das Lebenszeichen jeder Sitzung (`liveSessions`, siehe [Andere Sitzungen](#andere-sitzungen)): alle 15
+Sekunden geschrieben, beim Ende der Sitzung entfernt, eine Stunde nach dem letzten vergessen. `request.json` daneben
+hält die letzte Pause oder den letzten Shutdown über Sitzungen; schreiben darf sie nur die Sitzung, die sie angelegt hat.
 
 Jede Sitzung schreibt die Datei, indem sie sie liest, ändert und ganz neu schreibt. Damit zwei, die im selben Moment
 schreiben, nichts verlieren, wird ein Schreiben eine Viertelsekunde später noch einmal angesehen und wiederholt, wo das
