@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.1 — unreleased
+## 0.10.1 — 2026-11-09
 
 - **What keep-warm saves, as it stands.** Each refresh's line ends with what going on now would save against
   building the cache again („…; Weitermachen spart jetzt ≈ 92 % (≈ 835.500 Input-Tokens)“ / “…; continuing now saves
