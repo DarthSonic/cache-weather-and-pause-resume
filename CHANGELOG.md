@@ -8,6 +8,10 @@
   then each change of a whole point); a session on an API key has none and shows none.
 - **Keep-warm stops at 90 %** of any window: a refresh would spend the last of it. It says so once in the status row
   („Keep-warm: hält an, Kontingent bei 92 %“) and in a line, and refreshes again by itself once the window starts over.
+- **Context forecast** in the status row: about how many turns are left until auto-compact, from ten on („Auto-Compact
+  in ≈ 6 Zügen“, yellow from three, „wohl beim nächsten Zug“ at one). It reckons with the median growth of the last
+  five turns that grew the context, once there are three (a turn after which it shrank, a compaction, adds nothing),
+  and shows only where the session reports its own threshold. `/clear` starts it over.
 - **Keep-warm's balance**, as a line in the log: when the person is back and the first request reads the cache
   keep-warm kept, what the refreshes cost set against the rebuild they spared, in input tokens' worth and as a share
   („↻ Keep-warm-Bilanz: 3 Auffrischungen kosteten so viel wie 22.620 Input-Tokens; der ersparte Neuaufbau des Caches

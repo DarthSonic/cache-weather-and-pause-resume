@@ -15,6 +15,7 @@ import {
   keepWarmStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
+  median,
   pauseSigns,
   refreshCost,
   remainingMinutes,
@@ -25,10 +26,33 @@ import {
   terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
+  turnsToCompact,
   usageStopping,
   usageToShow,
   weather,
+  withGrowth,
 } from '../hooks/logic'
+
+// The context forecast (0.10.0): the median growth of the last five turns, from three turns on.
+describe('the context forecast', () => {
+  test('the median moves little for one large turn; a shrinking turn adds nothing; five are kept', async () => {
+    expect(median([10, 90, 12])).toBe(12)
+    expect(median([10, 20])).toBe(15)
+    expect(median([])).toBeNull()
+    expect(withGrowth([1, 2], -5000)).toEqual([1, 2])
+    expect(withGrowth([1, 2, 3, 4, 5], 6)).toEqual([2, 3, 4, 5, 6])
+  })
+
+  test('turns until the threshold: none before three turns, at least one', async () => {
+    expect(turnsToCompact(130_000, 160_000, [10_000, 10_000])).toBeNull()
+    expect(turnsToCompact(130_000, 160_000, [10_000, 10_000, 10_000])).toBe(3)
+    // One file read of 60.000 tokens hardly moves it.
+    expect(turnsToCompact(130_000, 160_000, [10_000, 60_000, 10_000])).toBe(3)
+    expect(turnsToCompact(158_000, 160_000, [10_000, 10_000, 10_000])).toBe(1)
+    expect(turnsToCompact(170_000, 160_000, [10_000, 10_000, 10_000])).toBe(1)
+    expect(turnsToCompact(null, 160_000, [10_000, 10_000, 10_000])).toBeNull()
+  })
+})
 
 // Keep-warm's balance (0.10.0): in input tokens' worth, at each model's cache read price.
 describe('keep-warm’s balance', () => {

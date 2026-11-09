@@ -1259,6 +1259,45 @@ describe('keep-warm', () => {
     await ui.unmount()
   })
 
+  test('the status row says about how many turns are left until auto-compact, from ten on', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    on('turn.complete', () => ({ text: '' }))
+    on('session.measure', ($, e) => ({ changed: e.changed }))
+    // The session's own threshold: 160.000 of 200.000 tokens, 80 %.
+    on('session.usage', () => ({
+      value: {
+        startedAt: 0,
+        context: { window: 200_000, percent: 50, tokens: 100_000, breakdown: { isAutoCompactEnabled: true, autoCompactThreshold: 160_000 } },
+        rateLimits: [],
+      },
+    }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'f1' })
+    await $.classic.Stop(stop(undefined, 'f1'))
+    let turn = 0
+    const turnEndingAt = async (tokens: number) => {
+      turn += 1
+      await $.turn.start({ text: `Schritt ${turn}`, turnId: `t${turn}` })
+      await $.session.measure({ context: { window: 200_000, tokens, percent: Math.round(tokens / 2_000) }, rateLimits: [], changed: ['context'] } as never)
+      await $.turn.complete({ turnId: `t${turn}`, reason: 'answer', answer: 'Erledigt.' } as never)
+    }
+    await turnEndingAt(60_000)
+    await turnEndingAt(70_000)
+    await turnEndingAt(80_000)
+    // Two turns of growth: not yet.
+    expect(await ui.find({ type: 'Text', text: /Auto-Compact/ })).toBeUndefined()
+    await turnEndingAt(90_000)
+    // 70.000 left at 10.000 a turn: seven, more than nothing yet but within ten.
+    expect(await ui.find({ type: 'Text', text: /^Auto-Compact in ≈ 7 Zügen$/ })).toBeDefined()
+    await turnEndingAt(140_000)
+    // A large turn (50.000) moves the median little: 20.000 left at 10.000, two.
+    expect(await ui.find({ type: 'Text', text: /^Auto-Compact in ≈ 2 Zügen$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('the hour cache is refreshed five minutes before it lapses, and counts down afresh', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })

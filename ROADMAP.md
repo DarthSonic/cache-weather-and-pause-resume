@@ -46,8 +46,8 @@ Order: the CI matrix and the macOS test; then 0.10.0.
 - [x] **Longer keep-warm for the 60-minute cache**, option `keepWarmHours` (1 to 18, 8 by default): a refresh reads the
   cache at 0.1× the input price or less (Opus 5.5 0.05×), a rebuild writes it at 2×, so it pays up to some 18 hours.
   The 5-minute cache keeps 45 minutes.
-- [ ] **Context forecast.** "Auto-compact in about 6 turns", from the average of the last turns.
-  *To plan:* whether it is steady enough (one large file read skews it); shown only near the threshold?
+- [x] **Context forecast** in the status row: about how many turns until auto-compact, from ten on, yellow from three;
+  the median growth of the last five turns, once there are three; only where the session reports its own threshold.
 
 ## Docs and reach
 

@@ -66,6 +66,8 @@ export type Strings = {
   keepWarmCold: string
   /** Keep-warm stopped for a usage window at or past 90 %. */
   keepWarmLimit: (percent: number) => string
+  /** About how many turns until auto-compact, as the status row says it. */
+  compactForecast: (turns: number) => string
   /** Keep-warm's balance once the person is back: refreshes, their cost, the rebuild spared, the share saved. */
   keepWarmBalanceLog: (refreshes: number, spent: string, rebuild: string, savedPercent: number) => string
   /** What the refreshes cost where the cache was not used again. */
@@ -124,6 +126,7 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   keepWarmMissed: 'Cache war schon abgelaufen',
   keepWarmCold: 'wartet auf die nächste Anfrage',
   keepWarmLimit: percent => `hält an, Kontingent bei ${percent} %`,
+  compactForecast: n => (n <= 1 ? 'Auto-Compact wohl beim nächsten Zug' : `Auto-Compact in ≈ ${n} Zügen`),
   keepWarmBalanceLog: (n, spent, rebuild, saved) =>
     `↻ Keep-warm-Bilanz: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} so viel wie ${spent} Input-Tokens; der ersparte Neuaufbau des Caches hätte ${rebuild} gekostet. ${saved >= 0 ? `Gespart: ≈ ${saved} %.` : `Diesmal hat Keep-warm nichts gespart (≈ ${-saved} % mehr).`}`,
   keepWarmWastedLog: (n, spent) =>
@@ -171,6 +174,7 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   keepWarmMissed: 'the cache had already expired',
   keepWarmCold: 'waiting for the next request',
   keepWarmLimit: percent => `stopped, usage at ${percent} %`,
+  compactForecast: n => (n <= 1 ? 'Auto-compact likely at the next turn' : `Auto-compact in about ${n} turns`),
   keepWarmBalanceLog: (n, spent, rebuild, saved) =>
     `↻ Keep-warm balance: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} as much as ${spent} input tokens; rebuilding the cache, which they spared, would have cost ${rebuild}. ${saved >= 0 ? `Saved: ≈ ${saved} %.` : `This time keep-warm saved nothing (≈ ${-saved} % more).`}`,
   keepWarmWastedLog: (n, spent) =>

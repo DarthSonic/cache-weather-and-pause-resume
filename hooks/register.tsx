@@ -17,6 +17,8 @@ import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
   FALLBACK_THRESHOLD_PERCENT,
+  FORECAST_SHOW_TURNS,
+  FORECAST_WARN_TURNS,
   cacheReadRatio,
   cacheTone,
   cacheWriteRatio,
@@ -43,7 +45,9 @@ import {
   terminalWeather,
   thresholdPercent,
   ttlFromTranscript,
+  turnsToCompact,
   weather,
+  withGrowth,
 } from './logic'
 import {
   PAUSE_TOOL_NAME,
@@ -129,6 +133,8 @@ const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keep
 const usageWindows = atom({ plugin: 'cache-weather-and-pause-resume', key: 'usageWindows' } as const, [])
 const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSpent' } as const, 0)
 const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
+const turnGrowths = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnGrowths' } as const, [])
+const lastTurnTokens = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnTokens' } as const, null)
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
@@ -1548,6 +1554,13 @@ export const register: Register = (on, options) => {
       await update($, turnRunning, () => false)
       await update($, isAwaitingPerson, () => false)
       await update($, workingSince, () => null)
+      // The forecast's reading (0.10.0): how many tokens this turn added to the context.
+      const tokens = (await read($, context))?.tokens ?? null
+      if (tokens !== null) {
+        const last = await read($, lastTurnTokens)
+        if (last !== null) await update($, turnGrowths, growths => withGrowth(growths, tokens - last))
+        await update($, lastTurnTokens, () => tokens)
+      }
     }
     return result
   }).catch(($, e, next) => next(e))
@@ -1620,7 +1633,12 @@ export const register: Register = (on, options) => {
   // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.
   on('session.end', async ($, e, next) => {
     const result = await next(e)
-    if (e.reason === 'clear') await enterRunning($)
+    if (e.reason === 'clear') {
+      await enterRunning($)
+      // A new conversation grows its own way: the forecast starts over.
+      await update($, turnGrowths, () => [])
+      await update($, lastTurnTokens, () => null)
+    }
     try {
       await forgetHeartbeat($, e.sessionId)
     } catch {
@@ -1833,6 +1851,14 @@ export const register: Register = (on, options) => {
         text: t.usageLine(t.usageWindow(reading.kind), Math.round(reading.percentUsed), resetClock(reading.resetsAt, at, lang)),
         color: tone,
       })
+    }
+    // About how many turns until auto-compact, from 10 on, yellow from 3 (0.10.0). Only where the session reports its
+    // own threshold: with auto-compact off, or none reported, nothing is forecast.
+    if (!limit.isFallback && fill?.tokens !== null && fill?.tokens !== undefined && !compacting) {
+      const turns = turnsToCompact(fill.tokens, (fill.window * limit.percent) / 100, await read($, turnGrowths))
+      if (turns !== null && turns <= FORECAST_SHOW_TURNS) {
+        status.push({ key: 'forecast', text: t.compactForecast(turns), color: turns <= FORECAST_WARN_TURNS ? 'warning' : 'subtle' })
+      }
     }
     const withoutMod = await read($, sessionsWithoutMod)
     if (role === 'own' && withoutMod > 0) status.push({ key: 'without-mod', text: t.withoutMod(withoutMod), color: 'subtle' })

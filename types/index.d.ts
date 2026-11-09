@@ -128,6 +128,10 @@ declare module 'claude-code' {
       keepWarmSpent: number
       /** The model the main conversation's last request named: it sets what a cache read costs. */
       mainModel: string | null
+      /** How many tokens the context grew by in each of the last turns that grew it (0.10.0, the forecast). */
+      turnGrowths: number[]
+      /** The context's tokens when the last turn ended. */
+      lastTurnTokens: number | null
       /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */
       isAwaitingPerson: boolean
       /** Whether and how the computer can be shut down unattended; null until the session start has checked. */

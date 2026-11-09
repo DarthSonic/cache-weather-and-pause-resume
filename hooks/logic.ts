@@ -417,3 +417,40 @@ export function keepWarmBalance(s: {
   const paid = s.spent + s.readTokens * s.readRatio
   return { rebuild, spent: s.spent, savedShare: (rebuild - paid) / rebuild }
 }
+
+// ── The context forecast (0.10.0) ───────────────────────────────────────────────────────────────────────────────
+
+/** The status row shows the forecast from this many turns left on, in yellow from the second number on. */
+export const FORECAST_SHOW_TURNS = 10
+export const FORECAST_WARN_TURNS = 3
+// The growth of the last turns it reckons with, and how many it needs before it says anything.
+const FORECAST_SAMPLE = 5
+const FORECAST_MIN_SAMPLES = 3
+
+/** The middle value; for an even count the mean of the two middle ones. Null for none. */
+export function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 1 ? (sorted[mid] ?? null) : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+}
+
+/**
+ * The growths kept after a turn: the context grew by `growth` tokens. A turn after which it shrank (a compaction) or
+ * stood still adds nothing; the last FORECAST_SAMPLE stay.
+ */
+export function withGrowth(growths: readonly number[], growth: number): number[] {
+  return growth > 0 ? [...growths, growth].slice(-FORECAST_SAMPLE) : [...growths]
+}
+
+/**
+ * About how many turns until the context reaches the auto-compact threshold: what is left of it, over the median
+ * growth of the last turns (one large file read moves a median little). Null with fewer than three turns to go by;
+ * at least 1, which reads „at the next turn“.
+ */
+export function turnsToCompact(tokens: number | null, thresholdTokens: number, growths: readonly number[]): number | null {
+  if (tokens === null || growths.length < FORECAST_MIN_SAMPLES) return null
+  const typical = median(growths.slice(-FORECAST_SAMPLE))
+  if (typical === null || typical <= 0) return null
+  return Math.max(1, Math.ceil((thresholdTokens - tokens) / typical))
+}
