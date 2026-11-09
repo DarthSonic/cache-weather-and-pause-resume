@@ -1826,9 +1826,10 @@ export const register: Register = (on, options) => {
     const phase = await read($, pausePhase)
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
-    // In the desktop app each button is one control: its one-colour icon and, right beside it, its word in caption size
-    // (0.10.0). Nothing appears or moves under the pointer: a word revealed on hover pushed the buttons away from it.
-    // The terminal keeps the words, at its one size.
+    // In the desktop app each button is its one-colour icon, with its word right beside it in caption size (0.10.0).
+    // The desktop draws a Button as a native button at its own font, a small Text inside it too: the word stands outside
+    // it, as text. Nothing appears or moves under the pointer: a word revealed on hover pushed the buttons away from
+    // it. The terminal keeps the words in the buttons, at its one size.
     type IconButtonSpec = {
       key: string
       words: string
@@ -1845,14 +1846,18 @@ export const register: Register = (on, options) => {
         ...(spec.variant === undefined ? {} : { variant: spec.variant }),
         ...(spec.dimColor === undefined ? {} : { dimColor: spec.dimColor }),
       }
-      return isTerminal ? (
-        <Button key={spec.key} label={spec.words} onPress={press} {...look} />
-      ) : (
-        <Button key={spec.key} onPress={press} {...look}>
-          {spec.icon} <Text size="caption">{spec.words}</Text>
-        </Button>
+      if (isTerminal) return <Button key={spec.key} label={spec.words} onPress={press} {...look} />
+      return (
+        <Box flexDirection="row" alignItems="center" gap={1} flexShrink={0}>
+          <Button key={spec.key} label={spec.icon} onPress={press} {...look} />
+          <Text size="caption" {...(spec.dimColor === true ? { dimColor: true } : {})}>
+            {spec.words}
+          </Text>
+        </Box>
       )
     }
+    // Between one icon's word and the next icon a wider gap, so each word reads as its icon's.
+    const buttonGap = isTerminal ? 1 : 2
     const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
     const onCancelShutdown = () => cancelShutdown($, false)
     const onShutdown = () => requestShutdown($, askAbove)
@@ -1882,7 +1887,7 @@ export const register: Register = (on, options) => {
       pause = null
     } else if (phase === 'running') {
       pause = (
-        <Box flexDirection="row" gap={1}>
+        <Box flexDirection="row" gap={buttonGap}>
           {iconButton({ key: 'pause', words: t.pause, icon: BUTTON_ICONS.pause, onPress: onPause })}
           {shutdownButton}
         </Box>
@@ -1891,7 +1896,7 @@ export const register: Register = (on, options) => {
       pause = iconButton({ key: 'pause-cancel', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume })
     } else {
       pause = (
-        <Box flexDirection="row" gap={1}>
+        <Box flexDirection="row" gap={buttonGap}>
           {iconButton({ key: 'resume', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume, variant: 'primary' })}
           {shutdownButton}
         </Box>
@@ -2051,7 +2056,7 @@ export const register: Register = (on, options) => {
               )}
             </Box>
           </Box>
-          <Box flexDirection="row" gap={1}>
+          <Box flexDirection="row" gap={buttonGap}>
             {sessionsButton}
             {compact}
             {pause}

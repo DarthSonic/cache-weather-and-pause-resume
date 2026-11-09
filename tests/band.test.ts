@@ -317,8 +317,8 @@ describe('the band', () => {
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
     // In the desktop app each button is a one-colour icon with its word beside it in small type (0.10.0), on the
-    // right of the band; one button, so nothing appears or moves under the pointer (2026-11-09).
-    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎ Pause')
+    // right of the band. The word is Text outside the button: a native button keeps its own font (2026-11-09).
+    expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎')
     expect((await desktop.find({ type: 'Text', text: /^Pause$/ }))?.props.size).toBe('caption')
     expect(await desktop.find({ key: 'hint-pause-words' })).toBeUndefined()
     expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()

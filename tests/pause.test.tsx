@@ -194,7 +194,7 @@ describe('the pause button', () => {
       expect(await ui.find({ key: 'pause' })).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: /Pause wird vorbereitet/ })).toBeDefined()
       // „Weiter“ stands ready to call the pause off (0.9.3).
-      expect((await ui.find({ key: 'pause-cancel' }))?.props.label).toBe(surface === 'terminal' ? 'Weiter' : '▶︎ Weiter')
+      expect((await ui.find({ key: 'pause-cancel' }))?.props.label).toBe(surface === 'terminal' ? 'Weiter' : '▶︎')
       expect(await ui.find({ key: 'compact' })).toBeDefined()
 
       // Claude stops while a run is still in flight: still pausing, the band counts it.
@@ -226,7 +226,7 @@ describe('the pause button', () => {
     }
   })
 
-  test('in the desktop app each button holds its icon and its word in small type; a terminal shows the word', DE, async ($, on) => {
+  test('in the desktop app each button is its icon with its word beside it in small type; a terminal shows the word', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 1_000_000 })
     mock.session(on)
@@ -237,18 +237,22 @@ describe('the pause button', () => {
     }
     await terminal.unmount()
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    for (const [key, label] of [['sessions', '⧉ Sitzungen'], ['compact', '⇲ Compact'], ['pause', '⏸︎ Pause'], ['shutdown', '⏻ Shutdown']]) {
+    for (const [key, label] of [['sessions', '⧉'], ['compact', '⇲'], ['pause', '⏸︎'], ['shutdown', '⏻']]) {
       expect((await desktop.find({ key }))?.props.label).toBe(label)
     }
+    // The words stand outside the buttons: the desktop draws a button natively, at its own font (2026-11-09).
     for (const words of ['Sitzungen', 'Compact', 'Pause', 'Shutdown']) {
       expect((await desktop.find({ type: 'Text', text: new RegExp(`^${words}$`) }))?.props.size).toBe('caption')
     }
+    // Shutdown is not ready yet here: its word is dimmed with its icon.
+    expect((await desktop.find({ type: 'Text', text: /^Shutdown$/ }))?.props.dimColor).toBe(true)
     // Nothing waits hidden for the pointer any more (2026-11-09): a word shown on hover pushed the buttons aside.
     expect(await desktop.find({ key: 'hint-pause-words' })).toBeUndefined()
     expect(await desktop.find({ key: 'hint-pause-group' })).toBeUndefined()
     await desktop.press({ key: 'pause' })
     expect(prompts.at(-1)?.text).toContain('⏸ Pause-Knopf: Der Mensch bittet dich, die Sitzung zu pausieren.')
-    expect((await desktop.find({ key: 'pause-cancel' }))?.props.label).toBe('▶︎ Weiter')
+    expect((await desktop.find({ key: 'pause-cancel' }))?.props.label).toBe('▶︎')
+    expect(await desktop.find({ type: 'Text', text: /^Weiter$/ })).toBeDefined()
     await desktop.unmount()
   })
 
@@ -266,7 +270,7 @@ describe('the pause button', () => {
 
     await $.classic.Stop(stop())
     expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('Weiter')
-    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶︎ Weiter')
+    expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶︎')
     await terminal.unmount()
     await desktop.unmount()
   })
@@ -550,7 +554,8 @@ describe('the shutdown button', () => {
     await clock.settle()
     expect(host.runs).toEqual([[WHOAMI, '/priv'], [POWERCFG, '/a']])
     const button = await ui.find({ key: 'shutdown' })
-    expect(button?.props.label).toBe('⏾ Standby')
+    expect(button?.props.label).toBe('⏾')
+    expect((await ui.find({ type: 'Text', text: /^Standby$/ }))?.props.size).toBe('caption')
     expect(button?.props.dimColor).toBe(false)
 
     await ui.press({ key: 'shutdown' })
@@ -579,7 +584,8 @@ describe('the shutdown button', () => {
     await $.classic.SessionStart({ source: 'startup', session_id: 'h1' })
     await clock.settle()
     const button = await ui.find({ key: 'shutdown' })
-    expect(button?.props.label).toBe('❄︎ Ruhezustand')
+    expect(button?.props.label).toBe('❄︎')
+    expect((await ui.find({ type: 'Text', text: /^Ruhezustand$/ }))?.props.dimColor).toBe(true)
     expect(button?.props.dimColor).toBe(true)
     await ui.press({ key: 'shutdown' })
     expect(host.logs.at(-1)).toContain('powercfg /hibernate on')
@@ -828,7 +834,7 @@ describe('pause and shutdown across sessions', () => {
     expect((await terminal.find({ key: 'sessions' }))?.props.label).toBe('Sitzungen')
     await terminal.unmount()
     const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect((await band.find({ key: 'sessions' }))?.props.label).toBe('⧉ Sitzungen')
+    expect((await band.find({ key: 'sessions' }))?.props.label).toBe('⧉')
     await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
     signOfLife(
       files,
