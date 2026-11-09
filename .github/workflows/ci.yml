@@ -11,7 +11,12 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # The mod runs where its people work: the path logic and the shutdown's checks differ between the systems.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

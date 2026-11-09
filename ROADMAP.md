@@ -29,7 +29,7 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
 - [x] **0.9.5: standby or hibernation instead of shutdown**, option `shutdownMode`. Nothing is closed; the sessions
   are there again on waking, still paused. Each mode is checked at session start (on Windows hibernation is often off:
   `powercfg /hibernate on`).
-- [ ] **CI on Windows and macOS** next to Ubuntu, so the path logic is tested where it runs. It does not test a real
+- [x] **CI on Windows and macOS** next to Ubuntu (0.10.0), so the path logic is tested where it runs. It does not test a real
   shutdown.
 - [ ] **A macOS test.** An issue labelled `help wanted` asking someone with a Mac to try the shutdown button; until
   then the README marks macOS as untested.

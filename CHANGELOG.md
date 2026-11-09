@@ -16,6 +16,7 @@
   on one a line under the band names it and says what it does. A terminal keeps the words.
 - **What a model switch costs**: where a switch forfeits a cache that was still warm, a line with the tokens the next
   request writes again and Claude Code's own estimate in dollars (list price, a configured price, or estimated).
+- The CI runs validation and the tests on Ubuntu, Windows and macOS.
 - **Context forecast** in the status row: about how many turns are left until auto-compact, from ten on („Auto-Compact
   in ≈ 6 Zügen“, yellow from three, „wohl beim nächsten Zug“ at one). It reckons with the median growth of the last
   five turns that grew the context, once there are three (a turn after which it shrank, a compaction, adds nothing),
