@@ -226,7 +226,7 @@ describe('the pause button', () => {
     }
   })
 
-  test('in the desktop app each button is its icon with its word, drawn a size smaller; a terminal shows the word', DE, async ($, on) => {
+  test('in the desktop app each button is its icon with its word; a terminal shows the word', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 1_000_000 })
     mock.session(on)
@@ -239,8 +239,6 @@ describe('the pause button', () => {
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
     for (const [key, label] of [['sessions', '⧉ Sitzungen'], ['compact', '⇲ Compact'], ['pause', '⏸︎ Pause'], ['shutdown', '⏻ Shutdown']]) {
       expect((await desktop.find({ key }))?.props.label).toBe(label)
-      // The words stay inside their buttons, at the mod's smaller size (2026-11-09).
-      expect((await desktop.find({ type: 'Text', text: new RegExp(`^${label}$`, 'u') }))?.props.size).toBe('caption')
     }
     // Shutdown is not ready yet here: dimmed.
     expect((await desktop.find({ key: 'shutdown' }))?.props.dimColor).toBe(true)

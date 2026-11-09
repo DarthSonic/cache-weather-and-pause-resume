@@ -62,8 +62,7 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), about how many turns are left until auto-compact from ten on (`Auto-compact in about 6 turns`, yellow from three; from the median growth of the last five turns, once there are three, and only where the session reports its own threshold), why keep-warm waits, the shutdown check a press waits for. |
 
 In the desktop app each button is a one-colour icon with its word: ⧉ Sessions, ⇲ Compact, ⏸ Pause, ▶ Resume,
-⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, on the right of the band; the band and the sessions pane draw their text a
-size smaller than the transcript, for the room. A terminal shows the words alone.
+⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, on the right of the band. A terminal shows the words alone.
 
 Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.

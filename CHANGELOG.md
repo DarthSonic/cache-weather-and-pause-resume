@@ -14,8 +14,6 @@
   in the background, with the usage windows above. The signs of life carry these now; the pane only shows.
 - **Icons in the desktop app**: each button is a one-colour icon in text form (⧉ ⇲ ⏸ ▶ ⏻ ⏾ ❄ ✕) with its word, on the
   right of the band. A terminal keeps the words.
-- **Smaller text in the desktop app**: the band and the sessions pane draw their text a size smaller (caption), so the
-  readings and the buttons with their words fit in one row.
 - **What a model switch costs**: where a switch forfeits a cache that was still warm, a line with the tokens the next
   request writes again and Claude Code's own estimate in dollars (list price, a configured price, or estimated).
 - The CI runs validation and the tests on Ubuntu, Windows and macOS.

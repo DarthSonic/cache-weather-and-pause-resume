@@ -64,8 +64,7 @@ und die zeigt **Weiter**.
 | **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), wie viele Züge es ungefähr noch bis zum Auto-Compact sind, ab zehn (`Auto-Compact in ≈ 6 Zügen`, ab drei gelb; aus dem Median des Wachstums der letzten fünf Züge, sobald es drei gibt, und nur, wo die Sitzung ihre eigene Schwelle meldet), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
 In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⧉ Sitzungen, ⇲ Compact, ⏸ Pause, ▶ Weiter,
-⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, rechtsbündig in der Leiste; Leiste und Sitzungsübersicht schreiben
-eine Stufe kleiner als der Verlauf, damit alles Platz hat. Ein Terminal zeigt nur die Worte.
+⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, rechtsbündig in der Leiste. Ein Terminal zeigt nur die Worte.
 
 Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
