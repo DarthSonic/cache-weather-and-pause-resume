@@ -52,10 +52,10 @@ und die zeigt **Weiter**.
 
 | Teil | Was er zeigt |
 | --- | --- |
-| **Cache** | Restzeit des Prompt-Caches in Minuten (`m`) ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. Hinter dem Schrägstrich die Trefferquote: der Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam (`Cache 42 m / 98 %`). |
-| **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; warum Keep-warm wartet, wenn es wartet, steht in der Statuszeile. |
+| **Cache** | Restzeit des Prompt-Caches in Minuten ab der letzten Antwort oder Auffrischung durch Keep-warm; grün, ab 60 % Rest gelb, ab 20 % rot, bei 0 „abgelaufen“. Jede Minute neu gezeichnet. Dahinter die Trefferquote: der Anteil der Input-Tokens der letzten Antwort, der aus dem Cache kam (`Cache noch 42 min · Treffer 98 %` in der Desktop-App, `Cache 42 m / 98 %` im Terminal). |
+| **Keep-warm** | Ein Haken, in der Desktop-App „☐ / ☑ Cache warm halten“, im Terminal `[ ]` / `[✓] Keep-warm`, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). „(2× aufgefrischt)“, im Terminal `↻2`, zählt die Auffrischungen seit der letzten Anfrage; warum Keep-warm wartet, wenn es wartet, steht in der Statuszeile. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
-| **Ctx** | Füllung des Kontexts in Prozent und, hinter dem Schrägstrich, die Auto-Compact-Schwelle (`Ctx 5 % / 97 %`; `*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
+| **Kontext** | Füllung des Kontexts in Prozent und die Auto-Compact-Schwelle (`Kontext 5 % · Auto-Compact bei 97 %` in der Desktop-App, `Ctx 5 % / 97 %` im Terminal; „ca. 83 %“, im Terminal `83 %*` = Ersatzwert, wenn die Sitzung keine meldet). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
 | **Sitzungen** | Öffnet eine Seitenleiste mit allen Sitzungen auf dem Rechner, in denen der Mod läuft (unten). |
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |

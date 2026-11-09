@@ -763,7 +763,7 @@ describe('the pause across a restart', () => {
 
     await $.classic.SessionStart({ source: 'resume', session_id: 'sess-3', seconds_since_last_response: 120 })
     await $.classic.PostModelSwitch({ cache_ttl: '1h' })
-    expect(await ui.find({ type: 'Text', text: /^Cache 58 m/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Cache noch 58 min/ })).toBeDefined()
     await ui.unmount()
   })
 })
@@ -1135,7 +1135,7 @@ describe('the cache lifetime', () => {
       seconds_since_last_response: 1200,
       prompt_cache_likely_expired: false,
     })
-    expect(await ui.find({ type: 'Text', text: /^Cache 40 m$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Cache noch 40 min$/ })).toBeDefined()
     expect(JSON.parse(files[STATE] ?? '{}').ttlConfirmedAt).toBe(100 * HOUR)
     await ui.unmount()
   })
@@ -1202,7 +1202,8 @@ describe('keep-warm', () => {
     expect((await terminal.find({ key: 'keep-warm' }))?.props.label).toBe('[✓] Keep-warm')
     expect(JSON.parse(files[STATE] ?? '{}').keepWarmSessions).toEqual({ s1: START })
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    expect((await desktop.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Keep-warm')
+    // Spelled out in the desktop app (0.10.0).
+    expect((await desktop.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Cache warm halten')
     await desktop.press({ key: 'keep-warm' })
     expect(JSON.parse(files[STATE] ?? '{}').keepWarmSessions).toEqual({})
     expect(JSON.parse(files[STATE] ?? '{}').keepWarmOffSessions).toEqual({ s1: START })
@@ -1391,8 +1392,8 @@ describe('keep-warm', () => {
     expect(asked.prompts.length).toBe(1)
     expect(asked.prompts[0]).toContain('keep-warm')
     expect(asked.logs.at(-1)).toBe('↻ Keep-warm: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort)')
-    expect(await ui.find({ type: 'Text', text: /^Cache 60 m/ })).toBeDefined()
-    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Keep-warm ↻1')
+    expect(await ui.find({ type: 'Text', text: /^Cache noch 60 min/ })).toBeDefined()
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Cache warm halten (1× aufgefrischt)')
 
     await clock.advance(55 * MIN)
     expect(asked.prompts.length).toBe(2)
@@ -1541,7 +1542,7 @@ describe('keep-warm', () => {
     // What the unused refreshes cost (0.10.0): 11 × (150.000 × 0,1 + 30 + 2 × 5).
     expect(asked.logs.at(-1)).toContain('11 Auffrischungen kosteten so viel wie 165.440 Input-Tokens')
     // The checkbox stays as the person set it.
-    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toMatch(/^☑ Keep-warm/)
+    expect((await ui.find({ key: 'keep-warm' }))?.props.label).toMatch(/^☑ Cache warm halten/)
     await ui.unmount()
   })
 

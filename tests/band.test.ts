@@ -296,7 +296,10 @@ describe('the band', () => {
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...BAND, surface })
       expect(await ui.find({ type: 'Text', text: /Cache/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /^Ctx – \/ 83 %\*$/ })).toBeDefined()
+      // Short in a terminal, spelled out in the desktop app (0.10.0); the language follows the machine here.
+      const context =
+        surface === 'terminal' ? /^Ctx – \/ 83 %\*$/ : /^(Kontext – · Auto-Compact bei ca\. 83 %|Context – · auto-compact at about 83 %)$/
+      expect(await ui.find({ type: 'Text', text: context })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /Hits|Max/ })).toBeUndefined()
       expect(await ui.find({ key: 'pause' })).toBeDefined()
       expect(await ui.find({ key: 'compact' })).toBeDefined()

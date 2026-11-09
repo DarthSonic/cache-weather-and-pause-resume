@@ -50,10 +50,10 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 
 | Part | What it shows |
 | --- | --- |
-| **Cache** | Minutes left (`m`) of the prompt cache since the last response or keep-warm refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. After the slash the hit rate: the share of the last response's input tokens that came from the cache (`Cache 42 m / 98 %`). |
-| **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; why keep-warm waits, when it does, stands in the status row. |
+| **Cache** | Minutes left of the prompt cache since the last response or keep-warm refresh; green, yellow from 60 % of the lifetime left, red from 20 %, “expired” at 0. Redrawn every minute. Then the hit rate: the share of the last response's input tokens that came from the cache (`Cache 42 min left · Hits 98 %` in the desktop app, `Cache 42 m / 98 %` in a terminal). |
+| **Keep-warm** | A checkbox, “☐ / ☑ Keep cache warm” in the desktop app, `[ ]` / `[✓] Keep-warm` in a terminal, checked by default: refreshes the cache shortly before it runs out (below). “(refreshed 2×)”, `↻2` in a terminal, counts the refreshes since the last request; why keep-warm waits, when it does, stands in the status row. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
-| **Ctx** | Context fill in percent and, after the slash, the auto-compact threshold (`Ctx 5 % / 97 %`; `*`: the fallback of 83 %, when the session reports none). |
+| **Context** | Context fill in percent and the auto-compact threshold (`Context 5 % · auto-compact at 97 %` in the desktop app, `Ctx 5 % / 97 %` in a terminal; “about 83 %”, `83 %*` in a terminal: the fallback, when the session reports none). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
 | **Sessions** | Opens a pane with every session on the computer that runs the mod (below). |
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |

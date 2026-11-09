@@ -16,6 +16,10 @@
   row of their own over the readings: beside the readings there was no room for them. The cache bar keeps 10 px from
   the row above it (6 before). A terminal keeps the words in
   one row. In both, Compact comes before the new Sessions button.
+- **Readings spelled out in the desktop app**, now that they have a row of their own: „Cache noch 58 min · Treffer
+  100 %“ / “Cache 58 min left · Hits 100 %”, „☑ Cache warm halten (2× aufgefrischt)“ / “☑ Keep cache warm (refreshed
+  2×)”, „Kontext 24 % · Auto-Compact bei 97 %“ / “Context 24 % · auto-compact at 97 %” (an assumed threshold „ca.“ /
+  “about”). A terminal keeps the short forms; status rows and logs keep the name Keep-warm.
 - **What a model switch costs**: where a switch forfeits a cache that was still warm, a line with the tokens the next
   request writes again and Claude Code's own estimate in dollars (list price, a configured price, or estimated).
 - The CI runs validation and the tests on Ubuntu, Windows and macOS.

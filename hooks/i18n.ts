@@ -47,6 +47,16 @@ export type Strings = {
   cacheExpired: string
   cacheMinutes: (minutes: number) => string
   ctx: string
+  /**
+   * The readings spelled out in the desktop app, where they have a row of their own (0.10.0): the cache time left, the
+   * hit rate, the context against the auto-compact threshold (an assumed one „ca.“), keep-warm's switch and its count.
+   * A terminal keeps the short forms.
+   */
+  cacheLeft: (minutes: number) => string
+  hits: (percent: number) => string
+  context: (fill: string, threshold: number, isAssumed: boolean) => string
+  keepWarmSwitch: string
+  keepWarmRefreshes: (n: number) => string
   compact: string
   compacting: string
   pause: string
@@ -120,6 +130,11 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   cacheExpired: 'Cache abgelaufen',
   cacheMinutes: m => `Cache ${m} m`,
   ctx: 'Ctx',
+  cacheLeft: m => `Cache noch ${m} min`,
+  hits: p => `Treffer ${p} %`,
+  context: (fill, threshold, isAssumed) => `Kontext ${fill} · Auto-Compact bei ${isAssumed ? 'ca. ' : ''}${threshold} %`,
+  keepWarmSwitch: 'Cache warm halten',
+  keepWarmRefreshes: n => `(${n}× aufgefrischt)`,
   compact: 'Compact',
   compacting: 'Compact …',
   pause: 'Pause',
@@ -187,6 +202,11 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   cacheExpired: 'Cache expired',
   cacheMinutes: m => `Cache ${m} m`,
   ctx: 'Ctx',
+  cacheLeft: m => `Cache ${m} min left`,
+  hits: p => `Hits ${p} %`,
+  context: (fill, threshold, isAssumed) => `Context ${fill} · auto-compact at ${isAssumed ? 'about ' : ''}${threshold} %`,
+  keepWarmSwitch: 'Keep cache warm',
+  keepWarmRefreshes: n => `(refreshed ${n}×)`,
   compact: 'Compact',
   compacting: 'Compact …',
   pause: 'Pause',

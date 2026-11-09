@@ -1788,7 +1788,7 @@ export const register: Register = (on, options) => {
           : t.cacheNone
         : share <= 0
           ? t.cacheExpired
-          : t.cacheMinutes(remainingMinutes(last, life.minutes, at))
+          : (isTerminal ? t.cacheMinutes : t.cacheLeft)(remainingMinutes(last, life.minutes, at))
     const tone = share === null ? 'subtle' : cacheTone(share)
     // An expired cache leaves its readings stale: hits, context and threshold go until the next response.
     const isExpired = share !== null && share <= 0
@@ -1810,7 +1810,9 @@ export const register: Register = (on, options) => {
             : note === 'limit'
               ? t.keepWarmLimit(Math.round(usageStopping(await read($, usageWindows))?.percentUsed ?? 90))
               : t.keepWarmMissed
-    const keepWarmLabel = `${box} ${t.keepWarm}${isKeptWarm && refreshes > 0 ? ` ↻${refreshes}` : ''}`
+    // Spelled out in the desktop app („☑ Cache warm halten (2× aufgefrischt)“), short in a terminal („[✓] Keep-warm ↻2“).
+    const refreshCount = !isKeptWarm || refreshes <= 0 ? '' : isTerminal ? ` ↻${refreshes}` : ` ${t.keepWarmRefreshes(refreshes)}`
+    const keepWarmLabel = `${box} ${isTerminal ? t.keepWarm : t.keepWarmSwitch}${refreshCount}`
     const onKeepWarm = async () => setKeepWarm($, !(await read($, keepWarm)))
     const keepWarmControl = <Button key="keep-warm" label={keepWarmLabel} plain onPress={onKeepWarm} />
 
@@ -2016,8 +2018,11 @@ export const register: Register = (on, options) => {
     })
 
     const ttlNote = life === null ? '' : life.source === 'remembered' ? ` (${life.minutes === 60 ? '1 h' : '5 m'}?)` : ''
-    // The hit rate rides on the cache time („Cache 60 m / 98 %“), the threshold on the context („Ctx 5 % / 97 %“).
-    const hits = isExpired || rate === null ? '' : ` / ${Math.round(rate * 100)} %`
+    // The hit rate rides on the cache time, the threshold on the context: short in a terminal („Cache 60 m / 98 %“,
+    // „Ctx 5 % / 97 %“), spelled out in the desktop app, where the readings have a row of their own („Cache noch 60 min ·
+    // Treffer 98 %“, „Kontext 5 % · Auto-Compact bei 97 %“).
+    const hitPercent = rate === null ? 0 : Math.round(rate * 100)
+    const hits = isExpired || rate === null ? '' : isTerminal ? ` / ${hitPercent} %` : ` · ${t.hits(hitPercent)}`
     // In the desktop app a narrow band squeezed the readings until „Hits 100 %“ broke over two lines and the cache time
     // was cut („Cache 6…“): there they keep their width.
     const keep = isTerminal ? {} : { flexShrink: 0 }
@@ -2038,7 +2043,9 @@ export const register: Register = (on, options) => {
           {skyText}
           {isExpired ? null : (
             <Text>
-              {t.ctx} {fillText} / {limit.percent} %{limit.isFallback ? '*' : ''}
+              {isTerminal
+                ? `${t.ctx} ${fillText} / ${limit.percent} %${limit.isFallback ? '*' : ''}`
+                : t.context(fillText, limit.percent, limit.isFallback)}
             </Text>
           )}
         </Box>
