@@ -30,6 +30,17 @@ function duration(minutes: number): string {
   return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, '0')} min`
 }
 
+// The countdown as the status row shows it: minutes and seconds from a minute on, seconds below.
+function clock(seconds: number): string {
+  if (seconds < 60) return `${seconds} s`
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+// A span as the notification names it: whole minutes where it is some, else seconds.
+function span(seconds: number): string {
+  return seconds >= 60 && seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} s`
+}
+
 export type Strings = {
   cacheUnknown: string
   cacheNone: string
@@ -70,6 +81,12 @@ export type Strings = {
   /** The notification as the countdown starts: its heading, and the body naming the session's folder. */
   shutdownNotifyTitle: (seconds: number) => string
   shutdownNotifyBody: (folder: string | null) => string
+  /** Whom the shutdown waits for, by folder. */
+  waitingFor: (folders: readonly string[]) => string
+  /** Sessions at work that run without the mod: they go down unpaused. */
+  withoutMod: (count: number) => string
+  /** Behind a pause another session asked for. */
+  fromSession: (folder: string | null) => string
 }
 
 const DE: Strings = {
@@ -103,7 +120,7 @@ const DE: Strings = {
   shutdown: 'Shutdown',
   shutdownCancel: 'Abbrechen',
   shutdownRequested: 'Shutdown wird vorbereitet …',
-  shutdownIn: seconds => `Shutdown in ${seconds} s`,
+  shutdownIn: seconds => `Shutdown in ${clock(seconds)}`,
   shutdownRunning: 'Fährt herunter …',
   shutdownCancelled: 'Shutdown abgebrochen. Die Pause bleibt, wie sie ist.',
   shutdownFailed: error => `Shutdown fehlgeschlagen: ${error}`,
@@ -119,9 +136,18 @@ const DE: Strings = {
             ? 'Shutdown ist nicht verfügbar: Die Prüfung der Voraussetzungen ließ sich nicht ausführen. Eine neue Sitzung prüft erneut.'
             : 'Shutdown ist nicht verfügbar: Das Betriebssystem wurde nicht erkannt (Windows, Linux und macOS werden unterstützt).',
   shutdownLog: '⏻ Shutdown: Die Sitzung ist pausiert, der Rechner fährt jetzt herunter.',
-  shutdownNotifyTitle: seconds => `Shutdown in ${seconds} s`,
+  shutdownNotifyTitle: seconds => `Shutdown in ${span(seconds)}`,
   shutdownNotifyBody: folder =>
     `${folder === null ? 'Die Sitzung' : `Die Sitzung in ${folder}`} ist pausiert, der Rechner fährt gleich herunter. Abbrechen in der Leiste über dem Eingabefeld.`,
+  waitingFor: folders =>
+    folders.length === 0
+      ? 'Shutdown: sieht nach den anderen Sitzungen …'
+      : `Shutdown wartet auf ${folders.length === 1 ? '1 Sitzung' : `${folders.length} Sitzungen`}: ${folders.join(', ')}`,
+  withoutMod: n =>
+    n === 1
+      ? '1 weitere Sitzung arbeitet ohne den Mod und wird nicht pausiert'
+      : `${n} weitere Sitzungen arbeiten ohne den Mod und werden nicht pausiert`,
+  fromSession: folder => (folder === null ? 'aus einer anderen Sitzung' : `aus ${folder}`),
 }
 
 const EN: Strings = {
@@ -155,7 +181,7 @@ const EN: Strings = {
   shutdown: 'Shutdown',
   shutdownCancel: 'Cancel',
   shutdownRequested: 'Preparing the shutdown …',
-  shutdownIn: seconds => `Shutdown in ${seconds} s`,
+  shutdownIn: seconds => `Shutdown in ${clock(seconds)}`,
   shutdownRunning: 'Shutting down …',
   shutdownCancelled: 'Shutdown cancelled. The pause stays as it is.',
   shutdownFailed: error => `Shutdown failed: ${error}`,
@@ -171,9 +197,18 @@ const EN: Strings = {
             ? 'Shutdown is not available: the check of what it needs could not run. A new session checks again.'
             : 'Shutdown is not available: the operating system was not recognised (Windows, Linux and macOS are supported).',
   shutdownLog: '⏻ Shutdown: the session is paused, the computer shuts down now.',
-  shutdownNotifyTitle: seconds => `Shutdown in ${seconds} s`,
+  shutdownNotifyTitle: seconds => `Shutdown in ${span(seconds)}`,
   shutdownNotifyBody: folder =>
     `${folder === null ? 'The session' : `The session in ${folder}`} is paused, and the computer shuts down shortly. Cancel in the band above the prompt.`,
+  waitingFor: folders =>
+    folders.length === 0
+      ? 'Shutdown: looking at the other sessions …'
+      : `Shutdown waits for ${folders.length === 1 ? '1 session' : `${folders.length} sessions`}: ${folders.join(', ')}`,
+  withoutMod: n =>
+    n === 1
+      ? '1 more session is at work without the mod and is not paused'
+      : `${n} more sessions are at work without the mod and are not paused`,
+  fromSession: folder => (folder === null ? 'from another session' : `from ${folder}`),
 }
 
 export function strings(lang: Lang): Strings {

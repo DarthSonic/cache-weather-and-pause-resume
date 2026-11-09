@@ -140,6 +140,15 @@ export function inFlight(tasks: readonly { status: string }[] | undefined): numb
   return (tasks ?? []).filter(t => !DONE.has(t.status.toLowerCase())).length
 }
 
+/** The background tasks still in flight, by their description: what another session's question names. */
+export function runsInFlight(
+  tasks: readonly { status: string; description?: string; type?: string }[] | undefined,
+): string[] {
+  return (tasks ?? [])
+    .filter(t => !DONE.has(t.status.toLowerCase()))
+    .map(t => (t.description ?? t.type ?? '').trim() || '?')
+}
+
 export function minutesBetween(from: number | null, to: number): number | null {
   if (from === null || to < from) return null
   return Math.floor((to - from) / 60_000)

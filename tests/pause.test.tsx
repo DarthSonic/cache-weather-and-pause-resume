@@ -405,7 +405,7 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
-  test('pauses first, asks Claude to ask now, counts down 60 s, then shuts down', DE, async ($, on) => {
+  test('pauses first, asks Claude to ask now, counts down 5 minutes, then shuts down', DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: 9_000_000 })
     disk(on, {}, { OS: 'Windows_NT' })
@@ -422,9 +422,11 @@ describe('the shutdown button', () => {
     expect(await ui.find({ type: 'Text', text: /Shutdown wird vorbereitet/ })).toBeDefined()
 
     await $.classic.Stop(stop(undefined, 'x2'))
-    expect(await ui.find({ type: 'Text', text: /^Shutdown in 60 s$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in 5:00$/ })).toBeDefined()
     expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
-    await clock.advance(59_000)
+    await clock.advance(235_000)
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in 1:05$/ })).toBeDefined()
+    await clock.advance(64_000)
     expect(await ui.find({ type: 'Text', text: /^Shutdown in 1 s$/ })).toBeDefined()
     expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
     await clock.advance(1_000)
@@ -517,7 +519,7 @@ describe('the shutdown button', () => {
       await clock.advance(1_000)
       expect(notes.length).toBe(expected)
       if (expected === 1) {
-        expect(notes[0]?.title).toBe('Shutdown in 60 s')
+        expect(notes[0]?.title).toBe('Shutdown in 5 min')
         expect(notes[0]?.text).toContain('fährt gleich herunter')
       }
       await ui.press({ key: 'shutdown-cancel' })
@@ -639,6 +641,195 @@ describe('the pause across a restart', () => {
     await $.classic.SessionStart({ source: 'resume', session_id: 'sess-3', seconds_since_last_response: 120 })
     await $.classic.PostModelSwitch({ cache_ttl: '1h' })
     expect(await ui.find({ type: 'Text', text: /^Cache 58 m/ })).toBeDefined()
+    await ui.unmount()
+  })
+})
+
+// Pause and shutdown across sessions (0.9.4): each session's sign of life in the state file, and the request one
+// session writes for all of them. The other sessions stand in the state file as their signs of life.
+describe('pause and shutdown across sessions', () => {
+  const T0 = 20_000_000
+  const REQUEST = 'C:/Users/test/.claude/cache-weather-and-pause-resume/request.json'
+  const SESSIONS_TOOL = 'mcp__cache-weather-and-pause-resume__pause_sessions'
+  const WHOAMI = 'C:\\Windows\\System32\\whoami.exe'
+  const live = (over: Record<string, unknown> = {}) => ({
+    seenAt: T0,
+    folder: 'repo-b',
+    phase: 'running',
+    workingSince: null,
+    runs: [],
+    isAwaitingPerson: false,
+    requestId: null,
+    ...over,
+  })
+  const foreign = (over: Record<string, unknown> = {}) => ({
+    id: 'b2-1',
+    kind: 'shutdown',
+    by: 'b2',
+    byFolder: 'repo-b',
+    // Decided after this session started: one opened later was no part of it.
+    at: T0 + 1_000,
+    state: 'decided',
+    decidedAt: T0 + 1_000,
+    decisions: {},
+    countdownUntil: null,
+    ...over,
+  })
+  const state = (files: Record<string, string>) => JSON.parse(files[STATE] ?? '{}')
+  // Another session writes its sign of life: the entry in the state file, the others kept.
+  const signOfLife = (files: Record<string, string>, id: string, entry: Record<string, unknown>) => {
+    const now = state(files)
+    files[STATE] = JSON.stringify({ ...now, liveSessions: { ...(now.liveSessions ?? {}), [id]: entry } })
+  }
+
+  test('each session writes its sign of life every 15 seconds', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const files = disk(on)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await clock.advance(15_000)
+    expect(state(files).liveSessions.a1).toMatchObject({ seenAt: T0 + 15_000, phase: 'running', runs: [], workingSince: null })
+    await $.turn.start({ text: 'baue das Feature', turnId: 't1' })
+    await clock.advance(15_000)
+    expect(state(files).liveSessions.a1.workingSince).toBe(T0 + 15_000)
+    await ui.unmount()
+  })
+
+  test('a request decided before the session started is no concern of it', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    disk(on, { [REQUEST]: JSON.stringify(foreign({ at: T0 - 60_000, decidedAt: T0 - 60_000 })) })
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await clock.advance(30_000)
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('an idle session paused from elsewhere counts as paused at once, and picks up with it without a prompt', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const files = disk(on, { [REQUEST]: JSON.stringify(foreign()) })
+    const prompts = engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await clock.advance(15_000)
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Pausiert seit < 1 min · aus repo-b$/ })).toBeDefined()
+    expect(prompts).toEqual([])
+    expect(state(files).liveSessions.a1).toMatchObject({ phase: 'paused', requestId: 'b2-1' })
+
+    files[REQUEST] = JSON.stringify(foreign({ state: 'resumed' }))
+    await clock.advance(15_000)
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    expect(prompts).toEqual([])
+    await ui.unmount()
+  })
+
+  test('a session at work paused from elsewhere asks nothing, ends its runs as answered, and turns dialogs away', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const session = mock.session(on)
+    disk(on, { [REQUEST]: JSON.stringify(foreign({ decisions: { a1: 'end' } })) })
+    engine(on)
+    on('tool.call', { tool: 'AskUserQuestion' }, () => ({ result: 'asked' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await $.turn.start({ text: 'baue das Feature', turnId: 't1' })
+    await clock.advance(15_000)
+    const row = JSON.stringify(session.appended().at(-1)?.message.content)
+    expect(row).toContain('Pause aus der Sitzung in repo-b')
+    expect(row).toContain('Beende deine laufenden Hintergrund-Tasks jetzt')
+    expect(await ui.find({ type: 'Text', text: /Shutdown wird vorbereitet … · aus repo-b$/ })).toBeDefined()
+    const asked = await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
+    expect(JSON.stringify(asked)).toContain('Stell jetzt keine Frage')
+    await ui.unmount()
+  })
+
+  test('a shutdown asks about the sessions at work, waits for the runs it was told to, then counts down', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const files = disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    on('process.run', ($, e) => ({
+      value: {
+        exitCode: 0,
+        stdout: e.argv[0] === WHOAMI ? 'SeShutdownPrivilege   Herunterfahren des Systems   Deaktiviert' : '',
+        stderr: '',
+        isStdoutTruncated: false,
+        isStderrTruncated: false,
+      },
+    }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await clock.settle()
+    signOfLife(files, 'b2b2b2b2-9', live({ seenAt: T0, workingSince: T0 - 18 * 60_000, runs: ['Suite'] }))
+
+    await ui.press({ key: 'shutdown' })
+    const asked = prompts.at(-1)?.text ?? ''
+    expect(asked).toContain('Andere Sitzungen auf diesem Rechner')
+    expect(asked).toContain('b2b2b2b2 (repo-b): Claude arbeitet seit 18 min; 1 Lauf im Hintergrund: Suite')
+    expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('open')
+
+    const answered = await $.tool.call({ tool: SESSIONS_TOOL, sessions: [{ session: 'b2b2b2b2', action: 'wait' }] } as never)
+    expect(JSON.stringify(answered)).toContain('the shutdown waits')
+    const request = JSON.parse(files[REQUEST] ?? '{}')
+    expect(request).toMatchObject({ state: 'decided', decisions: { 'b2b2b2b2-9': 'wait' } })
+
+    // This session has paused; the other one still runs its suite: the shutdown waits for it.
+    await $.classic.Stop(stop(undefined, 'a1'))
+    expect(await ui.find({ type: 'Text', text: /^Shutdown wartet auf 1 Sitzung: repo-b$/ })).toBeDefined()
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
+    // The other session took the request up and runs its suite for 16 minutes, writing its sign of life meanwhile:
+    // told to wait, it is waited for past 15 minutes.
+    let at = T0
+    for (let step = 0; step < 64; step += 1) {
+      signOfLife(files, 'b2b2b2b2-9', live({ seenAt: at, phase: 'pausing', runs: ['Suite'], requestId: request.id }))
+      await clock.advance(15_000)
+      at += 15_000
+    }
+    expect(await ui.find({ type: 'Text', text: /^Shutdown wartet auf 1 Sitzung: repo-b$/ })).toBeDefined()
+
+    signOfLife(files, 'b2b2b2b2-9', live({ seenAt: at, phase: 'paused', requestId: request.id }))
+    await clock.advance(15_000)
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in 5:00$/ })).toBeDefined()
+    expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('countdown')
+
+    // Cancelled: the shutdown is off for all, the pauses stay; „Weiter“ then picks them all back up.
+    await ui.press({ key: 'shutdown-cancel' })
+    expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('cancelled')
+    await ui.press({ key: 'resume' })
+    expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('resumed')
+    await ui.unmount()
+  })
+
+  test('a pause asks whether the sessions at work pause too; kept to its own session, the others go on', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const files = disk(on)
+    const prompts = engine(on)
+    on('tool.call', { tool: 'AskUserQuestion' }, () => ({ result: 'asked' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await clock.settle()
+    signOfLife(files, 'b2b2b2b2-9', live({ runs: ['Build'] }))
+    signOfLife(files, 'c3c3c3c3-9', live({ folder: 'repo-c' }))
+
+    await ui.press({ key: 'pause' })
+    const asked = prompts.at(-1)?.text ?? ''
+    expect(asked).toContain('ob diese Sitzungen mitpausieren sollen')
+    expect(asked).toContain('b2b2b2b2 (repo-b)')
+    // An idle session is not listed: it has nothing to decide.
+    expect(asked).not.toContain('repo-c')
+    // The pause's own question is still open.
+    expect(JSON.stringify(await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never))).toContain('asked')
+
+    await $.tool.call({ tool: SESSIONS_TOOL, pauseOthers: false, sessions: [] } as never)
+    expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('withdrawn')
+    expect(JSON.stringify(await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never))).toContain('Stell jetzt keine Frage')
     await ui.unmount()
   })
 })

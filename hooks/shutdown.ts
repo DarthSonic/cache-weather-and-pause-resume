@@ -4,7 +4,7 @@
 import type { ShutdownOs } from '../types'
 
 /** How long the band counts down once the session is paused, before the command runs. */
-export const SHUTDOWN_COUNTDOWN_MS = 60_000
+export const SHUTDOWN_COUNTDOWN_MS = 300_000
 
 // What the Windows shutdown log records as the reason.
 const SHUTDOWN_COMMENT = 'cache-weather-and-pause-resume: the session is paused, shut down from the band'

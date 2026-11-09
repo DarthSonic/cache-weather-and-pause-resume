@@ -1,7 +1,17 @@
 import { atom, read, update } from 'claude-code'
 import type { ClassicResultOf, EngineInterface, Register, Timer } from 'claude-code'
 
-import type { ContextFill, KeepWarmNote, PausePhase, ShutdownReadiness, Threshold, Ttl } from '../types'
+import type {
+  ContextFill,
+  KeepWarmNote,
+  LiveSession,
+  PausePhase,
+  RunsDecision,
+  SessionRequest,
+  ShutdownReadiness,
+  Threshold,
+  Ttl,
+} from '../types'
 import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
@@ -42,8 +52,30 @@ import {
   pauseToolDescription,
   resumeContext,
   resumeText,
+  runsInFlight,
   shutdownNote,
 } from './pause'
+import {
+  HEARTBEAT_MS,
+  RECENT_TRANSCRIPT_MS,
+  SESSIONS_TOOL,
+  SESSIONS_TOOL_NAME,
+  asksToPause,
+  folderOf,
+  foreignPauseRequest,
+  isAlive,
+  isBusy,
+  isSessionRequest,
+  liveOthers,
+  othersNote,
+  questionRefusal,
+  readDecisions,
+  sessionsToolDescription,
+  shortId,
+  shutdownOthersPrompt,
+  waitingFor,
+  withoutForgotten,
+} from './sessions'
 import {
   SHUTDOWN_COUNTDOWN_MS,
   UNIX_PROGRAMS,
@@ -84,6 +116,16 @@ const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 
 const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
 const shutdownPhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPhase' } as const, 'idle')
 const shutdownAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownAt' } as const, null)
+const workingSince = atom({ plugin: 'cache-weather-and-pause-resume', key: 'workingSince' } as const, null)
+const backgroundRuns = atom({ plugin: 'cache-weather-and-pause-resume', key: 'backgroundRuns' } as const, [])
+const questionsClosed = atom({ plugin: 'cache-weather-and-pause-resume', key: 'questionsClosed' } as const, false)
+const sessionRequest = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionRequest' } as const, null)
+const requestRole = atom({ plugin: 'cache-weather-and-pause-resume', key: 'requestRole' } as const, null)
+const listedSessions = atom({ plugin: 'cache-weather-and-pause-resume', key: 'listedSessions' } as const, [])
+const pausedByRequest = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pausedByRequest' } as const, null)
+const isIdlePause = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isIdlePause' } as const, false)
+const waitingSessions = atom({ plugin: 'cache-weather-and-pause-resume', key: 'waitingSessions' } as const, [])
+const sessionsWithoutMod = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionsWithoutMod' } as const, 0)
 
 // The language before session.start has read the locale: the option, else the runtime's locale. Set by `register`.
 let fallbackLang: Lang = 'en'
@@ -107,6 +149,8 @@ type Persisted = {
   /** The sessions it is switched off in (keep-warm is on by default, option `keepWarm`). */
   keepWarmOffSessions?: Record<string, number>
   codeVersion?: string
+  /** Each session's sign of life, written by that session alone (0.9.4). */
+  liveSessions?: Record<string, LiveSession>
 }
 
 // $.fs.read refuses files over 4 MiB: a longer transcript is not read, and the values remembered stand. (The mod
@@ -411,6 +455,12 @@ let shutdownTicker: Timer | null = null
 let pauseToolRegistered = false
 let keepWarmStarted = false
 let tickerStarted = false
+let heartbeatStarted = false
+let sessionsToolRegistered = false
+// The other session's request this module has taken up already: it is not taken up twice.
+let handledRequestId: string | null = null
+// When this module first saw its session start: a request decided before is no concern of it.
+let moduleStartedAt: number | null = null
 let isRefreshing = false
 let retryAt = 0
 
@@ -631,18 +681,27 @@ async function requestShutdown($: EngineInterface, askAbove: number): Promise<vo
   }
   if ((await read($, shutdownPhase)) !== 'idle') return
   const phase = await read($, pausePhase)
-  if (phase === 'paused') {
-    await startShutdownCountdown($)
+  await update($, shutdownPhase, () => 'requested')
+  if (phase === 'running') {
+    await requestPause($, askAbove, 'shutdown')
     return
   }
-  await update($, shutdownPhase, () => 'requested')
-  if (phase === 'running') await requestPause($, askAbove, shutdownNote(lang))
-  else await handToModel($, shutdownNote(lang))
+  // The other sessions go down with this one: where some have work running, Claude asks the person about it first.
+  const others = await prepareRequest($, 'shutdown')
+  if (phase === 'paused') {
+    if (others.busy.length === 0) await beginShutdownWait($)
+    else await handToModel($, shutdownOthersPrompt(others.busy, others.at, lang))
+    return
+  }
+  // A pause under way: Claude learns that the computer goes off after it.
+  await handToModel($, others.note === null ? shutdownNote(lang) : `${shutdownNote(lang)}\n\n${others.note}`)
 }
 
 async function startShutdownCountdown($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
   stopShutdownTimers()
+  await update($, waitingSessions, () => [])
+  await changeOwnRequest($, r => ({ ...r, state: 'countdown', countdownUntil: at + SHUTDOWN_COUNTDOWN_MS }))
   await update($, shutdownAt, () => at + SHUTDOWN_COUNTDOWN_MS)
   await update($, shutdownPhase, () => 'countdown')
   await update($, now, () => at)
@@ -663,12 +722,7 @@ async function startShutdownCountdown($: EngineInterface): Promise<void> {
 async function notifyCountdown($: EngineInterface): Promise<void> {
   if (!isNotifying) return
   const t = strings(await currentLang($))
-  let folder: string | null = null
-  try {
-    folder = (await $.session.cwd()).split(/[\\/]/).filter(part => part !== '').at(-1) ?? null
-  } catch {
-    // No working folder to name: the body says "the session".
-  }
+  const folder = await currentFolder($)
   await $.ui.notify(t.shutdownNotifyBody(folder), { title: t.shutdownNotifyTitle(SHUTDOWN_COUNTDOWN_MS / 1000) })
 }
 
@@ -685,6 +739,13 @@ async function cancelShutdown($: EngineInterface, isQuiet: boolean): Promise<voi
   if ((await read($, shutdownPhase)) === 'idle') return
   await update($, shutdownPhase, () => 'idle')
   await update($, shutdownAt, () => null)
+  await update($, waitingSessions, () => [])
+  // The other sessions keep their pauses; the shutdown is off for all of them.
+  await changeOwnRequest($, r =>
+    r.kind === 'shutdown' && (r.state === 'open' || r.state === 'decided' || r.state === 'countdown')
+      ? { ...r, state: 'cancelled' }
+      : null,
+  )
   if (!isQuiet) $.ui.toast(strings(await currentLang($)).shutdownCancelled)
 }
 
@@ -698,6 +759,7 @@ async function runShutdown($: EngineInterface): Promise<void> {
   }
   const t = strings(await currentLang($))
   await update($, shutdownPhase, () => 'shutting')
+  await changeOwnRequest($, r => ({ ...r, state: 'done' }))
   $.ui.log(t.shutdownLog)
   try {
     const program = readiness.command[0] ?? ''
@@ -735,6 +797,266 @@ async function registerPauseTool($: EngineInterface, askAbove: number): Promise<
   }
 }
 
+// ── Pause and shutdown across sessions (0.9.4) ────────────────────────────────────────────────────────────────────
+
+// The session's working folder by its last part, to name it to the person in another session.
+async function currentFolder($: EngineInterface): Promise<string | null> {
+  try {
+    return folderOf(await $.session.cwd())
+  } catch {
+    return null
+  }
+}
+
+// Every session writes its sign of life into the state file, every HEARTBEAT_MS and at each change of its pause:
+// what the others read to ask the person about it, and to know whether it has paused. Its own entry alone.
+async function writeHeartbeat($: EngineInterface): Promise<void> {
+  const self = await currentSessionId($)
+  if (self === null) return
+  const at = await $.clock.now()
+  const entry: LiveSession = {
+    seenAt: at,
+    folder: await currentFolder($),
+    phase: await read($, pausePhase),
+    workingSince: await read($, workingSince),
+    runs: await read($, backgroundRuns),
+    isAwaitingPerson: await read($, isAwaitingPerson),
+    requestId: (await read($, pausedByRequest)) ?? handledRequestId,
+  }
+  await writePersisted($, p => ({ ...p, liveSessions: { ...withoutForgotten(p.liveSessions, at), [self]: entry } }))
+}
+
+async function forgetHeartbeat($: EngineInterface, id: string): Promise<void> {
+  await writePersisted($, p => {
+    if (p.liveSessions?.[id] === undefined) return p
+    const live = { ...p.liveSessions }
+    delete live[id]
+    return { ...p, liveSessions: live }
+  })
+}
+
+function startHeartbeat($: EngineInterface): void {
+  if (heartbeatStarted) return
+  heartbeatStarted = true
+  void $.clock.now().then(at => {
+    moduleStartedAt ??= at
+  })
+  $.clock.every(HEARTBEAT_MS, () => {
+    void sessionsTick($).catch(() => undefined)
+  })
+}
+
+async function sessionsTick($: EngineInterface): Promise<void> {
+  await writeHeartbeat($)
+  await followRequest($)
+}
+
+// The request for all sessions lives in a file of its own, which only the session that made it writes.
+async function readRequest($: EngineInterface): Promise<SessionRequest | null> {
+  const home = await homeDir($)
+  if (home === null) return null
+  try {
+    if (!(await $.fs.exists(`${home}/.claude/cache-weather-and-pause-resume/request.json`))) return null
+    const value: unknown = JSON.parse(await $.fs.read(`${home}/.claude/cache-weather-and-pause-resume/request.json`))
+    return isSessionRequest(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+async function writeRequest($: EngineInterface, request: SessionRequest): Promise<void> {
+  await update($, sessionRequest, () => request)
+  const home = await homeDir($)
+  if (home === null) return
+  try {
+    await $.fs.write(`${home}/.claude/cache-weather-and-pause-resume/request.json`, `${JSON.stringify(request, null, 2)}\n`)
+  } catch {
+    // Not writable: the other sessions do not learn of it, this one goes on alone.
+  }
+}
+
+// A change to this session's own request; null leaves it as it is.
+async function changeOwnRequest($: EngineInterface, change: (r: SessionRequest) => SessionRequest | null): Promise<void> {
+  if ((await read($, requestRole)) !== 'own') return
+  const request = await read($, sessionRequest)
+  if (request === null) return
+  const next = change(request)
+  if (next !== null) await writeRequest($, next)
+}
+
+// Before a pause or shutdown request goes to Claude: the other sessions alive with work running. A shutdown always
+// makes a request for all sessions; a pause only where others are at work (the person decides whether they pause too).
+// With sessions at work, Claude asks the person first (`open`), else the request stands at once.
+async function prepareRequest(
+  $: EngineInterface,
+  kind: 'pause' | 'shutdown',
+): Promise<{ busy: [string, LiveSession][]; note: string | null; at: number }> {
+  const at = await $.clock.now()
+  try {
+    const self = await currentSessionId($)
+    if (self === null) return { busy: [], note: null, at }
+    const busy = liveOthers((await readPersisted($)).liveSessions, self, at).filter(([, s]) => isBusy(s))
+    if (kind === 'pause' && busy.length === 0) return { busy, note: null, at }
+    const isOpen = busy.length > 0
+    await update($, requestRole, () => 'own')
+    await update($, listedSessions, () => busy.map(([id]) => id))
+    await update($, questionsClosed, () => false)
+    await writeRequest($, {
+      id: `${self}-${at}`,
+      kind,
+      by: self,
+      byFolder: await currentFolder($),
+      at,
+      state: isOpen ? 'open' : 'decided',
+      decidedAt: isOpen ? null : at,
+      decisions: {},
+      countdownUntil: null,
+    })
+    return { busy, note: isOpen ? othersNote(kind, busy, at, await currentLang($)) : null, at }
+  } catch {
+    return { busy: [], note: null, at }
+  }
+}
+
+// What the request holds once the person answered, or, should Claude not have passed the answer on, by default: the
+// listed sessions' runs are waited for.
+function decided(r: SessionRequest, listed: readonly string[], at: number, answer: Record<string, RunsDecision> = {}): SessionRequest {
+  return { ...r, state: 'decided', decidedAt: at, decisions: Object.fromEntries(listed.map(id => [id, answer[id] ?? 'wait'])) }
+}
+
+// This session is paused and the shutdown asked for: it waits for the other sessions, then counts down.
+async function beginShutdownWait($: EngineInterface): Promise<void> {
+  const at = await $.clock.now()
+  const listed = await read($, listedSessions)
+  await changeOwnRequest($, r => (r.state === 'open' ? decided(r, listed, at) : null))
+  await update($, shutdownPhase, () => 'waiting')
+  await evaluateShutdownWait($)
+}
+
+async function evaluateShutdownWait($: EngineInterface): Promise<void> {
+  if ((await read($, shutdownPhase)) !== 'waiting') return
+  const request = await read($, sessionRequest)
+  const self = await currentSessionId($)
+  const at = await $.clock.now()
+  const pending =
+    request === null || (await read($, requestRole)) !== 'own'
+      ? []
+      : waitingFor(request, (await readPersisted($)).liveSessions, self, at)
+  await update($, waitingSessions, () => pending.map(([id, s]) => s.folder ?? shortId(id)))
+  if (pending.length === 0) await startShutdownCountdown($)
+}
+
+// Sessions at work that the shutdown cannot pause: a transcript written within RECENT_TRANSCRIPT_MS whose session
+// writes no sign of life. Only the files' names and times are read.
+async function countWithoutMod($: EngineInterface, live: Persisted['liveSessions'], self: string, at: number): Promise<number> {
+  const home = await homeDir($)
+  if (home === null) return 0
+  const known = new Set(Object.entries(live ?? {}).filter(([, s]) => isAlive(s, at)).map(([id]) => id))
+  known.add(self)
+  const recent = new Set<string>()
+  try {
+    for (const dir of (await $.fs.list(`${home}/.claude/projects`)).filter(entry => entry.kind === 'dir')) {
+      for (const entry of await $.fs.list(`${home}/.claude/projects/${dir.name}`)) {
+        if (entry.kind !== 'file' || !entry.name.endsWith('.jsonl') || at - entry.mtimeMs > RECENT_TRANSCRIPT_MS) continue
+        const id = entry.name.slice(0, -'.jsonl'.length)
+        if (!known.has(id)) recent.add(id)
+      }
+    }
+  } catch {
+    return 0
+  }
+  return recent.size
+}
+
+// Every HEARTBEAT_MS: this session's own request (whom the shutdown waits for), or another session's, which this one
+// takes up once: idle, it counts as paused at once and shows „Weiter“; at work, Claude gets the pause without a
+// question to ask, its runs ended or waited for as the person answered. When the request is picked back up there,
+// the sessions it paused pick up too.
+async function followRequest($: EngineInterface): Promise<void> {
+  const self = await currentSessionId($)
+  if (self === null) return
+  const at = await $.clock.now()
+  if ((await read($, requestRole)) === 'own') {
+    const own = await read($, sessionRequest)
+    if (own !== null && (own.state === 'decided' || own.state === 'countdown')) {
+      const count = await countWithoutMod($, (await readPersisted($)).liveSessions, self, at)
+      await update($, sessionsWithoutMod, () => count)
+    }
+    await evaluateShutdownWait($)
+    return
+  }
+  const request = await readRequest($)
+  if (request === null) return
+  if (request.by === self) {
+    // Its own request, which the session forgot over a restart of the app: „Weiter“ there still picks the others up.
+    if (request.state === 'open' || request.state === 'decided' || request.state === 'countdown' || request.state === 'cancelled') {
+      await update($, sessionRequest, () => request)
+      await update($, requestRole, () => 'own')
+    }
+    return
+  }
+  const pausedBy = await read($, pausedByRequest)
+  if (request.id === handledRequestId || request.id === pausedBy) {
+    await update($, sessionRequest, () => request)
+    if (request.state === 'resumed' && pausedBy === request.id && (await read($, pausePhase)) !== 'running') {
+      if (await read($, isIdlePause)) await enterRunning($)
+      else await requestResume($)
+    }
+    return
+  }
+  if (!asksToPause(request, self, at, moduleStartedAt ?? at)) return
+  handledRequestId = request.id
+  await update($, sessionRequest, () => request)
+  await update($, requestRole, () => 'foreign')
+  await update($, questionsClosed, () => true)
+  if ((await read($, pausePhase)) === 'running') {
+    await update($, pausedByRequest, () => request.id)
+    const isIdle =
+      !(await read($, turnRunning)) && (await read($, backgroundRuns)).length === 0 && !(await read($, isAwaitingPerson))
+    if (isIdle) {
+      await update($, isIdlePause, () => true)
+      await enterPaused($)
+    } else {
+      const lang = await currentLang($)
+      await enterPausing($, true)
+      const text = foreignPauseRequest(request.kind, request.byFolder, request.decisions[self] ?? 'wait', lang)
+      if ((await handToModel($, text)) === 'appended') await update($, pauseDelivered, () => false)
+    }
+  }
+  await writeHeartbeat($)
+}
+
+// The tool Claude passes the person's answer about the other sessions with (pause_sessions).
+async function registerSessionsTool($: EngineInterface): Promise<void> {
+  if (sessionsToolRegistered) return
+  try {
+    await $.tool.register({
+      name: SESSIONS_TOOL_NAME,
+      description: sessionsToolDescription(),
+      inputSchema: {
+        type: 'object',
+        properties: {
+          pauseOthers: { type: 'boolean', description: 'For a pause: whether the other sessions pause too. A shutdown always takes them.' },
+          sessions: {
+            type: 'array',
+            description: 'For each listed session: its short id as listed, and whether its running work ends now or is waited for.',
+            items: {
+              type: 'object',
+              properties: { session: { type: 'string' }, action: { type: 'string', enum: ['end', 'wait'] } },
+              required: ['session', 'action'],
+            },
+          },
+        },
+        required: ['sessions'],
+      },
+      isDeferred: false,
+    })
+    sessionsToolRegistered = true
+  } catch {
+    // The session is not bound yet: classic.SessionStart tries again.
+  }
+}
+
 // ── The pause button ──────────────────────────────────────────────────────────────────────────────────────────────
 
 async function rememberPause($: EngineInterface, at: number | null): Promise<void> {
@@ -766,6 +1088,7 @@ async function enterPausing($: EngineInterface, isDelivered: boolean): Promise<v
   await update($, pauseDelivered, () => isDelivered)
   await update($, now, () => at)
   await setPausePhase($, 'pausing')
+  void writeHeartbeat($).catch(() => undefined)
 }
 
 async function enterPaused($: EngineInterface): Promise<void> {
@@ -775,7 +1098,8 @@ async function enterPaused($: EngineInterface): Promise<void> {
   await update($, now, () => at)
   await setPausePhase($, 'paused')
   await rememberPause($, at)
-  if ((await read($, shutdownPhase)) === 'requested') await startShutdownCountdown($)
+  void writeHeartbeat($).catch(() => undefined)
+  if ((await read($, shutdownPhase)) === 'requested') await beginShutdownWait($)
 }
 
 async function enterRunning($: EngineInterface): Promise<void> {
@@ -786,6 +1110,18 @@ async function enterRunning($: EngineInterface): Promise<void> {
   await update($, pauseDelivered, () => true)
   await rememberPause($, null)
   await cancelShutdown($, true)
+  // A request of this session's is over: the sessions it paused pick their work back up as well.
+  await changeOwnRequest($, r =>
+    r.state === 'withdrawn' || r.state === 'done' || r.state === 'resumed' ? null : { ...r, state: 'resumed' },
+  )
+  await update($, questionsClosed, () => false)
+  await update($, pausedByRequest, () => null)
+  await update($, isIdlePause, () => false)
+  await update($, sessionRequest, () => null)
+  await update($, requestRole, () => null)
+  await update($, listedSessions, () => [])
+  await update($, sessionsWithoutMod, () => 0)
+  void writeHeartbeat($).catch(() => undefined)
 }
 
 // Hands the model a text now: folded into the running turn as a row it reads at its next request, or as a prompt
@@ -806,11 +1142,15 @@ async function handToModel($: EngineInterface, text: string): Promise<'appended'
   return 'submitted'
 }
 
-async function requestPause($: EngineInterface, askAbove: number, extra?: string): Promise<void> {
+async function requestPause($: EngineInterface, askAbove: number, kind: 'pause' | 'shutdown' = 'pause'): Promise<void> {
   if ((await read($, pausePhase)) !== 'running') return
   const lang = await currentLang($)
+  const others = await prepareRequest($, kind)
   await enterPausing($, true)
-  const request = extra === undefined ? pauseRequest(askAbove, lang) : `${pauseRequest(askAbove, lang)}\n\n${extra}`
+  const parts = [pauseRequest(askAbove, lang)]
+  if (kind === 'shutdown') parts.push(shutdownNote(lang))
+  if (others.note !== null) parts.push(others.note)
+  const request = parts.join('\n\n')
   // An appended row waits for the turn's next request; should the turn end first, the Stop hook hands it on.
   // (Marked after the append: a request racing it at worst hands the model the request twice.)
   if ((await handToModel($, request)) === 'appended') await update($, pauseDelivered, () => false)
@@ -869,6 +1209,10 @@ export const register: Register = (on, options) => {
   pauseToolRegistered = false
   keepWarmStarted = false
   tickerStarted = false
+  heartbeatStarted = false
+  sessionsToolRegistered = false
+  handledRequestId = null
+  moduleStartedAt = null
   isRefreshing = false
   retryAt = 0
   fallbackLang = langOf(options.language) ?? langOf(runtimeLocale()) ?? 'en'
@@ -899,7 +1243,9 @@ export const register: Register = (on, options) => {
 
     startTicker($)
     startKeepWarm($)
+    startHeartbeat($)
     await registerPauseTool($, askAbove)
+    await registerSessionsTool($)
     return started
   })
 
@@ -927,7 +1273,9 @@ export const register: Register = (on, options) => {
     await applyRememberedTtl($)
     startTicker($)
     startKeepWarm($)
+    startHeartbeat($)
     await registerPauseTool($, askAbove)
+    await registerSessionsTool($)
     // Once per session start, a little later: what is remembered of deleted sessions goes.
     $.clock.after(PRUNE_AFTER_MS, () => {
       void pruneSessions($).catch(() => undefined)
@@ -990,12 +1338,21 @@ export const register: Register = (on, options) => {
     } catch {
       // The readings wait for the next stop; the pause below must not.
     }
+    try {
+      await update($, backgroundRuns, () => runsInFlight(e.background_tasks))
+    } catch {
+      // The other sessions read the runs at the next stop.
+    }
     return pauseOnStop($, e.background_tasks, result, askAbove)
   }).catch(($, e, next) => next(e))
 
   // Since Claude Code 2.1.299 turn.start also comes for subagents' turns (with `agentId`): only the main loop's counts.
   on('turn.start', async ($, e, next) => {
-    if ((e as { agentId?: string }).agentId === undefined) await update($, turnRunning, () => true)
+    if ((e as { agentId?: string }).agentId === undefined) {
+      await update($, turnRunning, () => true)
+      const at = await $.clock.now()
+      await update($, workingSince, prev => prev ?? at)
+    }
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -1004,6 +1361,7 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined) {
       await update($, turnRunning, () => false)
       await update($, isAwaitingPerson, () => false)
+      await update($, workingSince, () => null)
     }
     return result
   }).catch(($, e, next) => next(e))
@@ -1033,12 +1391,35 @@ export const register: Register = (on, options) => {
     return { result: 'Nothing changed: state must be "paused" or "running".' }
   })
 
+  // Claude passes on the person's answer about the other sessions: the request stands, and the others pause now.
+  on('tool.call', { tool: 'mcp__cache-weather-and-pause-resume__pause_sessions' }, async ($, e) => {
+    if (e.agentId !== undefined) return { result: 'Only the main conversation answers this; nothing changed.' }
+    const request = await read($, sessionRequest)
+    if ((await read($, requestRole)) !== 'own' || request === null || request.state !== 'open') {
+      return { result: 'No question about other sessions is open; nothing changed.' }
+    }
+    const listed = await read($, listedSessions)
+    const { pauseOthers, decisions } = readDecisions(e, listed)
+    const at = await $.clock.now()
+    const takesOthers = request.kind === 'shutdown' || pauseOthers
+    await writeRequest($, takesOthers ? decided(request, listed, at, decisions) : { ...request, state: 'withdrawn', decidedAt: at })
+    await update($, questionsClosed, () => true)
+    if ((await read($, pausePhase)) === 'paused' && (await read($, shutdownPhase)) === 'requested') await beginShutdownWait($)
+    return {
+      result: takesOthers
+        ? `Recorded: the other sessions pause now${request.kind === 'shutdown' ? ', and the shutdown waits for the runs the person chose to wait for' : ''}. Ask nothing more until the pause is over.`
+        : 'Recorded: the pause stays with this session. Ask nothing more until the pause is over.',
+    }
+  })
+
   // A question to the person waits for the answer; the answer is input of the person's and starts the idle span over.
   // Any call of the main conversation that has run ends a wait for a permission prompt. Observes only: the call runs
   // as it would without the hook.
   on('tool.call', async ($, e, next) => {
     if (e.agentId !== undefined) return next(e)
     const isQuestion = e.tool === 'AskUserQuestion'
+    // Once the pause's question is asked, or another session paused this one, a dialog waits for the resume.
+    if (isQuestion && (await read($, questionsClosed))) return { deny: questionRefusal(await currentLang($)) }
     if (isQuestion) await update($, isAwaitingPerson, () => true)
     const result = await next(e)
     try {
@@ -1050,10 +1431,15 @@ export const register: Register = (on, options) => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // After /clear the conversation the pause belonged to is gone.
+  // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.
   on('session.end', async ($, e, next) => {
     const result = await next(e)
     if (e.reason === 'clear') await enterRunning($)
+    try {
+      await forgetHeartbeat($, e.sessionId)
+    } catch {
+      // Left behind, it is ignored once older than a minute and a half, and forgotten after an hour.
+    }
     return result
   }).catch(($, e, next) => next(e))
 
@@ -1072,8 +1458,9 @@ export const register: Register = (on, options) => {
     }
     if (isOwnOrigin(e.origin)) return next(e)
     if (isPerson && current === 'running' && isPauseCommand(e.text)) {
+      const others = await prepareRequest($, 'pause')
       await enterPausing($, true)
-      return withNote(pauseRequest(askAbove, lang))
+      return withNote(others.note === null ? pauseRequest(askAbove, lang) : `${pauseRequest(askAbove, lang)}\n\n${others.note}`)
     }
     if (current === 'paused') return withNote(isPerson ? pausedPersonNote(lang) : pausedMachineNote(lang))
     if (current === 'pausing') {
@@ -1193,7 +1580,11 @@ export const register: Register = (on, options) => {
       />
     )
     let pause = null
-    if (shutting === 'countdown' || (phase === 'pausing' && shutting === 'requested')) {
+    if (
+      shutting === 'countdown' ||
+      shutting === 'waiting' ||
+      (shutting === 'requested' && (phase === 'pausing' || phase === 'paused'))
+    ) {
       pause = cancelShutdownButton
     } else if (shutting === 'shutting') {
       pause = null
@@ -1220,18 +1611,33 @@ export const register: Register = (on, options) => {
     // long the session has been paused, which it then is anyway.
     type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' }
     const status: StatusLine[] = []
+    // A pause another session asked for says where it came from (0.9.4).
+    const role = await read($, requestRole)
+    const request = await read($, sessionRequest)
+    const from = role === 'foreign' && request !== null ? ` · ${t.fromSession(request.byFolder)}` : ''
     if (shutting === 'countdown') {
       const until = (await read($, shutdownAt)) ?? at
       status.push({ key: 'shutdown', text: t.shutdownIn(secondsLeft(until, at)), color: 'error' })
     } else if (shutting === 'shutting') {
       status.push({ key: 'shutdown', text: t.shutdownRunning, color: 'error' })
-    } else if (phase === 'pausing') {
-      const left = await read($, pauseTasksLeft)
-      const asked = shutting === 'requested' ? t.shutdownRequested : t.pauseRequested
-      status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}`, color: 'warning' })
-    } else if (phase === 'paused') {
-      status.push({ key: 'pause', text: t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0) })
+    } else if (shutting === 'waiting') {
+      status.push({ key: 'shutdown', text: t.waitingFor(await read($, waitingSessions)), color: 'warning' })
+    } else if (shutting === 'requested' && phase === 'paused') {
+      status.push({ key: 'shutdown', text: t.shutdownRequested, color: 'warning' })
+    } else if (role === 'foreign' && request?.state === 'countdown' && request.countdownUntil !== null) {
+      status.push({ key: 'shutdown', text: `${t.shutdownIn(secondsLeft(request.countdownUntil, at))}${from}`, color: 'error' })
     }
+    if (phase === 'pausing') {
+      const left = await read($, pauseTasksLeft)
+      // Paused for another session's shutdown, it says so too.
+      const isForShutdown = shutting === 'requested' || (role === 'foreign' && request?.kind === 'shutdown')
+      const asked = isForShutdown ? t.shutdownRequested : t.pauseRequested
+      status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}${from}`, color: 'warning' })
+    } else if (phase === 'paused' && shutting !== 'countdown' && shutting !== 'shutting') {
+      status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${from}` })
+    }
+    const withoutMod = await read($, sessionsWithoutMod)
+    if (role === 'own' && withoutMod > 0) status.push({ key: 'without-mod', text: t.withoutMod(withoutMod), color: 'subtle' })
     if (noteText !== null) status.push({ key: 'keep-warm', text: `${t.keepWarm}: ${noteText}`, color: 'warning' })
     if (await read($, isCheckingShutdown)) status.push({ key: 'check', text: t.shutdownChecking, color: 'subtle' })
     const statusRows =
