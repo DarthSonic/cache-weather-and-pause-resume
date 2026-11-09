@@ -46,8 +46,13 @@ export function terminalBar(share: number | null, columns: number): { lit: strin
 const BAR_GAP = 6
 const BAR_THICKNESS = 4
 
-/** How high the desktop app, VS Code and the phone draw the cache bar's picture, its gap above included (CSS px). */
-export const SVG_BAR_HEIGHT = BAR_GAP + BAR_THICKNESS
+/**
+ * How high the desktop app, VS Code and the phone draw the cache bar's picture (CSS px): its gap above and the bar,
+ * and the same gap again below it where the status row follows (0.9.3), so the bar sits between the two rows.
+ */
+export function svgBarHeight(hasRoomBelow: boolean): number {
+  return BAR_GAP + BAR_THICKNESS + (hasRoomBelow ? BAR_GAP : 0)
+}
 
 // Fixed colours: an SVG drawn as an image reads no theme. Each reads on a light and a dark background alike.
 const BAR_COLOURS: Record<CacheTone, string> = { success: '#30a46c', warning: '#f5a524', error: '#e5484d' }
@@ -57,14 +62,15 @@ const BAR_COLOURS: Record<CacheTone, string> = { success: '#30a46c', warning: '#
  * and without a fixed aspect ratio, so it keeps its few pixels of height. A grey track, lit for what is left, below a
  * transparent gap.
  */
-export function svgBar(share: number | null): string {
+export function svgBar(share: number | null, hasRoomBelow = false): string {
   const width = 4000
+  const height = svgBarHeight(hasRoomBelow)
   const lit = share === null ? 0 : Math.round(Math.max(0, Math.min(1, share)) * width)
   const bar = `y="${BAR_GAP}" height="${BAR_THICKNESS}"`
   const fill = share === null ? '' : `<rect ${bar} width="${lit}" fill="${BAR_COLOURS[cacheTone(share)]}"/>`
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${SVG_BAR_HEIGHT}" ` +
-    `viewBox="0 0 ${width} ${SVG_BAR_HEIGHT}" preserveAspectRatio="none">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
+    `viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">` +
     `<rect ${bar} width="${width}" fill="#808080" fill-opacity="0.25"/>${lit > 0 ? fill : ''}</svg>`
   )
 }

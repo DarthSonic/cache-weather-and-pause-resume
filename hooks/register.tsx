@@ -6,7 +6,6 @@ import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
   FALLBACK_THRESHOLD_PERCENT,
-  SVG_BAR_HEIGHT,
   cacheTone,
   compactionLines,
   groupDigits,
@@ -20,6 +19,7 @@ import {
   remainingMinutes,
   remainingShare,
   svgBar,
+  svgBarHeight,
   terminalBar,
   terminalWeather,
   thresholdPercent,
@@ -1252,7 +1252,11 @@ export const register: Register = (on, options) => {
       )
     } else if ('Svg' in elements) {
       const { Svg } = elements
-      bar = <Svg source={svgBar(share)} alt={t.cacheBarAlt(cacheText)} height={SVG_BAR_HEIGHT} />
+      // Where the status row follows, the picture keeps as much room below the bar as above it.
+      const hasRoomBelow = statusRows !== null
+      bar = (
+        <Svg source={svgBar(share, hasRoomBelow)} alt={t.cacheBarAlt(cacheText)} height={svgBarHeight(hasRoomBelow)} />
+      )
     }
 
     const compact = (

@@ -58,6 +58,9 @@ describe('the cache countdown', () => {
     expect(svgBar(0.1)).toContain('fill="#e5484d"')
     expect(svgBar(0)).not.toContain('#e5484d')
     expect(svgBar(null)).toContain('preserveAspectRatio="none"')
+    // Above a status row the picture keeps as much room below the bar as above it (0.9.3).
+    expect(svgBar(0.5, true)).toContain('height="16" viewBox="0 0 4000 16"')
+    expect(svgBar(0.5, true)).toContain('<rect y="6" height="4" width="2000" fill="#f5a524"/>')
   })
 })
 

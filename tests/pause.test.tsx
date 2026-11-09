@@ -959,8 +959,11 @@ describe('keep-warm', () => {
     const prompts = engine(on)
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
     await $.classic.SessionStart({ source: 'startup', session_id: 'p1' })
+    expect((await ui.find({ type: 'Svg' }))?.props.height).toBe(10)
     await ui.press({ key: 'pause' })
     expect(await ui.find({ type: 'Text', text: /^⏳ Pause wird vorbereitet …$/u })).toBeDefined()
+    // Above the status row the bar keeps as much room below it as above.
+    expect((await ui.find({ type: 'Svg' }))?.props.height).toBe(16)
     await ui.press({ key: 'pause-cancel' })
     expect(prompts.at(-1)?.text).toBe('weitermachen')
     expect(await ui.find({ key: 'pause' })).toBeDefined()

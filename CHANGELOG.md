@@ -6,7 +6,8 @@
   the shutdown's countdown („Shutdown in 47 s“) or „Fährt herunter …“, the pause being prepared („⏳ Pause wird
   vorbereitet … · 1 Task läuft noch“), how long the session has been paused („Pausiert seit 12 min“, never „0 min“),
   why keep-warm waits („Keep-warm: wartet auf die nächste Anfrage“), and the shutdown check a press waits for. These
-  stood among the readings and buttons before; the time paused was not shown since 0.9.0.
+  stood among the readings and buttons before; the time paused was not shown since 0.9.0. In the desktop app the
+  cache bar then keeps as much room below it as above, so it sits between the two rows.
 - While the pause is prepared, **Weiter** / **Resume** stands in the button row and calls it off, as typing
   „weitermachen“ does; while the shutdown is prepared or counted down, **Abbrechen** / **Cancel** stands there.
 - „Pause angefordert“ / “Pause requested” reads „Pause wird vorbereitet …“ / “Preparing the pause …”, and the same
