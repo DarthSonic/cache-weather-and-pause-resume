@@ -1350,6 +1350,33 @@ describe('keep-warm', () => {
     expect(asked.prompts.length).toBe(11)
   })
 
+  // A model switch that forfeits a warm cache says what it costs (0.10.0), with Claude Code's own estimate.
+  test('a switch of model with the cache warm says what writing it again costs; with it cold, nothing', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    const asked = forks(on)
+    await resumed($, 2 * MIN, '1h')
+    const switched = (warm: boolean) =>
+      $.classic.PostModelSwitch({
+        cache_ttl: '1h',
+        from_model: 'claude-opus-5-5',
+        to_model: 'claude-sonnet-5-5',
+        prompt_cache_warm: warm,
+        context_tokens: 180_000,
+        estimated_cache_write_usd: 0.72,
+        pricing: 'catalog',
+      } as never)
+    await switched(true)
+    expect(asked.logs.at(-1)).toBe(
+      'Modellwechsel auf claude-sonnet-5-5: Der warme Cache des bisherigen Modells verfällt, die nächste Anfrage schreibt 180.000 Tokens neu in den Cache, ≈ 0,72 $ (Listenpreis).',
+    )
+    const before = asked.logs.length
+    await switched(false)
+    expect(asked.logs.length).toBe(before)
+  })
+
   test('after a switch to another model there is nothing to keep warm until the next request', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })

@@ -1679,7 +1679,23 @@ export const register: Register = (on, options) => {
   on('classic.PostModelSwitch', async ($, e, next) => {
     const result = await next(e)
     // Another model has no cache of this conversation: the next request writes it, a refresh would only pay for it.
-    if (e.from_model !== e.to_model) await update($, keepWarmNote, () => 'cold')
+    if (e.from_model !== e.to_model) {
+      await update($, keepWarmNote, () => 'cold')
+      await update($, mainModel, () => e.to_model)
+      // What the switch costs where the cache was still warm (0.10.0): the tokens the next request writes again, and
+      // Claude Code's own estimate of it. With a cache gone cold the rebuild was due anyway.
+      if (e.prompt_cache_warm && e.context_tokens > 0) {
+        const lang = await currentLang($)
+        $.ui.log(
+          strings(lang, shutdownMode).modelSwitchLog(
+            e.to_model,
+            groupDigits(e.context_tokens, lang),
+            e.estimated_cache_write_usd,
+            e.pricing,
+          ),
+        )
+      }
+    }
     await settleTtl($, { minutes: e.cache_ttl === '5m' ? 5 : 60, source: 'model-switch' })
     await refreshThreshold($)
     return result
