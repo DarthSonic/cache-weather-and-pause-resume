@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2 — unreleased
+
+- **Fix:** sessions no longer overwrite each other's entries in the state file. Each session writes the file by
+  reading it, changing it and writing it whole; two that did so at the same moment lost one change (a pause, a
+  keep-warm switch), and one that read the file while another wrote it took it for empty and wrote over everything.
+  Now each write is looked at again a quarter of a second later and made again where its change is gone (at most three
+  times), and a file that does not parse is read again rather than written over; only one that stays broken for about
+  half a second is written anew. The file keeps its form, so a session still running 0.9.1 goes on reading it.
+- The state file loses the keys of earlier versions no code reads any more (`isCollapsed`, `keepAliveSessions`).
+
 ## 0.9.1 — 2026-11-09
 
 - **Fix:** after `/clear` (or a resume within the running app) the shutdown button could stay dimmed for good, every

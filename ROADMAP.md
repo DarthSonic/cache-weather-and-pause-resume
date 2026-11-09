@@ -12,11 +12,10 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
 
 - [x] **0.9.1: the shutdown button after `/clear`.** It could stay dimmed for good, saying it was still checking; now
   a press checks again.
-- [ ] **Session files, and a state file sessions cannot overwrite (fix).** Each session writes a file of its own,
-  `sessions/<session id>.json`: a sign of life, its phase, and what the mod knows of its work (a turn running since …,
-  background runs, an open dialog). The entries per session in `state.json` (pauses, the keep-warm switch) move
-  there, so two sessions writing at once no longer lose one. Keys no code reads any more (`isCollapsed`,
-  `keepAliveSessions`) go.
+- [x] **0.9.2: a state file sessions cannot overwrite (fix).** Each write is looked at again a moment later and made
+  again where another session's write took it back; a file caught half-written is read again, not written over. Keys
+  no code reads any more (`isCollapsed`, `keepAliveSessions`) go. (The plan was a file per session; the mod API can
+  write files but not delete them, so they would have piled up for good.)
 - [ ] **A status row.** A third row under the bar, shown only when there is something to say, for states that last:
   the pause being prepared, waiting for a task, "paused for 12 min" (a duration, "< 1 min" rather than "0 min"), the
   shutdown countdown, whom the shutdown waits for, keep-warm's notes, the shutdown check. The buttons stay in the
@@ -28,6 +27,8 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
 - [ ] **Pause and shutdown across sessions.** Today the shutdown pauses only the session where it was pressed; other
   Claude sessions on the computer end with it, their runs cut off. One Shutdown button, which shuts down once every
   session is done, whether it already is or the runs are waited for:
+  - Each session keeps a sign of life in the state file, with its phase and what the mod knows of its work (a turn
+    running since …, background runs, an open dialog).
   - The session where Pause or Shutdown was pressed writes `request.json` (which of the two, its id, the time, the
     decisions); no other session writes it.
   - Its Claude asks once: about its own long tasks, end or wait (as today); for a pause, whether the other sessions
@@ -58,8 +59,8 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: the session files with the state-file fix first (the ground for the rest), then the status row,
-notifications, pause and shutdown across sessions, and hibernation; the CI matrix alongside.
+Order: the status row next, then notifications, pause and shutdown across sessions, and hibernation; the CI matrix
+alongside.
 
 ## 0.10.0 — Next features
 

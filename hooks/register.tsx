@@ -56,7 +56,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.9.1'
+const CODE_VERSION = '0.9.2'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -294,27 +294,81 @@ async function pruneSessions($: EngineInterface): Promise<void> {
   })
 }
 
-async function readPersisted($: EngineInterface): Promise<Persisted> {
+// The state file as it stands: none yet, read, or not readable (a write of another session under way, or broken).
+type StateFile = { kind: 'missing' } | { kind: 'read'; value: Persisted } | { kind: 'unreadable' }
+
+async function readStateFile($: EngineInterface): Promise<StateFile> {
   const home = await homeDir($)
-  if (home === null) return {}
+  if (home === null) return { kind: 'missing' }
   try {
-    if (!(await $.fs.exists(`${home}/.claude/cache-weather-and-pause-resume/state.json`))) return {}
+    if (!(await $.fs.exists(`${home}/.claude/cache-weather-and-pause-resume/state.json`))) return { kind: 'missing' }
     const value: unknown = JSON.parse(await $.fs.read(`${home}/.claude/cache-weather-and-pause-resume/state.json`))
-    return value !== null && typeof value === 'object' ? (value as Persisted) : {}
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? { kind: 'read', value: value as Persisted }
+      : { kind: 'unreadable' }
   } catch {
-    return {}
+    return { kind: 'unreadable' }
   }
 }
 
-// Read, change, write: another session may have written in between, so each write starts from the file.
+async function readPersisted($: EngineInterface): Promise<Persisted> {
+  let found = await readStateFile($)
+  // Caught in the middle of another session's write: once more, a moment later.
+  if (found.kind === 'unreadable') found = await readStateFile($)
+  return found.kind === 'read' ? found.value : {}
+}
+
+// Several sessions write the file, each by reading it, changing it and writing it whole (0.9.2). Two that read it at
+// once lose one change: the second write puts back what it read. So each write is looked at again a moment later and
+// made again where its change is gone; a file that does not parse is someone's write under way and is read again
+// rather than written over, until it stays broken through every try. Keys of earlier versions go with the next write.
+const WRITE_CHECKS = 3
+const WRITE_CHECK_MS = 250
+const UNREADABLE_TRIES = 4
+const UNREADABLE_RETRY_MS = 150
+const DEAD_KEYS = ['isCollapsed', 'keepAliveSessions']
+
+const stateText = (value: Persisted): string => `${JSON.stringify(value, null, 2)}\n`
+
+function withoutDeadKeys(value: Persisted): Persisted {
+  const next: Record<string, unknown> = { ...value }
+  for (const key of DEAD_KEYS) delete next[key]
+  return next as Persisted
+}
+
 async function writePersisted($: EngineInterface, change: (p: Persisted) => Persisted): Promise<void> {
+  await writeStateFile($, change, WRITE_CHECKS, UNREADABLE_TRIES)
+}
+
+// One try: what the file holds with the change made. A change already in writes nothing, which also ends the checks.
+async function writeStateFile(
+  $: EngineInterface,
+  change: (p: Persisted) => Persisted,
+  checksLeft: number,
+  unreadableLeft: number,
+): Promise<void> {
   const home = await homeDir($)
   if (home === null) return
+  const found = await readStateFile($)
+  if (found.kind === 'unreadable' && unreadableLeft > 0) {
+    $.clock.after(UNREADABLE_RETRY_MS, () => {
+      void writeStateFile($, change, checksLeft, unreadableLeft - 1).catch(() => undefined)
+    })
+    return
+  }
+  const before = found.kind === 'read' ? found.value : {}
+  const text = stateText(withoutDeadKeys(change(before)))
+  if (found.kind === 'read' && text === stateText(before)) return
   try {
-    const text = `${JSON.stringify(change(await readPersisted($)), null, 2)}\n`
     await $.fs.write(`${home}/.claude/cache-weather-and-pause-resume/state.json`, text)
   } catch {
     // Not writable: the value lives in this session's state alone.
+    return
+  }
+  if (checksLeft > 0) {
+    $.clock.after(WRITE_CHECK_MS, () => {
+      void writeStateFile($, change, checksLeft - 1, UNREADABLE_TRIES).catch(() => undefined)
+    })
   }
 }
 

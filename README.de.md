@@ -302,6 +302,11 @@ behält von beidem höchstens die 20 jüngsten, und zehn Sekunden nach einem Sit
 gelöschten Sitzungen hält (kein Transkript mehr unter `~/.claude/projects/`); im Zweifel bleibt alles stehen. Die Datei liest nur der Mod — sie gelangt nie zum Modell und
 kostet keine Token.
 
+Jede Sitzung schreibt die Datei, indem sie sie liest, ändert und ganz neu schreibt. Damit zwei, die im selben Moment
+schreiben, nichts verlieren, wird ein Schreiben eine Viertelsekunde später noch einmal angesehen und wiederholt, wo das
+Schreiben einer anderen Sitzung die Änderung zurückgenommen hat; eine gerade halb geschriebene Datei wird erneut
+gelesen, nicht überschrieben.
+
 ## Voraussetzungen
 
 Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.317** (Desktop-App) und **2.1.319** (CLI). Die

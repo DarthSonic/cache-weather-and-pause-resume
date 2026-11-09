@@ -608,6 +608,74 @@ describe('the pause across a restart', () => {
   })
 })
 
+// Several sessions write the one state file, each by reading, changing and writing it whole (0.9.2).
+describe('the state file, shared by sessions', () => {
+  const AT = 7_000_000
+  const state = (files: Record<string, string>): Record<string, unknown> => JSON.parse(files[STATE] ?? '{}')
+
+  async function started($: Engine, on: On, seed: Record<string, string> = {}) {
+    mock.store(on)
+    const clock = mock.clock(on, { now: AT })
+    const files = disk(on, seed)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'w1' })
+    return { clock, files, ui }
+  }
+
+  test('keys of earlier versions go with the next write; everything else stays', DE_COLD, async ($, on) => {
+    const old = { isCollapsed: false, keepAliveSessions: { x: 1 }, ttlMinutes: 60, pausedSessions: { other: 5 } }
+    const { files, ui } = await started($, on, { [STATE]: JSON.stringify(old) })
+    await ui.press({ key: 'keep-warm' })
+    const now = state(files)
+    expect(now.isCollapsed).toBeUndefined()
+    expect(now.keepAliveSessions).toBeUndefined()
+    expect(now.ttlMinutes).toBe(60)
+    expect(now.pausedSessions).toEqual({ other: 5 })
+    expect(now.keepWarmSessions).toEqual({ w1: AT })
+    await ui.unmount()
+  })
+
+  test('a change another session’s write took back goes in again, beside that session’s own', DE_COLD, async ($, on) => {
+    const { clock, files, ui } = await started($, on)
+    await ui.press({ key: 'keep-warm' })
+    expect(state(files).keepWarmSessions).toEqual({ w1: AT })
+    // Another session read the file before that write and writes after it: the switch is gone, its pause is in.
+    files[STATE] = JSON.stringify({ pausedSessions: { other: 5 } })
+    await clock.advance(300)
+    expect(state(files).keepWarmSessions).toEqual({ w1: AT })
+    expect(state(files).pausedSessions).toEqual({ other: 5 })
+    // Once the change stands, the checks end: nothing is written again.
+    const settled = files[STATE]
+    await clock.advance(2_000)
+    expect(files[STATE]).toBe(settled)
+    await ui.unmount()
+  })
+
+  test('a half-written file is read again, not written over', DE_COLD, async ($, on) => {
+    const { clock, files, ui } = await started($, on)
+    files[STATE] = '{\n  "pausedSessions": {\n    "other": 5'
+    await ui.press({ key: 'keep-warm' })
+    expect(files[STATE]).toBe('{\n  "pausedSessions": {\n    "other": 5')
+    files[STATE] = JSON.stringify({ pausedSessions: { other: 5 } })
+    await clock.advance(200)
+    expect(state(files).pausedSessions).toEqual({ other: 5 })
+    expect(state(files).keepWarmSessions).toEqual({ w1: AT })
+    await ui.unmount()
+  })
+
+  test('a file that stays broken through every try is written anew', DE_COLD, async ($, on) => {
+    const { clock, files, ui } = await started($, on)
+    files[STATE] = 'not json'
+    await ui.press({ key: 'keep-warm' })
+    await clock.advance(400)
+    expect(files[STATE]).toBe('not json')
+    await clock.advance(1_000)
+    expect(state(files).keepWarmSessions).toEqual({ w1: AT })
+    await ui.unmount()
+  })
+})
+
 describe('the cache lifetime', () => {
   const HOUR = 3_600_000
   const ONE_HOUR_WRITE =

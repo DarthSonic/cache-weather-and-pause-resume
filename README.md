@@ -288,6 +288,10 @@ off (by session id), the cache lifetime last seen and the version last loaded. I
 latest of each, and ten seconds after a session starts it drops what it holds of deleted sessions (no transcript left
 under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
 
+Every session writes the file, each by reading it, changing it and writing it whole. So that two writing at the same
+moment lose nothing, a write is looked at again a quarter of a second later and made again where another session's
+write took its change back; a file caught half-written is read again, not written over.
+
 ## Requirements
 
 Claude Code with mods (function-hook plugins), early access, checked with **2.1.317** (desktop app) and **2.1.319** (CLI). The mod API
