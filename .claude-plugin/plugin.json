@@ -25,6 +25,12 @@
       "default": "on",
       "options": ["on", "off"]
     },
+    "keepWarmHours": {
+      "type": "number",
+      "title": "Keep-warm: hours for the 1-hour cache",
+      "description": "How long keep-warm goes on in a session nobody works in, with the 1-hour cache: 1 to 18 hours (8 by default; up to 18 a refresh costs less than building the cache again, about 16 keeps it warm overnight). The 5-minute cache keeps 45 minutes.",
+      "default": 8
+    },
     "notifications": {
       "type": "string",
       "title": "Notification at the shutdown countdown",

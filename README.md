@@ -204,7 +204,7 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
   question and answer stay out of the conversation. Each refresh writes a dim line: the tokens read from the cache and
   the tokens of the reply.
 - **While Claude works** (a long run, a subagent, a pause being requested): for as long as it takes.
-- **While the session is idle or paused, or Claude waits for you** (a permission prompt, a question): for 8 hours with the 1-hour cache, for 45 minutes with the 5-minute one,
+- **While the session is idle or paused, or Claude waits for you** (a permission prompt, a question): for 8 hours with the 1-hour cache (option `keepWarmHours`, 1 to 18), for 45 minutes with the 5-minute one,
   counted from the last request or input. Then the status row says “Keep-warm: stopped after 8 h without input”, and a line explains
   why: a forgotten session should not keep spending. Your next message builds the cache again and keep-warm takes
   over again.
@@ -259,6 +259,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
 | `keepWarm` | `on` | Whether a new session starts with keep-warm checked; `off` starts it unchecked. |
+| `keepWarmHours` | `8` | How long keep-warm goes on with the 1-hour cache in a session nobody works in: 1 to 18 hours. Up to 18 a refresh costs less than building the cache again (a tenth of the input price against twice); about 16 keeps it warm overnight. The 5-minute cache keeps 45 minutes. |
 | `notifications` | `on` | A notification as the shutdown countdown starts; `off` sends none. |
 | `shutdownMode` | `shutdown` | What the shutdown button does: `shutdown`, `sleep` (standby) or `hibernate`; the button is named after it. |
 

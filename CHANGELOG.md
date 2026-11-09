@@ -8,6 +8,10 @@
   then each change of a whole point); a session on an API key has none and shows none.
 - **Keep-warm stops at 90 %** of any window: a refresh would spend the last of it. It says so once in the status row
   („Keep-warm: hält an, Kontingent bei 92 %“) and in a line, and refreshes again by itself once the window starts over.
+- **Keep-warm for longer**, with the new option `keepWarmHours`: how long it goes on with the 1-hour cache in a session
+  nobody works in, 1 to 18 hours, 8 by default. Up to 18 a refresh costs less than building the cache again; about 16
+  keeps it warm overnight, and the 90 % stop keeps it from spending a subscription's last. The 5-minute cache keeps
+  45 minutes, just under where it stops paying.
 
 ## 0.9.5 — 2026-11-09
 

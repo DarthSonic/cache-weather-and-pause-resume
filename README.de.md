@@ -211,7 +211,7 @@ Cache kurz vor Ablauf auf:
   kein Werkzeug aufrufen, und Frage und Antwort bleiben außerhalb der Unterhaltung. Jede Auffrischung schreibt eine
   graue Zeile: die aus dem Cache gelesenen Tokens und die Tokens der Antwort.
 - **Während Claude arbeitet** (ein langer Lauf, ein Subagent, eine angeforderte Pause): so lange es dauert.
-- **Während die Sitzung ruht, pausiert ist oder Claude auf dich wartet** (eine Berechtigungsfrage, eine Rückfrage): beim 1-Stunden-Cache 8 Stunden, beim 5-Minuten-Cache 45 Minuten, ab
+- **Während die Sitzung ruht, pausiert ist oder Claude auf dich wartet** (eine Berechtigungsfrage, eine Rückfrage): beim 1-Stunden-Cache 8 Stunden (Option `keepWarmHours`, 1 bis 18), beim 5-Minuten-Cache 45 Minuten, ab
   der letzten Anfrage oder Eingabe. Dann steht in der Statuszeile „Keep-warm: endete nach 8 h ohne Eingabe“, und eine Zeile erklärt
   den Grund: Eine vergessene Sitzung soll nicht weiter kosten. Deine nächste Nachricht baut den Cache neu auf, dann
   übernimmt Keep-warm wieder.
@@ -267,6 +267,7 @@ Zustandsdatei (`~/.claude/cache-wetter/`) wird nicht übernommen und kann weg.
 | `language` | `auto` | `de` oder `en` für Leiste, Meldungen und die Texte an Claude. `auto` folgt `LC_ALL` / `LC_MESSAGES` / `LANG`, dann der Systemsprache (unter Windows, wo `LANG` meist leer ist). |
 | `askAboveMinutes` | `5` | Ab welcher Restlaufzeit eines laufenden Tasks Claude bei einer Pause nachfragt. |
 | `keepWarm` | `on` | Ob eine neue Sitzung mit gesetztem Keep-warm startet; `off` startet ohne. |
+| `keepWarmHours` | `8` | Wie lange Keep-warm beim 1-Stunden-Cache in einer Sitzung weiterläuft, in der niemand arbeitet: 1 bis 18 Stunden. Bis 18 kostet eine Auffrischung weniger als ein Neuaufbau (ein Zehntel des Input-Preises gegen das Doppelte); etwa 16 hält ihn über Nacht warm. Der 5-Minuten-Cache bleibt bei 45 Minuten. |
 | `notifications` | `on` | Eine Benachrichtigung, wenn der Shutdown-Countdown startet; `off` schickt keine. |
 | `shutdownMode` | `shutdown` | Was der Shutdown-Knopf tut: `shutdown`, `sleep` (Standby) oder `hibernate` (Ruhezustand); der Knopf heißt danach. |
 

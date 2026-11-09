@@ -80,18 +80,33 @@ export function keepWarmLeadMs(ttlMinutes: 5 | 60): number {
   return ttlMinutes === 5 ? 60_000 : 5 * 60_000
 }
 
+/** The hours keep-warm goes on for the hour's cache: the option `keepWarmHours`, 8 by default (0.10.0). */
+export const DEFAULT_KEEP_WARM_HOURS = 8
+/**
+ * Up to here it pays: a refresh reads the cache at about a tenth of the input price, a rebuild writes it at twice, so
+ * some 18 hourly refreshes cost what one rebuild does. Past that, keeping it warm costs more than building it again.
+ */
+export const MAX_KEEP_WARM_HOURS = 18
+
+/** The option `keepWarmHours` as a whole number of hours from 1 to 18; anything else is the default. */
+export function keepWarmHoursOf(option: unknown): number {
+  const value = typeof option === 'string' ? Number(option) : option
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_KEEP_WARM_HOURS
+  return Math.min(MAX_KEEP_WARM_HOURS, Math.max(1, Math.round(value)))
+}
+
 /**
  * How long keep-warm goes on in a session nobody works in (paused, or quiet after its last turn), from the last
- * request or input: 8 hours for the hour's cache, 45 minutes for the five-minute one, whose refreshes come twelve times
- * as often.
+ * request or input: `hours` for the hour's cache (option `keepWarmHours`, 8 by default), 45 minutes for the
+ * five-minute one, whose refreshes come twelve times as often and pay off only up to some 50 minutes.
  */
-export function keepWarmSpanMs(ttlMinutes: 5 | 60): number {
-  return ttlMinutes === 5 ? 45 * 60_000 : 8 * 60 * 60_000
+export function keepWarmSpanMs(ttlMinutes: 5 | 60, hours: number = DEFAULT_KEEP_WARM_HOURS): number {
+  return ttlMinutes === 5 ? 45 * 60_000 : hours * 60 * 60_000
 }
 
 /** The idle span as the band and the log name it: „8 h“, „45 m“. */
-export function keepWarmSpanText(ttlMinutes: 5 | 60): string {
-  const minutes = keepWarmSpanMs(ttlMinutes) / 60_000
+export function keepWarmSpanText(ttlMinutes: 5 | 60, hours: number = DEFAULT_KEEP_WARM_HOURS): string {
+  const minutes = keepWarmSpanMs(ttlMinutes, hours) / 60_000
   return minutes >= 60 ? `${minutes / 60} h` : `${minutes} m`
 }
 
@@ -108,12 +123,13 @@ export function keepWarmStep(s: {
   ttlMinutes: 5 | 60 | null
   isWorking: boolean
   now: number
+  hours?: number
 }): 'wait' | 'refresh' | 'lapsed' | 'ended' {
   if (s.cacheUsedAt === null || s.ttlMinutes === null) return 'wait'
   const lapsesAt = s.cacheUsedAt + s.ttlMinutes * 60_000
   if (s.now >= lapsesAt) return 'lapsed'
   if (s.now < lapsesAt - keepWarmLeadMs(s.ttlMinutes)) return 'wait'
-  if (!s.isWorking && s.now >= (s.activeAt ?? s.cacheUsedAt) + keepWarmSpanMs(s.ttlMinutes)) return 'ended'
+  if (!s.isWorking && s.now >= (s.activeAt ?? s.cacheUsedAt) + keepWarmSpanMs(s.ttlMinutes, s.hours)) return 'ended'
   return 'refresh'
 }
 

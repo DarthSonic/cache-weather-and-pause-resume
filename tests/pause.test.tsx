@@ -1207,6 +1207,23 @@ describe('keep-warm', () => {
     await ui.unmount()
   })
 
+  test('the option keepWarmHours sets how long the hour cache is kept warm in a quiet session', { options: { language: 'de', keepWarmHours: 1 }, timeoutMs: 30_000 }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+    await clock.advance(53 * MIN)
+    expect(asked.prompts.length).toBe(1)
+    // The next refresh would come past the hour since the last input: keep-warm ends there.
+    await clock.advance(56 * MIN)
+    expect(asked.prompts.length).toBe(1)
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: endete nach 1 h ohne Eingabe$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('the hour cache is refreshed five minutes before it lapses, and counts down afresh', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })

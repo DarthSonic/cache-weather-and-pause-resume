@@ -7,6 +7,7 @@ import {
   compactionLines,
   hitRate,
   isWarmRead,
+  keepWarmHoursOf,
   keepWarmSpanText,
   keepWarmStep,
   lastResponseFromTranscript,
@@ -120,6 +121,16 @@ describe('keep-warm', () => {
     expect(at(48, { ttlMinutes: 5, cacheUsedAt: 44 * MIN })).toBe('ended')
     expect(keepWarmSpanText(60)).toBe('8 h')
     expect(keepWarmSpanText(5)).toBe('45 m')
+    // The option keepWarmHours (0.10.0): whole hours from 1 to 18, the hour's cache only.
+    expect(keepWarmSpanText(60, 16)).toBe('16 h')
+    expect(keepWarmSpanText(5, 16)).toBe('45 m')
+    expect(at(8 * 60 + 55, { cacheUsedAt: 8 * 60 * MIN, hours: 16 })).toBe('refresh')
+    expect(keepWarmHoursOf(undefined)).toBe(8)
+    expect(keepWarmHoursOf(16)).toBe(16)
+    expect(keepWarmHoursOf('12')).toBe(12)
+    expect(keepWarmHoursOf(30)).toBe(18)
+    expect(keepWarmHoursOf(0)).toBe(1)
+    expect(keepWarmHoursOf('many')).toBe(8)
   })
 
   test('a refresh counts as warm when nearly all of its input came from the cache', async () => {

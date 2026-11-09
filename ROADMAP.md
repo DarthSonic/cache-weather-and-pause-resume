@@ -44,11 +44,9 @@ Order: the CI matrix and the macOS test; then 0.10.0.
 - [ ] **Keep-warm balance.** What the refreshes cost, set against the rebuild of the cache they avoided.
   *To plan:* honest wording (the saving is real only if you come back), prices per model, where it shows (a log
   line, the band).
-- [ ] **Longer keep-warm for the 60-minute cache.** A refresh reads the cache at about 0.1× the input price; a
-  rebuild writes it at 1.25× (5-minute cache) or 2× (60-minute cache). With the 5-minute cache, 45 minutes are about
-  11 refreshes, 1.1×, just under a rebuild: that limit stays. With the 60-minute cache, 8 hours are about 0.8×
-  against 2×; it pays up to about 18 hours, so a setting could keep it warm overnight.
-  *To plan:* whether the default stays at 8 hours.
+- [x] **Longer keep-warm for the 60-minute cache**, option `keepWarmHours` (1 to 18, 8 by default): a refresh reads the
+  cache at about 0.1× the input price, a rebuild writes it at 2×, so it pays up to some 18 hours. The 5-minute cache
+  keeps 45 minutes.
 - [ ] **Context forecast.** "Auto-compact in about 6 turns", from the average of the last turns.
   *To plan:* whether it is steady enough (one large file read skews it); shown only near the threshold?
 

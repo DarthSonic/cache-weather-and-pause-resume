@@ -22,6 +22,7 @@ import {
   groupDigits,
   hitRate,
   isWarmRead,
+  keepWarmHoursOf,
   keepWarmSpanText,
   keepWarmStep,
   lastResponseFromTranscript,
@@ -470,6 +471,8 @@ const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'eli
 
 // The module's own: a reload starts them over, and its timers go with the old module.
 let keepWarmByDefault = true
+// How long keep-warm goes on for the hour's cache in a session nobody works in (option `keepWarmHours`, 0.10.0).
+let keepWarmHours = 8
 let isNotifying = true
 // What the button does once the sessions are paused (option `shutdownMode`, 0.9.5).
 let shutdownMode: ShutdownMode = 'shutdown'
@@ -553,12 +556,13 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
       !(await read($, isAwaitingPerson)) &&
       ((await read($, turnRunning)) || (await read($, pausePhase)) === 'pausing'),
     now: at,
+    hours: keepWarmHours,
   })
   const lang = await currentLang($)
   const t = strings(lang, shutdownMode)
   if (step === 'ended' && life !== null) {
     await update($, keepWarmNote, () => 'ended')
-    $.ui.log(t.keepWarmEndedLog(keepWarmSpanText(life.minutes), life.minutes === 60 ? '1-h' : '5-m'))
+    $.ui.log(t.keepWarmEndedLog(keepWarmSpanText(life.minutes, keepWarmHours), life.minutes === 60 ? '1-h' : '5-m'))
     return
   }
   if (step !== 'refresh') return
@@ -1311,6 +1315,7 @@ async function pauseOnStop(
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
   keepWarmByDefault = options.keepWarm !== 'off'
+  keepWarmHours = keepWarmHoursOf(options.keepWarmHours)
   isNotifying = options.notifications !== 'off'
   shutdownMode = modeOf(options.shutdownMode)
   shutdownCheck = null
@@ -1659,7 +1664,7 @@ export const register: Register = (on, options) => {
       !isKeptWarm || note === null || life === null
         ? null
         : note === 'ended'
-          ? t.keepWarmEnded(keepWarmSpanText(life.minutes))
+          ? t.keepWarmEnded(keepWarmSpanText(life.minutes, keepWarmHours))
           : note === 'cold'
             ? t.keepWarmCold
             : note === 'limit'
