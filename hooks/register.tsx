@@ -2021,32 +2021,46 @@ export const register: Register = (on, options) => {
     // In the desktop app a narrow band squeezed the readings until „Hits 100 %“ broke over two lines and the cache time
     // was cut („Cache 6…“): there they keep their width.
     const keep = isTerminal ? {} : { flexShrink: 0 }
-    // Two groups a full gap apart, each close-knit: the readings with keep-warm between them, the buttons.
+    // Two groups, each close-knit: the readings with keep-warm between them, and the buttons. A terminal sets them a
+    // full gap apart in one row. In the desktop app the buttons, icon and word, stand in a row of their own under the
+    // readings, on the right (2026-11-09): beside the readings they had no room, and the person chose a band one row
+    // taller that never changes its height over icons alone or words shown on hover.
+    const readings = (
+      <Box flexDirection="row" gap={1}>
+        <Box {...keep}>
+          <Text color={tone} wrap="truncate-end">
+            {`${cacheText}${ttlNote}${hits}`}
+          </Text>
+        </Box>
+        {keepWarmControl}
+        <Box flexDirection="row" gap={1} {...keep}>
+          {skyText}
+          {isExpired ? null : (
+            <Text>
+              {t.ctx} {fillText} / {limit.percent} %{limit.isFallback ? '*' : ''}
+            </Text>
+          )}
+        </Box>
+      </Box>
+    )
+    const buttons = (
+      <Box flexDirection="row" gap={1} {...(isTerminal ? {} : { justifyContent: 'flex-end' as const })}>
+        {sessionsButton}
+        {compact}
+        {pause}
+      </Box>
+    )
     return withBelow(
       <Box flexDirection="column">
-        <Box flexDirection="row" gap={2} {...(isTerminal ? {} : { justifyContent: 'space-between' as const })}>
-          <Box flexDirection="row" gap={1}>
-            <Box {...keep}>
-              <Text color={tone} wrap="truncate-end">
-                {`${cacheText}${ttlNote}${hits}`}
-              </Text>
-            </Box>
-            {keepWarmControl}
-            <Box flexDirection="row" gap={1} {...keep}>
-              {skyText}
-              {isExpired ? null : (
-                <Text>
-                  {t.ctx} {fillText} / {limit.percent} %{limit.isFallback ? '*' : ''}
-                </Text>
-              )}
-            </Box>
+        {isTerminal ? (
+          <Box flexDirection="row" gap={2}>
+            {readings}
+            {buttons}
           </Box>
-          <Box flexDirection="row" gap={1}>
-            {sessionsButton}
-            {compact}
-            {pause}
-          </Box>
-        </Box>
+        ) : (
+          readings
+        )}
+        {isTerminal ? null : buttons}
         {bar}
         {statusRows}
       </Box>,

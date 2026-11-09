@@ -12,8 +12,9 @@
   every session on the computer that runs the mod, this one first: its state (working, paused, idle, waiting for an
   approval, for how long), its context against its threshold, the cache time left, keep-warm, the model and the runs
   in the background, with the usage windows above. The signs of life carry these now; the pane only shows.
-- **Icons in the desktop app**: each button is a one-colour icon in text form (⧉ ⇲ ⏸ ▶ ⏻ ⏾ ❄ ✕) with its word, on the
-  right of the band. A terminal keeps the words.
+- **Icons in the desktop app**: each button is a one-colour icon in text form (⧉ ⇲ ⏸ ▶ ⏻ ⏾ ❄ ✕) with its word, in a
+  row of their own under the readings, on the right: beside the readings there was no room for them. A terminal keeps
+  the words in one row.
 - **What a model switch costs**: where a switch forfeits a cache that was still warm, a line with the tokens the next
   request writes again and Claude Code's own estimate in dollars (list price, a configured price, or estimated).
 - The CI runs validation and the tests on Ubuntu, Windows and macOS.

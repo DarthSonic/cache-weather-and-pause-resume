@@ -313,11 +313,15 @@ describe('the band', () => {
     expect((await terminal.find({ key: 'pause' }))?.props.label).toBe('Pause')
     expect((await terminal.find({ type: 'Text', text: /^☼$/ }))?.props.color).toBe('warning')
     expect(await terminal.find({ type: 'Text', text: /️|[☀🌧⛈⏸⏳▶]/u })).toBeUndefined()
+    expect((await terminal.findAll({ type: 'Box' })).filter(box => box.props.justifyContent !== undefined)).toHaveLength(0)
     await terminal.unmount()
 
     const desktop = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    // In the desktop app each button is a one-colour icon with its word (0.10.0), on the right of the band.
+    // In the desktop app each button is a one-colour icon with its word (0.10.0), in a row of its own under the
+    // readings, on the right (2026-11-09); a terminal keeps one row.
     expect((await desktop.find({ key: 'pause' }))?.props.label).toBe('⏸︎ Pause')
+    const isRightRow = (box: { props: Record<string, unknown> }) => box.props.justifyContent === 'flex-end'
+    expect((await desktop.findAll({ type: 'Box' })).filter(isRightRow)).toHaveLength(1)
     expect(await desktop.find({ key: 'hint-pause-words' })).toBeUndefined()
     expect(await desktop.find({ type: 'Text', text: /^☀️$/u })).toBeDefined()
     await desktop.unmount()
