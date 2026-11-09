@@ -81,7 +81,7 @@ weitermacht, als Log-Zeilen, die das Modell nicht liest.
 | Pause in Vorbereitung | `Weiter`; Statuszeile `⏳ Pause wird vorbereitet … · 2 Tasks laufen noch` | Claude lässt Laufendes zu Ende laufen, fragt bei langen Tasks nach und sichert den Stand. **Weiter** oder getipptes „weitermachen“ nimmt die Bitte zurück. |
 | pausiert | `Weiter`; Statuszeile `Pausiert seit 12 min` | Claude wartet. Ein Klick schickt „weitermachen“, genau wie getippt. |
 
-![Die Leiste in der Pause: Weiter neben Shutdown; der Kontext bei 78 % einer Schwelle von 97 %, ein Gewitter, darum ist Compact hervorgehoben](docs/band-paused.png)
+![Die Leiste in der Pause, in der Desktop-App: Weiter (hervorgehoben) neben Shutdown; unter dem Cache-Balken die Statuszeile „Pausiert seit 2 min“](docs/band-paused.png)
 
 Tippen geht auch: eine Nachricht, die nur „pausieren“ (oder „pause“) ist, pausiert; eine, die mit „weitermachen“ (oder
 „continue“, „resume“) beginnt, setzt fort. Beide Sprachen werden verstanden, egal in welcher der Mod gerade spricht.

@@ -78,7 +78,7 @@ with as log lines, which the model does not read.
 | pause being prepared | `Resume`; status row `⏳ Preparing the pause … · 2 tasks still running` | Claude lets running work finish, asks about long tasks and saves the state. **Resume**, or typing “continue”, calls the request off. |
 | paused | `Resume`; status row `Paused for 12 min` | Claude waits. A press sends “continue”, exactly as if you had typed it. |
 
-![The band while paused: Resume beside Shutdown; the context at 78 % of a 97 % threshold, a storm, so Compact is highlighted](docs/band-paused.png)
+![The band while paused, in the desktop app: Resume (highlighted) beside Shutdown; under the cache bar the status row “Pausiert seit 2 min” (paused for 2 minutes)](docs/band-paused.png)
 
 You can also type: a message that is only “pause” (or “pausieren”) pauses; one that starts with “continue” or
 “resume” (or “weitermachen”) carries on. Both languages are understood whatever the mod's language is.
