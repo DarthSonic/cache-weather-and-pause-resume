@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.3 — unreleased
+## 0.9.3 — 2026-11-09
 
 - **A status row** under the cache bar, one row per message and only while there is one, the most pressing first:
   the shutdown's countdown („Shutdown in 47 s“) or „Fährt herunter …“, the pause being prepared („⏳ Pause wird
