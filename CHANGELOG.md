@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.1 — unreleased
+## 0.9.1 — 2026-11-09
 
 - **Fix:** after `/clear` (or a resume within the running app) the shutdown button could stay dimmed for good, every
   press saying „Die Voraussetzungen werden noch geprüft“ / “still checking what it needs”, and nothing happened. The
