@@ -28,6 +28,8 @@ import {
   hitRate,
   isWarmRead,
   keepWarmBalance,
+  missedKeepWarm,
+  savingText,
   keepWarmHoursOf,
   keepWarmSpanText,
   keepWarmStep,
@@ -109,7 +111,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.10.0'
+const CODE_VERSION = '0.10.1'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -133,6 +135,7 @@ const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt
 const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
 const usageWindows = atom({ plugin: 'cache-weather-and-pause-resume', key: 'usageWindows' } as const, [])
 const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSpent' } as const, 0)
+const keepWarmSaving = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSaving' } as const, null)
 const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
 const turnGrowths = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnGrowths' } as const, [])
 const lastTurnTokens = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnTokens' } as const, null)
@@ -538,6 +541,7 @@ async function markActive($: EngineInterface, at: number, isRequest: boolean): P
   await update($, keepWarmNote, () => null)
   await update($, keepWarmRefreshes, () => 0)
   await update($, keepWarmSpent, () => 0)
+  await update($, keepWarmSaving, () => null)
 }
 
 // The person is back and the conversation's own request read the cache that keep-warm kept: what the refreshes cost,
@@ -558,13 +562,10 @@ async function drawBalance(
   })
   if (balance === null) return
   const lang = await currentLang($)
+  // What it saved first, a positive note (0.10.1); where it cost more, by how much.
+  const saving = savingText(balance)
   $.ui.log(
-    strings(lang, shutdownMode).keepWarmBalanceLog(
-      refreshes,
-      groupDigits(balance.spent, lang),
-      groupDigits(balance.rebuild, lang),
-      Math.round(balance.savedShare * 100),
-    ),
+    strings(lang, shutdownMode).keepWarmBalanceLog(refreshes, groupDigits(Math.abs(saving.tokens), lang), saving.percent),
   )
 }
 
@@ -590,10 +591,48 @@ async function logWasted($: EngineInterface): Promise<void> {
   const lang = await currentLang($)
   $.ui.log(strings(lang, shutdownMode).keepWarmWastedLog(refreshes, groupDigits(spent, lang)))
   await update($, keepWarmSpent, () => 0)
+  await update($, keepWarmSaving, () => null)
+}
+
+// Refreshes count as unused only once the cache they kept lapses with no request (0.10.1): keep-warm ended, was
+// switched off, or stopped for a usage window. Until then going on still reads it, and the band says what that saves.
+async function settleUnused($: EngineInterface): Promise<void> {
+  if ((await read($, keepWarmRefreshes)) <= 0 || (await read($, keepWarmSpent)) <= 0) return
+  const life = await read($, ttl)
+  const last = await read($, lastResponseAt)
+  if (life === null || last === null) return
+  if ((await $.clock.now()) >= last + life.minutes * 60_000) await logWasted($)
+}
+
+// Keep-warm was off and the cache lapsed before this request wrote it again: what keep-warm would have saved, once
+// (0.10.1). Measured on the request: what it wrote, over the gap since the response before.
+async function drawMissedSaving(
+  $: EngineInterface,
+  usage: { cache_creation_input_tokens: number },
+  sentAt: number,
+): Promise<void> {
+  if ((await read($, keepWarm)) || (await read($, keepWarmRefreshes)) > 0) return
+  const life = await read($, ttl)
+  const last = await read($, lastResponseAt)
+  if (life === null || last === null) return
+  const missed = missedKeepWarm({
+    gapMs: sentAt - last,
+    ttlMinutes: life.minutes,
+    hours: keepWarmHours,
+    cachedTokens: usage.cache_creation_input_tokens,
+    readRatio: cacheReadRatio(await sessionModel($)),
+    writeRatio: cacheWriteRatio(life.minutes),
+  })
+  if (missed === null) return
+  const lang = await currentLang($)
+  const saving = savingText(missed)
+  $.ui.log(strings(lang, shutdownMode).keepWarmWouldHaveLog(saving.percent, groupDigits(saving.tokens, lang), missed.refreshes))
 }
 
 async function keepWarmTick($: EngineInterface): Promise<void> {
-  if (isRefreshing || !(await read($, keepWarm))) return
+  if (isRefreshing) return
+  await settleUnused($)
+  if (!(await read($, keepWarm))) return
   // A usage window at or past 90 %: no refresh spends the last of it (0.10.0). Once it starts over, keep-warm goes on.
   const stopping = usageStopping(await read($, usageWindows))
   const held = await read($, keepWarmNote)
@@ -633,7 +672,8 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
   if (step === 'ended' && life !== null) {
     await update($, keepWarmNote, () => 'ended')
     $.ui.log(t.keepWarmEndedLog(keepWarmSpanText(life.minutes, keepWarmHours), life.minutes === 60 ? '1-h' : '5-m'))
-    await logWasted($)
+    // The cache it kept stays warm for its lifetime: going on before then still reads it (0.10.1). Unused they are once
+    // it lapses (settleUnused).
     return
   }
   if (step !== 'refresh') return
@@ -649,11 +689,27 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
     const cost = refreshCost(usage, cacheReadRatio(await sessionModel($)), cacheWriteRatio(life?.minutes ?? 60))
     if (isWarmRead(usage)) {
       await update($, keepWarmSpent, n => n + cost)
+      const spent = await read($, keepWarmSpent)
       await update($, cacheUsedAt, () => at)
       await update($, lastResponseAt, () => at)
       await update($, now, () => at)
       await update($, keepWarmRefreshes, n => n + 1)
-      $.ui.log(t.keepWarmRefreshedLog(groupDigits(usage.cache_read_input_tokens, lang), groupDigits(usage.output_tokens, lang)))
+      // What continuing now would save (0.10.1): the next request reads what this one read, instead of writing it.
+      const balance = keepWarmBalance({
+        spent,
+        readTokens: usage.cache_read_input_tokens,
+        readRatio: cacheReadRatio(await sessionModel($)),
+        writeRatio: cacheWriteRatio(life?.minutes ?? 60),
+      })
+      const saving = balance === null || balance.saved <= 0 ? null : savingText(balance)
+      await update($, keepWarmSaving, () => saving)
+      $.ui.log(
+        t.keepWarmRefreshedLog(
+          groupDigits(usage.cache_read_input_tokens, lang),
+          groupDigits(usage.output_tokens, lang),
+          saving === null ? null : { percent: saving.percent, tokens: groupDigits(saving.tokens, lang) },
+        ),
+      )
     } else if (usage.input_tokens + usage.cache_creation_input_tokens > 0) {
       // Answered, but not from the cache: it had lapsed. The next request of the conversation builds it again.
       await update($, keepWarmNote, () => 'missed')
@@ -1527,6 +1583,7 @@ export const register: Register = (on, options) => {
       try {
         await update($, mainModel, () => e.model)
         if (sentAt !== null) await drawBalance($, result.usage)
+        if (sentAt !== null) await drawMissedSaving($, result.usage, sentAt)
       } catch {
         // The balance waits; the readings below must not.
       }
@@ -1893,7 +1950,7 @@ export const register: Register = (on, options) => {
     // The status rows under the bar, one per message and only while there is one (0.9.3): what lasts stands here
     // rather than among the readings and the buttons, the most pressing first. The shutdown's countdown hides how
     // long the session has been paused, which it then is anyway.
-    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' }
+    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' | 'success' }
     const status: StatusLine[] = []
     // A pause another session asked for says where it came from (0.9.4).
     const role = await read($, requestRole)
@@ -1941,6 +1998,12 @@ export const register: Register = (on, options) => {
     const withoutMod = await read($, sessionsWithoutMod)
     if (role === 'own' && withoutMod > 0) status.push({ key: 'without-mod', text: t.withoutMod(withoutMod), color: 'subtle' })
     if (noteText !== null) status.push({ key: 'keep-warm', text: `${t.keepWarm}: ${noteText}`, color: 'warning' })
+    // What keep-warm's refreshes would save if the person went on now, in green (0.10.1): a positive note for coming
+    // back to an idle session. Only while the cache they kept is still warm.
+    const saving = await read($, keepWarmSaving)
+    if (saving !== null && !isExpired && refreshes > 0) {
+      status.push({ key: 'keep-warm-saving', text: t.keepWarmSaving(saving.percent, groupDigits(saving.tokens, lang)), color: 'success' })
+    }
     if (await read($, isCheckingShutdown)) status.push({ key: 'check', text: t.shutdownChecking, color: 'subtle' })
     const statusRows =
       status.length === 0 ? null : (

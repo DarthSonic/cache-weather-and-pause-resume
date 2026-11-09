@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.1 — unreleased
+
+- **What keep-warm saves, as it stands.** After each refresh a green row under the bar says what going on now would
+  save against building the cache again („Keep-warm: Weitermachen spart jetzt ≈ 92 % (≈ 835.500 Input-Tokens)“ /
+  “Keep-warm: continuing now saves ≈ 92 % (≈ 835,500 input tokens' worth)”), and the refresh's line says it too. The
+  row stands while the cache keep-warm kept is warm.
+- **The balance leads with the saving**: „↻ Keep-warm hat ≈ 92 % gespart (≈ 835.500 Input-Tokens): 2 Auffrischungen
+  statt Neuaufbau des Caches.“ / “↻ Keep-warm saved ≈ 92 % (…): 2 refreshes instead of rebuilding the cache.”
+- **What keep-warm would have saved**: with keep-warm off, the request that writes a lapsed cache again says what
+  keep-warm would have saved, where it would have bridged the gap within its idle span.
+- **Fixed:** when keep-warm ended after its idle span, a line at once called its refreshes unused, though the cache
+  they kept stayed warm for its lifetime and going on still read it. They count as unused only once that cache lapses.
+
 ## 0.10.0 — 2026-11-09
 
 - **Usage limits.** With a subscription, the status row shows the 5-hour and the 7-day window (and a gateway's spend

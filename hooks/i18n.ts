@@ -90,14 +90,18 @@ export type Strings = {
   /** About how many turns until auto-compact, as the status row says it. */
   compactForecast: (turns: number) => string
   /** Keep-warm's balance once the person is back: refreshes, their cost, the rebuild spared, the share saved. */
-  keepWarmBalanceLog: (refreshes: number, spent: string, rebuild: string, savedPercent: number) => string
+  keepWarmBalanceLog: (refreshes: number, tokens: string, savedPercent: number) => string
+  /** What continuing now would save, after a refresh (0.10.1): the green status row. */
+  keepWarmSaving: (percent: number, tokens: string) => string
+  /** What keep-warm would have saved, where it was off and the cache lapsed (0.10.1). */
+  keepWarmWouldHaveLog: (percent: number, tokens: string, refreshes: number) => string
   /** What the refreshes cost where the cache was not used again. */
   keepWarmWastedLog: (refreshes: number, spent: string) => string
   keepWarmLimitLog: (window: string, percent: number) => string
   /** A usage window as the status row shows it: its name, how full, when it starts over. */
   usageWindow: (kind: string) => string
   usageLine: (window: string, percent: number, reset: string | null) => string
-  keepWarmRefreshedLog: (read: string, out: string) => string
+  keepWarmRefreshedLog: (read: string, out: string, saving: { percent: number; tokens: string } | null) => string
   keepWarmEndedLog: (span: string, ttl: string) => string
   keepWarmMissedLog: string
   cacheBarAlt: (cache: string) => string
@@ -172,8 +176,13 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   sessionRuns: runs => `${runs.length === 1 ? 'Lauf' : 'Läufe'}: ${runs.join(', ')}`,
   modelSwitchLog: (to, tokens, usd, pricing) =>
     `Modellwechsel auf ${to}: Der warme Cache des bisherigen Modells verfällt, die nächste Anfrage schreibt ${tokens} Tokens neu in den Cache, ≈ ${usd.toFixed(2).replace('.', ',')} $ (${pricing === 'configured' ? 'nach eurem eingestellten Preis' : pricing === 'catalog' ? 'Listenpreis' : 'geschätzt, Modell unbekannt'}).`,
-  keepWarmBalanceLog: (n, spent, rebuild, saved) =>
-    `↻ Keep-warm-Bilanz: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} so viel wie ${spent} Input-Tokens; der ersparte Neuaufbau des Caches hätte ${rebuild} gekostet. ${saved >= 0 ? `Gespart: ≈ ${saved} %.` : `Diesmal hat Keep-warm nichts gespart (≈ ${-saved} % mehr).`}`,
+  keepWarmBalanceLog: (n, tokens, saved) =>
+    saved >= 0
+      ? `↻ Keep-warm hat ≈ ${saved} % gespart (≈ ${tokens} Input-Tokens): ${n === 1 ? '1 Auffrischung' : `${n} Auffrischungen`} statt Neuaufbau des Caches.`
+      : `↻ Keep-warm-Bilanz: Diesmal hat Keep-warm nichts gespart: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} ≈ ${-saved} % mehr als ein Neuaufbau des Caches.`,
+  keepWarmSaving: (percent, tokens) => `Keep-warm: Weitermachen spart jetzt ≈ ${percent} % (≈ ${tokens} Input-Tokens)`,
+  keepWarmWouldHaveLog: (percent, tokens, n) =>
+    `Keep-warm hätte hier ≈ ${percent} % gespart (≈ ${tokens} Input-Tokens): Der Cache war abgelaufen und wurde neu geschrieben; ${n === 1 ? '1 Auffrischung hätte' : `${n} Auffrischungen hätten`} ihn warm gehalten.`,
   keepWarmWastedLog: (n, spent) =>
     `Keep-warm-Bilanz: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} so viel wie ${spent} Input-Tokens, ohne dass der Cache noch gebraucht wurde.`,
   keepWarmLimitLog: (window, percent) =>
@@ -181,7 +190,8 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   usageWindow: kind =>
     kind === 'five_hour' ? '5-h-Limit' : kind === 'seven_day' ? '7-Tage-Limit' : kind === 'spend_limit' ? 'Ausgabenlimit' : kind,
   usageLine: (window, percent, reset) => `${window} ${percent} %${reset === null ? '' : ` · neu ${reset.includes(' ') ? '' : 'um '}${reset}`}`,
-  keepWarmRefreshedLog: (read, out) => `↻ Keep-warm: Cache aufgefrischt (${read} Tokens aus dem Cache gelesen, ${out} Tokens Antwort)`,
+  keepWarmRefreshedLog: (read, out, saving) =>
+    `↻ Keep-warm: Cache aufgefrischt (${read} Tokens aus dem Cache gelesen, ${out} Tokens Antwort)${saving === null ? '' : `; Weitermachen spart jetzt ≈ ${saving.percent} % (≈ ${saving.tokens} Input-Tokens)`}`,
   keepWarmEndedLog: (span, ttl) =>
     `Keep-warm: nach ${span} ohne Eingabe nicht weiter aufgefrischt. Das ist die Grenze beim ${ttl}-Cache, damit eine vergessene Sitzung kein Kontingent mehr verbraucht. Die nächste Eingabe baut den Cache neu auf, dann hält Keep-warm ihn wieder warm.`,
   keepWarmMissedLog:
@@ -244,8 +254,13 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   sessionRuns: runs => `${runs.length === 1 ? 'Run' : 'Runs'}: ${runs.join(', ')}`,
   modelSwitchLog: (to, tokens, usd, pricing) =>
     `Model switched to ${to}: the warm cache of the model before is forfeited, and the next request writes ${tokens} tokens to the cache again, ≈ $${usd.toFixed(2)} (${pricing === 'configured' ? 'at your configured price' : pricing === 'catalog' ? 'list price' : 'estimated, model unknown'}).`,
-  keepWarmBalanceLog: (n, spent, rebuild, saved) =>
-    `↻ Keep-warm balance: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} as much as ${spent} input tokens; rebuilding the cache, which they spared, would have cost ${rebuild}. ${saved >= 0 ? `Saved: ≈ ${saved} %.` : `This time keep-warm saved nothing (≈ ${-saved} % more).`}`,
+  keepWarmBalanceLog: (n, tokens, saved) =>
+    saved >= 0
+      ? `↻ Keep-warm saved ≈ ${saved} % (≈ ${tokens} input tokens' worth): ${n === 1 ? '1 refresh' : `${n} refreshes`} instead of rebuilding the cache.`
+      : `↻ Keep-warm balance: this time keep-warm saved nothing: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} ≈ ${-saved} % more than rebuilding the cache.`,
+  keepWarmSaving: (percent, tokens) => `Keep-warm: continuing now saves ≈ ${percent} % (≈ ${tokens} input tokens' worth)`,
+  keepWarmWouldHaveLog: (percent, tokens, n) =>
+    `Keep-warm would have saved ≈ ${percent} % here (≈ ${tokens} input tokens' worth): the cache had expired and was written again; ${n === 1 ? '1 refresh' : `${n} refreshes`} would have kept it warm.`,
   keepWarmWastedLog: (n, spent) =>
     `Keep-warm balance: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} as much as ${spent} input tokens, and the cache was not used again.`,
   keepWarmLimitLog: (window, percent) =>
@@ -253,7 +268,8 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   usageWindow: kind =>
     kind === 'five_hour' ? '5-hour limit' : kind === 'seven_day' ? '7-day limit' : kind === 'spend_limit' ? 'Spend limit' : kind,
   usageLine: (window, percent, reset) => `${window} ${percent} %${reset === null ? '' : ` · resets ${reset.includes(' ') ? '' : 'at '}${reset}`}`,
-  keepWarmRefreshedLog: (read, out) => `↻ Keep-warm: cache refreshed (${read} tokens read from the cache, ${out} tokens of reply)`,
+  keepWarmRefreshedLog: (read, out, saving) =>
+    `↻ Keep-warm: cache refreshed (${read} tokens read from the cache, ${out} tokens of reply)${saving === null ? '' : `; continuing now saves ≈ ${saving.percent} % (≈ ${saving.tokens} input tokens' worth)`}`,
   keepWarmEndedLog: (span, ttl) =>
     `Keep-warm: no more refreshes after ${span} without input. That is the limit for the ${ttl} cache, so a forgotten session spends no more usage. The next input builds the cache afresh, and keep-warm keeps it warm again.`,
   keepWarmMissedLog:

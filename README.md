@@ -59,7 +59,7 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
 | **Shutdown** | Pauses like **Pause**, the other sessions with it, then shuts the computer down after a 5-minute countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
-| **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), about how many turns are left until auto-compact from ten on (`Auto-compact in about 6 turns`, yellow from three; from the median growth of the last five turns, once there are three, and only where the session reports its own threshold), why keep-warm waits, the shutdown check a press waits for. |
+| **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), about how many turns are left until auto-compact from ten on (`Auto-compact in about 6 turns`, yellow from three; from the median growth of the last five turns, once there are three, and only where the session reports its own threshold), why keep-warm waits, what going on now would save after keep-warm's refreshes (in green), the shutdown check a press waits for. |
 
 In the desktop app each button is a one-colour icon with its word: ⇲ Compact, ⧉ Sessions, ⏸ Pause, ▶ Resume,
 ⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, in a row of their own over the readings. A terminal shows the words
@@ -215,13 +215,19 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
 - **How:** one question over the conversation as its last request sent it (`$.model.fork`, through the session's own
   client and login). The API reads all of it from the cache, which keeps the cache for another full lifetime. The
   question is fixed text (“reply with OK”, in [`hooks/register.tsx`](hooks/register.tsx)); it may call no tool, and
-  question and answer stay out of the conversation. Each refresh writes a dim line: the tokens read from the cache and
-  the tokens of the reply.
-- **The balance:** when you are back and the first request reads the cache keep-warm kept, a line sets what the
-  refreshes cost against the rebuild they spared, in input tokens' worth and as a share (“↻ Keep-warm balance: 3
-  refreshes cost as much as 22,620 input tokens; rebuilding the cache, which they spared, would have cost 300,000.
-  Saved: ≈ 90 %.”). Where keep-warm ends without you coming back, or finds the cache already gone, a line says what
-  the refreshes cost for nothing. A cache read is priced at the session model's rate: a tenth of the input price, on
+  question and answer stay out of the conversation. Each refresh writes a dim line: the tokens read from the cache, the
+  tokens of the reply, and what going on now would save.
+- **What it saves:** after a refresh a green row under the bar says what going on now would save against building
+  the cache again, as a share and in input tokens' worth (“Keep-warm: continuing now saves ≈ 92 % (≈ 835,500 input
+  tokens' worth)”). It stands while the cache keep-warm kept is warm, also once keep-warm has ended or been switched
+  off. When you are back, the first request that reads that cache confirms it in a line (“↻ Keep-warm saved ≈ 92 %
+  (≈ 835,500 input tokens' worth): 2 refreshes instead of rebuilding the cache.”). Where the cache lapses unused, or
+  keep-warm finds it already gone, a line says what the refreshes cost for nothing.
+- **What it would have saved:** with keep-warm off, the request that writes a lapsed cache again says what keep-warm
+  would have saved, where it would have bridged the gap within its idle span (“Keep-warm would have saved ≈ 90 % here
+  (≈ 269,900 input tokens' worth): the cache had expired and was written again; 3 refreshes would have kept it
+  warm.”).
+- **The prices:** a cache read is priced at the session model's rate: a tenth of the input price, on
   Claude Opus 5.5 a twentieth, on Claude Fable 5.1 and Mythos 5.1 a fortieth (a model the mod does not know at a
   tenth, which rather understates the saving); a write at 1.25 times (5-minute cache) or twice (1-hour cache); the
   reply at five times.

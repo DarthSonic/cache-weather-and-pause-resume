@@ -413,11 +413,49 @@ export function keepWarmBalance(s: {
   readTokens: number
   readRatio: number
   writeRatio: number
-}): { rebuild: number; spent: number; savedShare: number } | null {
+}): { rebuild: number; spent: number; saved: number; savedShare: number } | null {
   if (s.readTokens <= 0) return null
   const rebuild = s.readTokens * s.writeRatio
   const paid = s.spent + s.readTokens * s.readRatio
-  return { rebuild, spent: s.spent, savedShare: (rebuild - paid) / rebuild }
+  return { rebuild, spent: s.spent, saved: rebuild - paid, savedShare: (rebuild - paid) / rebuild }
+}
+
+/**
+ * What keep-warm would have saved where it was off and the cache lapsed before the request that wrote it again
+ * (0.10.1): the refreshes it would have taken over the gap (one every lifetime less the lead), each a read of the cache
+ * and a short question and answer, against that rebuild. Null where none was needed (the gap within the lifetime),
+ * where keep-warm would have ended first (past its idle span), or where it would have saved nothing.
+ */
+export function missedKeepWarm(s: {
+  gapMs: number
+  ttlMinutes: 5 | 60
+  hours: number
+  cachedTokens: number
+  readRatio: number
+  writeRatio: number
+}): { refreshes: number; saved: number; savedShare: number } | null {
+  const lifetime = s.ttlMinutes * 60_000
+  if (s.cachedTokens <= 0 || s.gapMs <= lifetime) return null
+  const every = lifetime - keepWarmLeadMs(s.ttlMinutes)
+  const refreshes = Math.floor((s.gapMs - lifetime) / every) + 1
+  if (refreshes * every >= keepWarmSpanMs(s.ttlMinutes, s.hours)) return null
+  const refresh = s.cachedTokens * s.readRatio + REFRESH_EXCHANGE_TOKENS
+  const balance = keepWarmBalance({
+    spent: refreshes * refresh,
+    readTokens: s.cachedTokens,
+    readRatio: s.readRatio,
+    writeRatio: s.writeRatio,
+  })
+  if (balance === null || balance.saved <= 0) return null
+  return { refreshes, saved: balance.saved, savedShare: balance.savedShare }
+}
+
+/** A refresh's own question and answer beside its read, in input tokens' worth: some 30 in, 2 out at five times. */
+const REFRESH_EXCHANGE_TOKENS = 40
+
+/** A saving as the band says it (0.10.1): the share in whole percent, the tokens' worth to the hundred. */
+export function savingText(balance: { saved: number; savedShare: number }): { percent: number; tokens: number } {
+  return { percent: Math.round(balance.savedShare * 100), tokens: Math.round(balance.saved / 100) * 100 }
 }
 
 // ── The context forecast (0.10.0) ───────────────────────────────────────────────────────────────────────────────

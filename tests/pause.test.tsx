@@ -1304,6 +1304,13 @@ describe('keep-warm', () => {
     await clock.advance(56 * MIN)
     expect(asked.prompts.length).toBe(1)
     expect(await ui.find({ type: 'Text', text: /^Keep-warm: endete nach 1 h ohne Eingabe$/ })).toBeDefined()
+    // The cache the refresh kept is warm for its hour yet: going on still saves, and nothing is called unused (0.10.1).
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: Weitermachen spart jetzt/ })).toBeDefined()
+    expect(asked.logs.some(line => line.includes('ohne dass der Cache noch gebraucht wurde'))).toBe(false)
+    // Once it lapses, the saving goes and the refresh counts as unused.
+    await clock.advance(5 * MIN)
+    expect(await ui.find({ type: 'Text', text: /Weitermachen spart jetzt/ })).toBeUndefined()
+    expect(asked.logs.at(-1)).toContain('ohne dass der Cache noch gebraucht wurde')
     await ui.unmount()
   })
 
@@ -1336,8 +1343,42 @@ describe('keep-warm', () => {
       // drained
     }
     // 1 refresh: 150.000 × 0,05 + 30 + 2 × 5 = 7.540; the rebuild 150.000 × 2 = 300.000; paid 7.540 + 7.500.
+    // What it saved first (0.10.1).
+    expect(asked.logs.at(-1)).toBe('↻ Keep-warm hat ≈ 95 % gespart (≈ 285.000 Input-Tokens): 1 Auffrischung statt Neuaufbau des Caches.')
+    // The request is the person's: the saving's row goes.
+    expect(await ui.find({ type: 'Text', text: /Weitermachen spart jetzt/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('keep-warm off and the cache lapsed: the request that writes it again says what keep-warm would have saved', { ...DE_COLD, timeoutMs: 30_000 }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    const asked = forks(on)
+    on('turn.step', async function* ($, e) {
+      return {
+        turnId: e.turnId,
+        index: e.index,
+        answer: 'Weiter.',
+        toolUses: [],
+        stopReason: 'end_turn',
+        usage: { input_tokens: 40, output_tokens: 300, cache_read_input_tokens: 0, cache_creation_input_tokens: 150_000 },
+      }
+    } as never)
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+    await clock.advance(180 * MIN)
+    expect(asked.prompts.length).toBe(0)
+    await $.turn.start({ text: 'weiter geht es', turnId: 't7' })
+    const step = $.turn.step({ turnId: 't7', index: 0, model: 'claude-opus-5-5' } as never) as unknown as AsyncIterable<unknown>
+    for await (const _ of step) {
+      // drained
+    }
+    // 182 minutes: 3 refreshes à 7.540 and the read 7.500 against writing 150.000 at twice.
     expect(asked.logs.at(-1)).toBe(
-      '↻ Keep-warm-Bilanz: 1 Auffrischung kostete so viel wie 7.540 Input-Tokens; der ersparte Neuaufbau des Caches hätte 300.000 gekostet. Gespart: ≈ 95 %.',
+      'Keep-warm hätte hier ≈ 90 % gespart (≈ 269.900 Input-Tokens): Der Cache war abgelaufen und wurde neu geschrieben; 3 Auffrischungen hätten ihn warm gehalten.',
     )
     await ui.unmount()
   })
@@ -1395,7 +1436,13 @@ describe('keep-warm', () => {
     await clock.advance(MIN)
     expect(asked.prompts.length).toBe(1)
     expect(asked.prompts[0]).toContain('keep-warm')
-    expect(asked.logs.at(-1)).toBe('↻ Keep-warm: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort)')
+    // With what going on now would save (0.10.1): 1 refresh 15.040, the read 15.000, against 300.000 (model unknown: 0,1).
+    expect(asked.logs.at(-1)).toBe(
+      '↻ Keep-warm: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort); Weitermachen spart jetzt ≈ 90 % (≈ 270.000 Input-Tokens)',
+    )
+    // And in green in the status row, while the cache it keeps is warm.
+    const saving = await ui.find({ type: 'Text', text: /^Keep-warm: Weitermachen spart jetzt ≈ 90 % \(≈ 270\.000 Input-Tokens\)$/ })
+    expect(saving?.props.color).toBe('success')
     expect(await ui.find({ type: 'Text', text: /^Cache noch 60 min/ })).toBeDefined()
     expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Cache warm halten (1× aufgefrischt)')
 
