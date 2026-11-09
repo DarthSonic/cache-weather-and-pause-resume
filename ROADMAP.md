@@ -19,10 +19,9 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
 - [x] **0.9.3: a status row.** Under the bar, one row per message and only while there is one: the shutdown's
   countdown, the pause being prepared, "paused for 12 min", why keep-warm waits, the shutdown check. While the pause
   is prepared, Resume calls it off; the toasts that only repeated a state are gone.
-- [ ] **Notifications.** A system notification when the shutdown countdown starts (the last chance to cancel for
-  someone working in another window), when keep-warm ends and when the pause is reached.
-  *To plan:* which of them are on by default, a setting to turn them off, what the terminal and the desktop app each
-  show.
+- [x] **0.9.4: a notification as the shutdown countdown starts**, through Claude Code's own channel (terminals such as
+  iTerm2, kitty, Ghostty), option `notifications`. Notifications at the pause and at keep-warm's end were dropped: the
+  desktop app already reports when Claude finishes a step, which is when a pause is reached and the countdown starts.
 - [ ] **Pause and shutdown across sessions.** Today the shutdown pauses only the session where it was pressed; other
   Claude sessions on the computer end with it, their runs cut off. One Shutdown button, which shuts down once every
   session is done, whether it already is or the runs are waited for:
@@ -58,7 +57,7 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: notifications next, then pause and shutdown across sessions, and hibernation; the CI matrix alongside.
+Order: pause and shutdown across sessions next, then hibernation; the CI matrix alongside.
 
 ## 0.10.0 — Next features
 

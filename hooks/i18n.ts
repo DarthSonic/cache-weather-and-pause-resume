@@ -67,6 +67,9 @@ export type Strings = {
   shutdownChecking: string
   shutdownHelp: (readiness: Extract<ShutdownReadiness, { isReady: false }>) => string
   shutdownLog: string
+  /** The notification as the countdown starts: its heading, and the body naming the session's folder. */
+  shutdownNotifyTitle: (seconds: number) => string
+  shutdownNotifyBody: (folder: string | null) => string
 }
 
 const DE: Strings = {
@@ -116,6 +119,9 @@ const DE: Strings = {
             ? 'Shutdown ist nicht verfügbar: Die Prüfung der Voraussetzungen ließ sich nicht ausführen. Eine neue Sitzung prüft erneut.'
             : 'Shutdown ist nicht verfügbar: Das Betriebssystem wurde nicht erkannt (Windows, Linux und macOS werden unterstützt).',
   shutdownLog: '⏻ Shutdown: Die Sitzung ist pausiert, der Rechner fährt jetzt herunter.',
+  shutdownNotifyTitle: seconds => `Shutdown in ${seconds} s`,
+  shutdownNotifyBody: folder =>
+    `${folder === null ? 'Die Sitzung' : `Die Sitzung in ${folder}`} ist pausiert, der Rechner fährt gleich herunter. Abbrechen in der Leiste über dem Eingabefeld.`,
 }
 
 const EN: Strings = {
@@ -165,6 +171,9 @@ const EN: Strings = {
             ? 'Shutdown is not available: the check of what it needs could not run. A new session checks again.'
             : 'Shutdown is not available: the operating system was not recognised (Windows, Linux and macOS are supported).',
   shutdownLog: '⏻ Shutdown: the session is paused, the computer shuts down now.',
+  shutdownNotifyTitle: seconds => `Shutdown in ${seconds} s`,
+  shutdownNotifyBody: folder =>
+    `${folder === null ? 'The session' : `The session in ${folder}`} is paused, and the computer shuts down shortly. Cancel in the band above the prompt.`,
 }
 
 export function strings(lang: Lang): Strings {

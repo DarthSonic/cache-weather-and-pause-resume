@@ -492,6 +492,39 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  // The last chance to cancel, through Claude Code's own notification channel (0.9.4); the option turns it off.
+  for (const [name, options, expected] of [
+    ['the countdown raises one notification', DE, 1],
+    ['… and none with the option off', { options: { language: 'de', notifications: 'off' } }, 0],
+  ] as const) {
+    test(name, options, async ($, on) => {
+      mock.store(on)
+      const clock = mock.clock(on, { now: 9_000_000 })
+      disk(on, {}, { OS: 'Windows_NT' })
+      engine(on)
+      windows(on)
+      const notes: { text: string; title?: string }[] = []
+      on('ui.notify', ($, e) => {
+        notes.push({ text: e.text, title: e.title })
+        return { value: { isSent: true, channel: 'kitty' } }
+      })
+      const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+      await $.classic.SessionStart({ source: 'startup', session_id: 'n1' })
+      await clock.settle()
+      await ui.press({ key: 'shutdown' })
+      expect(notes).toEqual([])
+      await $.classic.Stop(stop(undefined, 'n1'))
+      await clock.advance(1_000)
+      expect(notes.length).toBe(expected)
+      if (expected === 1) {
+        expect(notes[0]?.title).toBe('Shutdown in 60 s')
+        expect(notes[0]?.text).toContain('fährt gleich herunter')
+      }
+      await ui.press({ key: 'shutdown-cancel' })
+      await ui.unmount()
+    })
+  }
+
   test('the cancel button stops the countdown; the session stays paused', DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: 9_000_000 })

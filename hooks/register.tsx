@@ -56,7 +56,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.9.3'
+const CODE_VERSION = '0.9.4'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -404,6 +404,7 @@ const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'eli
 
 // The module's own: a reload starts them over, and its timers go with the old module.
 let keepWarmByDefault = true
+let isNotifying = true
 let shutdownCheck: Promise<void> | null = null
 let shutdownTimer: Timer | null = null
 let shutdownTicker: Timer | null = null
@@ -652,6 +653,23 @@ async function startShutdownCountdown($: EngineInterface): Promise<void> {
   shutdownTimer = $.clock.after(SHUTDOWN_COUNTDOWN_MS, () => {
     void runShutdown($).catch(() => undefined)
   })
+  void notifyCountdown($).catch(() => undefined)
+}
+
+// The last chance to cancel, for someone in another window: a notification through Claude Code's own channel, the
+// one the person's `preferredNotifChannel` names (0.9.4). It reaches terminals that show notifications (iTerm2, kitty,
+// Ghostty), elsewhere at most the bell; the desktop app draws no terminal and reports the pause itself. No program of
+// the mod's own runs for it. The option `notifications` turns it off.
+async function notifyCountdown($: EngineInterface): Promise<void> {
+  if (!isNotifying) return
+  const t = strings(await currentLang($))
+  let folder: string | null = null
+  try {
+    folder = (await $.session.cwd()).split(/[\\/]/).filter(part => part !== '').at(-1) ?? null
+  } catch {
+    // No working folder to name: the body says "the session".
+  }
+  await $.ui.notify(t.shutdownNotifyBody(folder), { title: t.shutdownNotifyTitle(SHUTDOWN_COUNTDOWN_MS / 1000) })
 }
 
 function stopShutdownTimers(): void {
@@ -845,6 +863,7 @@ async function pauseOnStop(
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
   keepWarmByDefault = options.keepWarm !== 'off'
+  isNotifying = options.notifications !== 'off'
   shutdownCheck = null
   stopShutdownTimers()
   pauseToolRegistered = false

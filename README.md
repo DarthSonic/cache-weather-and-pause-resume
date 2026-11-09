@@ -121,7 +121,8 @@ How the mod tracks the state:
    about long-running tasks right away, while you are still there, and asks nothing after that.
 2. The status row shows “Preparing the shutdown …” and the tasks still running; **Cancel** stands in the button row.
 3. Once the session is paused, the status row counts down 60 seconds (“Shutdown in 47 s”, **Cancel** above), then the mod runs the
-   system's command and logs a line. Pressed while the session is already paused, it counts down at once.
+   system's command and logs a line. Pressed while the session is already paused, it counts down at once. As the
+   countdown starts, a notification goes out through your terminal's notification channel (below).
 
 Picking the work back up (**Resume**, “continue”, or Claude through `pause_state`) cancels a shutdown that was asked
 for; the pause itself is kept as always.
@@ -207,6 +208,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
 | `keepWarm` | `on` | Whether a new session starts with keep-warm checked; `off` starts it unchecked. |
+| `notifications` | `on` | A notification as the shutdown countdown starts; `off` sends none. |
 
 Set them with `/plugin configure cache-weather-and-pause-resume@darthsonic`, or in `~/.claude/settings.json`:
 
@@ -269,6 +271,12 @@ runs nothing. Only once you pressed **Shutdown**, the session is paused and the 
 run the shutdown command from the table above. It starts no other program, and each one by its full path in the
 system's own folders (`%SystemRoot%\System32` on Windows, `/usr/bin` or `/bin` elsewhere) with that folder as the
 working folder: a program of the same name in the session's folder or on your PATH is never run.
+
+**Notifications.** As the shutdown countdown starts, the mod raises one notification through Claude Code's own
+channel, the one your `preferredNotifChannel` setting names: “Shutdown in 60 s” and the session's folder name, fixed
+text otherwise. Terminals that show notifications (iTerm2, kitty, Ghostty) show it; elsewhere it is at most the bell.
+The desktop app draws no terminal: there nothing comes, and the app reports the pause itself, which is when the
+countdown starts. The mod starts no program for it; the option `notifications` turns it off.
 
 **Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is), `LC_ALL` / `LC_MESSAGES` /
 `LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials.

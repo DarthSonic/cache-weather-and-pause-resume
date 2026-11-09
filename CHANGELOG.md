@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.4 — unreleased
+
+- **A notification as the shutdown countdown starts**, the last chance to cancel for someone in another window: through
+  Claude Code's own channel, the one `preferredNotifChannel` names, with „Shutdown in 60 s“ and the session's folder.
+  Terminals that show notifications (iTerm2, kitty, Ghostty) show it, elsewhere it is at most the bell; the desktop app
+  draws no terminal and reports the pause itself, which is when the countdown starts. No program of the mod's own runs
+  for it. The new option `notifications` (`on` / `off`, default `on`) turns it off.
+
 ## 0.9.3 — 2026-11-09
 
 - **A status row** under the cache bar, one row per message and only while there is one, the most pressing first:

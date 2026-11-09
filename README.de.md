@@ -125,6 +125,7 @@ Wie der Mod den Zustand verfolgt:
 2. Die Statuszeile zeigt „Shutdown wird vorbereitet …“ und die noch laufenden Tasks; in der Knopfzeile steht **Abbrechen**.
 3. Ist die Sitzung pausiert, zählt die Statuszeile 60 Sekunden herunter („Shutdown in 47 s“, **Abbrechen** darüber), dann startet der
    Mod den Befehl des Systems und schreibt eine Zeile ins Log. Ist die Sitzung schon pausiert, zählt er sofort herunter.
+   Beim Start des Countdowns geht eine Benachrichtigung über den Benachrichtigungsweg deines Terminals (unten).
 
 Nimmst du die Arbeit wieder auf (**Weiter**, „weitermachen“ oder Claude über `pause_state`), fällt ein angeforderter
 Shutdown weg; die Pause selbst bleibt wie immer erhalten.
@@ -214,6 +215,7 @@ Zustandsdatei (`~/.claude/cache-wetter/`) wird nicht übernommen und kann weg.
 | `language` | `auto` | `de` oder `en` für Leiste, Meldungen und die Texte an Claude. `auto` folgt `LC_ALL` / `LC_MESSAGES` / `LANG`, dann der Systemsprache (unter Windows, wo `LANG` meist leer ist). |
 | `askAboveMinutes` | `5` | Ab welcher Restlaufzeit eines laufenden Tasks Claude bei einer Pause nachfragt. |
 | `keepWarm` | `on` | Ob eine neue Sitzung mit gesetztem Keep-warm startet; `off` startet ohne. |
+| `notifications` | `on` | Eine Benachrichtigung, wenn der Shutdown-Countdown startet; `off` schickt keine. |
 
 Setzen mit `/plugin configure cache-weather-and-pause-resume@darthsonic` oder in `~/.claude/settings.json`:
 
@@ -279,6 +281,12 @@ nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzung pausiert
 abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht, und jedes über seinen
 vollen Pfad in den Ordnern des Systems (`%SystemRoot%\System32` unter Windows, sonst `/usr/bin` oder `/bin`), mit
 diesem Ordner als Arbeitsordner: Ein gleichnamiges Programm im Ordner der Sitzung oder auf deinem PATH läuft nie.
+
+**Benachrichtigungen.** Startet der Shutdown-Countdown, schickt der Mod eine Benachrichtigung über Claude Codes eigenen
+Weg, den deine Einstellung `preferredNotifChannel` nennt: „Shutdown in 60 s“ und den Ordnernamen der Sitzung, sonst
+fester Text. Terminals, die Benachrichtigungen zeigen (iTerm2, kitty, Ghostty), zeigen sie; anderswo ist es höchstens
+die Glocke. Die Desktop-App hat kein Terminal: Dort kommt nichts an, und die App meldet die Pause selbst, und mit ihr
+startet der Countdown. Der Mod startet dafür kein Programm; die Option `notifications` schaltet sie ab.
 
 **Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt), `LC_ALL` /
 `LC_MESSAGES` / `LANG` (die Sprache) und `OS` (ob er unter Windows läuft). Er liest keine Einstellungen von Claude Code
