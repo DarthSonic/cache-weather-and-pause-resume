@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.2 — unreleased
+## 0.9.2 — 2026-11-09
 
 - **Fix:** sessions no longer overwrite each other's entries in the state file. Each session writes the file by
   reading it, changing it and writing it whole; two that did so at the same moment lost one change (a pause, a
