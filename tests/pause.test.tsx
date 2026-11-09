@@ -432,6 +432,64 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  // After a /clear the session can stand without the answer of the check its start made (Claude Code 2.1.317): the
+  // module's own flag kept the check from running again, and every press said „wird noch geprüft“ (0.9.0).
+  test('a start or a press that finds no answer checks again; a press then goes on', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    const host = windows(on)
+    // The next read of the answer finds none, as a session after /clear did.
+    let lostReads = 0
+    on('state.get', async ($, e, next) => {
+      if (lostReads > 0 && e.key === 'shutdownReadiness') {
+        lostReads -= 1
+        return { value: { value: undefined, version: 0 } }
+      }
+      return next(e)
+    })
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'x5' })
+    await clock.settle()
+    expect(host.runs).toEqual([[WHOAMI, '/priv']])
+    await $.classic.SessionStart({ source: 'compact', session_id: 'x5' })
+    await clock.settle()
+    expect(host.runs.length).toBe(1)
+
+    lostReads = 1
+    await $.classic.SessionStart({ source: 'clear', session_id: 'x6' })
+    await clock.settle()
+    expect(host.runs.length).toBe(2)
+    lostReads = 1
+    await ui.press({ key: 'shutdown' })
+    expect(host.runs.length).toBe(3)
+    expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
+    await ui.unmount()
+  })
+
+  test('a press after a failed check checks again', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    const runs: string[][] = []
+    on('process.run', ($, e) => {
+      runs.push([...e.argv])
+      if (runs.length === 1) throw new Error('whoami did not start')
+      return { value: { exitCode: 0, stdout: PRIVILEGES, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'x7' })
+    await clock.settle()
+    expect((await ui.find({ key: 'shutdown' }))?.props.dimColor).toBe(true)
+    await ui.press({ key: 'shutdown' })
+    expect(runs).toEqual([[WHOAMI, '/priv'], [WHOAMI, '/priv']])
+    expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
+    expect(await ui.find({ type: 'Text', text: /Shutdown angefordert/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('the cancel button stops the countdown; the session stays paused', DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: 9_000_000 })

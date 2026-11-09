@@ -126,7 +126,7 @@ Picking the work back up (**Resume**, “continue”, or Claude through `pause_s
 for; the pause itself is kept as always.
 
 **What it needs.** The button is dimmed until the computer can be shut down with nobody at the keyboard; a press then
-says what is missing. The mod checks once per session start:
+says what is missing. The mod checks at each session start, and again at a press that finds no answer:
 
 | System | Check | Command | Where it is missing |
 | --- | --- | --- | --- |
@@ -261,7 +261,8 @@ instructions, hooks or build files. It reads that file, the session's transcript
 cache lifetime and the time of the last response), and the file names — not the contents — in `~/.claude/projects/*/`,
 to drop the pauses of deleted sessions.
 
-**Programs.** At each session start it checks whether the shutdown button can work: `whoami /priv` on Windows;
+**Programs.** At each session start (and at a press of **Shutdown** that finds no answer) it checks whether the
+shutdown button can work: `whoami /priv` on Windows;
 elsewhere `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and
 runs nothing. Only once you pressed **Shutdown**, the session is paused and the 60-second countdown has run out does it
 run the shutdown command from the table above. It starts no other program, and each one by its full path in the
@@ -315,7 +316,7 @@ How to try a change from a clone and open a pull request: [CONTRIBUTING.md](CONT
 
 Questions, bugs and ideas: [GitHub issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). The
 mod needs no account and no sample data: install it and open a session. Report a security problem privately, as
-[SECURITY.md](SECURITY.md) describes, not in an issue.
+[SECURITY.md](SECURITY.md) describes, not in an issue. What comes next: [ROADMAP.md](ROADMAP.md).
 
 If the band saves you time or cache, you can support its development through
 [GitHub Sponsors](https://github.com/sponsors/DarthSonic).

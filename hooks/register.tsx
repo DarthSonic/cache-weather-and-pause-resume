@@ -56,7 +56,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.9.0'
+const CODE_VERSION = '0.9.1'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -349,7 +349,7 @@ const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'eli
 
 // The module's own: a reload starts them over, and its timers go with the old module.
 let keepWarmByDefault = true
-let shutdownChecked = false
+let shutdownCheck: Promise<void> | null = null
 let shutdownTimer: Timer | null = null
 let shutdownTicker: Timer | null = null
 let pauseToolRegistered = false
@@ -458,20 +458,44 @@ async function restoreKeepWarm($: EngineInterface, id: string): Promise<void> {
 
 // ── The shutdown button ───────────────────────────────────────────────────────────────────────────────────────────
 
-// Whether the computer can be shut down with nobody at the keyboard, checked once per session start: the button shows
-// dimmed, and says what is missing, until it can. The programs it starts read and change nothing: `whoami /priv`
-// (Windows), else `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no
-// password and runs nothing.
-async function checkShutdown($: EngineInterface): Promise<void> {
-  if (shutdownChecked) return
-  shutdownChecked = true
-  let readiness: ShutdownReadiness
+// Whether the computer can be shut down with nobody at the keyboard: the button shows dimmed, and says what is
+// missing, until it can. Checked at a session start (a /clear and a resume too) where the band holds no answer yet,
+// and at a press that finds none or a failed check (`force`): the answer lives with the session, the module outlives
+// it, so a flag of the module's own would leave a session after /clear without one (0.9.1). A check under way is
+// shared, never run twice. The programs it starts read and change nothing: `whoami /priv` (Windows), else `uname -s`,
+// then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and runs nothing.
+function checkShutdown($: EngineInterface, force = false): Promise<void> {
+  if (shutdownCheck !== null) return shutdownCheck
+  const check = (async () => {
+    if (!force && (await read($, shutdownReadiness)) !== null) return
+    let readiness: ShutdownReadiness
+    try {
+      readiness = await detectShutdown($)
+    } catch {
+      readiness = { isReady: false, os: 'unknown', reason: 'check-failed' }
+    }
+    await update($, shutdownReadiness, () => readiness)
+  })()
+  shutdownCheck = check
+  void check
+    .catch(() => undefined)
+    .then(() => {
+      if (shutdownCheck === check) shutdownCheck = null
+    })
+  return check
+}
+
+// The answer a press acts on: the one at hand, or, where there is none or the check failed, a check made now.
+async function shutdownReadinessNow($: EngineInterface): Promise<ShutdownReadiness> {
+  const held = await read($, shutdownReadiness)
+  if (held !== null && (held.isReady || held.reason !== 'check-failed')) return held
+  $.ui.toast(strings(await currentLang($)).shutdownChecking)
   try {
-    readiness = await detectShutdown($)
+    await checkShutdown($, true)
   } catch {
-    readiness = { isReady: false, os: 'unknown', reason: 'check-failed' }
+    // Not written: told below as a failed check.
   }
-  await update($, shutdownReadiness, () => readiness)
+  return (await read($, shutdownReadiness)) ?? { isReady: false, os: 'unknown', reason: 'check-failed' }
 }
 
 // Each program by its full path, from a system folder as the working folder: nothing the session's folder holds runs.
@@ -529,11 +553,7 @@ async function unixProgram($: EngineInterface, name: keyof typeof UNIX_PROGRAMS)
 async function requestShutdown($: EngineInterface, askAbove: number): Promise<void> {
   const lang = await currentLang($)
   const t = strings(lang)
-  const readiness = await read($, shutdownReadiness)
-  if (readiness === null) {
-    $.ui.toast(t.shutdownChecking)
-    return
-  }
+  const readiness = await shutdownReadinessNow($)
   if (!readiness.isReady) {
     $.ui.toast(t.shutdownHelp(readiness))
     $.ui.log(t.shutdownHelp(readiness))
@@ -758,7 +778,7 @@ async function pauseOnStop(
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
   keepWarmByDefault = options.keepWarm !== 'off'
-  shutdownChecked = false
+  shutdownCheck = null
   stopShutdownTimers()
   pauseToolRegistered = false
   keepWarmStarted = false

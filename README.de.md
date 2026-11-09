@@ -129,7 +129,8 @@ Nimmst du die Arbeit wieder auf (**Weiter**, „weitermachen“ oder Claude übe
 Shutdown weg; die Pause selbst bleibt wie immer erhalten.
 
 **Was es braucht.** Der Knopf ist gedimmt, bis sich der Rechner ohne jemanden an der Tastatur herunterfahren lässt; ein
-Klick sagt dann, was fehlt. Der Mod prüft das einmal je Sitzungsstart:
+Klick sagt dann, was fehlt. Der Mod prüft das bei jedem Sitzungsstart und noch einmal bei einem Klick, der keine
+Antwort vorfindet:
 
 | System | Prüfung | Befehl | Wenn es fehlt |
 | --- | --- | --- | --- |
@@ -270,7 +271,8 @@ Einstellungen, Anweisungen, Hooks oder Build-Dateien. Er liest diese Datei, das 
 3,5 MiB groß ist (für Cache-Laufzeit und Zeitpunkt der letzten Antwort), und die Dateinamen — nicht die Inhalte — in
 `~/.claude/projects/*/`, um die Pausen gelöschter Sitzungen zu streichen.
 
-**Programme.** Bei jedem Sitzungsstart prüft er, ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
+**Programme.** Bei jedem Sitzungsstart (und bei einem Klick auf **Shutdown**, der keine Antwort vorfindet) prüft er,
+ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
 sonst `uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und
 nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzung pausiert ist und der 60-Sekunden-Countdown
 abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht, und jedes über seinen
@@ -331,7 +333,8 @@ Wie du eine Änderung aus einem Klon ausprobierst und einen Pull Request öffnes
 
 Fragen, Fehler und Ideen: [GitHub-Issues](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues). Der
 Mod braucht kein Konto und keine Beispieldaten: installieren und eine Sitzung öffnen. Eine Sicherheitslücke bitte
-nicht als Issue melden, sondern vertraulich, wie [SECURITY.md](SECURITY.md) beschreibt.
+nicht als Issue melden, sondern vertraulich, wie [SECURITY.md](SECURITY.md) beschreibt. Was als Nächstes kommt:
+[ROADMAP.md](ROADMAP.md) (auf Englisch).
 
 Spart dir die Leiste Zeit oder Cache, kannst du ihre Weiterentwicklung über
 [GitHub Sponsors](https://github.com/sponsors/DarthSonic) unterstützen.

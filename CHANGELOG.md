@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1 — unreleased
+
+- **Fix:** after `/clear` (or a resume within the running app) the shutdown button could stay dimmed for good, every
+  press saying „Die Voraussetzungen werden noch geprüft“ / “still checking what it needs”, and nothing happened. The
+  check's answer belongs to the session, but whether it had run was kept by the mod's module, which outlives the
+  session: the new session never got an answer. Now a session start checks wherever the band holds no answer, and a
+  press that finds none, or a failed check, checks right then and goes on.
+
 ## 0.9.0 — 2026-11-08
 
 - **Shutdown**, a button beside Pause: it pauses the session as Pause does, telling Claude to ask about long tasks

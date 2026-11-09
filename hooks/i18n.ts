@@ -96,7 +96,7 @@ const DE: Strings = {
   shutdownRunning: 'Fährt herunter …',
   shutdownCancelled: 'Shutdown abgebrochen. Die Pause bleibt, wie sie ist.',
   shutdownFailed: error => `Shutdown fehlgeschlagen: ${error}`,
-  shutdownChecking: 'Shutdown: Die Voraussetzungen werden noch geprüft, gleich noch einmal versuchen.',
+  shutdownChecking: 'Shutdown: Die Voraussetzungen werden geprüft …',
   shutdownHelp: r =>
     r.reason === 'no-right'
       ? 'Shutdown ist nicht verfügbar: Deinem Windows-Konto fehlt das Recht „Herunterfahren des Systems“ (SeShutdownPrivilege). Ein Administrator vergibt es unter Lokale Sicherheitsrichtlinie → Lokale Richtlinien → Zuweisen von Benutzerrechten → „Herunterfahren des Systems“. Danach eine neue Sitzung öffnen.'
@@ -146,7 +146,7 @@ const EN: Strings = {
   shutdownRunning: 'Shutting down …',
   shutdownCancelled: 'Shutdown cancelled. The pause stays as it is.',
   shutdownFailed: error => `Shutdown failed: ${error}`,
-  shutdownChecking: 'Shutdown: still checking what it needs, try again in a moment.',
+  shutdownChecking: 'Shutdown: checking what it needs …',
   shutdownHelp: r =>
     r.reason === 'no-right'
       ? 'Shutdown is not available: your Windows account lacks the right "Shut down the system" (SeShutdownPrivilege). An administrator grants it under Local Security Policy → Local Policies → User Rights Assignment → "Shut down the system". Then open a new session.'
