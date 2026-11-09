@@ -7,6 +7,7 @@ import {
   logindAllows,
   modeOf,
   osFromUname,
+  readinessFits,
   secondsLeft,
   shutdownCommand,
   sleepCommand,
@@ -40,6 +41,14 @@ const POWERCFG_NONE = [
 ].join('\r\n')
 
 describe('standby and hibernation (0.9.5)', () => {
+  test('an answer counts only for the mode it was checked for; one from before 0.9.5 was for shutting down', async () => {
+    expect(readinessFits({ mode: 'sleep' }, 'sleep')).toBe(true)
+    expect(readinessFits({ mode: 'shutdown' }, 'hibernate')).toBe(false)
+    expect(readinessFits({}, 'shutdown')).toBe(true)
+    expect(readinessFits({}, 'hibernate')).toBe(false)
+    expect(readinessFits(null, 'shutdown')).toBe(false)
+  })
+
   test('the option picks the mode; anything else shuts down', async () => {
     expect(modeOf('sleep')).toBe('sleep')
     expect(modeOf('hibernate')).toBe('hibernate')

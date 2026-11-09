@@ -87,6 +87,8 @@ export type Strings = {
   withoutMod: (count: number) => string
   /** Behind a pause another session asked for. */
   fromSession: (folder: string | null) => string
+  /** Why the countdown ran nothing: the option changed while it ran. */
+  modeChanged: string
 }
 
 const DE: Omit<Strings, keyof ModeTexts> = {
@@ -123,6 +125,7 @@ const DE: Omit<Strings, keyof ModeTexts> = {
       ? '1 weitere Sitzung arbeitet ohne den Mod und wird nicht pausiert'
       : `${n} weitere Sitzungen arbeiten ohne den Mod und werden nicht pausiert`,
   fromSession: folder => (folder === null ? 'aus einer anderen Sitzung' : `aus ${folder}`),
+  modeChanged: 'Die Option shutdownMode hat sich geändert. Die Pause bleibt; drück den Knopf noch einmal.',
 }
 
 const EN: Omit<Strings, keyof ModeTexts> = {
@@ -159,6 +162,7 @@ const EN: Omit<Strings, keyof ModeTexts> = {
       ? '1 more session is at work without the mod and is not paused'
       : `${n} more sessions are at work without the mod and are not paused`,
   fromSession: folder => (folder === null ? 'from another session' : `from ${folder}`),
+  modeChanged: 'the option shutdownMode changed. The pause stays; press the button again.',
 }
 
 // The texts that name what the button does: shut down, standby or hibernation (option `shutdownMode`, 0.9.5).

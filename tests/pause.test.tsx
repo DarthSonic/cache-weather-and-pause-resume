@@ -561,6 +561,37 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  // The option changed while the session ran (2026-11-09): the answer held was checked for shutting down. The press must
+  // check the mode now chosen, not pause on an answer that would have run `shutdown /s /f`.
+  test('an answer checked for another mode counts for nothing: the press checks again', { options: { language: 'de', shutdownMode: 'hibernate' } }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    const host = windowsWith(on, { [REG]: '    HibernateEnabled    REG_DWORD    0x0\r\n' })
+    // The next read of the answer finds the one a session held before the option changed: ready to shut down.
+    let staleReads = 0
+    on('state.get', async ($, e, next) => {
+      if (staleReads > 0 && e.key === 'shutdownReadiness') {
+        staleReads -= 1
+        return { value: { value: { isReady: true, os: 'windows', command: [SHUTDOWN, '/s', '/f'] }, version: 1 } }
+      }
+      return next(e)
+    })
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'm1' })
+    await clock.settle()
+    const before = prompts.length
+    staleReads = 1
+    await ui.press({ key: 'shutdown' })
+    expect(prompts.length).toBe(before)
+    expect(host.logs.at(-1)).toContain('powercfg /hibernate on')
+    expect(host.runs.filter(argv => argv[0] === REG).length).toBe(2)
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    await ui.unmount()
+  })
+
   // The last chance to cancel, through Claude Code's own notification channel (0.9.4); the option turns it off.
   for (const [name, options, expected] of [
     ['the countdown raises one notification', DE, 1],

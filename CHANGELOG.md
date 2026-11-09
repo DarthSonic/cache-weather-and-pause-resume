@@ -13,6 +13,10 @@
   `systemctl suspend` / `hibernate`; on macOS standby through `pmset sleepnow` (not yet tested on a Mac). Where a mode
   is not available the button is dimmed and a press says what is missing, for hibernation on Windows how to turn it
   on (`powercfg /hibernate on`, as administrator).
+- A check's answer holds the mode it was checked for. Changing `shutdownMode` reloads the mod while the session's
+  state stays: an answer checked for shutting down must not stand for hibernation, or the button would pause and
+  then run `shutdown /s /f`. An answer for another mode counts for nothing: the button is dimmed, the next start or
+  press checks again, and right before the command runs the mod looks once more and runs nothing if the mode changed.
 
 ## 0.9.4 — 2026-11-09
 

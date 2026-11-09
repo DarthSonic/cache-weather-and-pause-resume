@@ -86,6 +86,7 @@ import {
   logindAllows,
   modeOf,
   osFromUname,
+  readinessFits,
   secondsLeft,
   shutdownCommand,
   sleepCommand,
@@ -593,12 +594,14 @@ async function restoreKeepWarm($: EngineInterface, id: string): Promise<void> {
 function checkShutdown($: EngineInterface, force = false): Promise<void> {
   if (shutdownCheck !== null) return shutdownCheck
   const check = (async () => {
-    if (!force && (await read($, shutdownReadiness)) !== null) return
+    if (!force && readinessFits(await read($, shutdownReadiness), shutdownMode)) return
+    // The answer holds the mode it was checked for: a change of the option checks again (0.9.5).
+    const mode = shutdownMode
     let readiness: ShutdownReadiness
     try {
-      readiness = await detectShutdown($)
+      readiness = { ...(await detectShutdown($)), mode }
     } catch {
-      readiness = { isReady: false, os: 'unknown', reason: 'check-failed' }
+      readiness = { isReady: false, os: 'unknown', reason: 'check-failed', mode }
     }
     await update($, shutdownReadiness, () => readiness)
   })()
@@ -614,7 +617,7 @@ function checkShutdown($: EngineInterface, force = false): Promise<void> {
 // The answer a press acts on: the one at hand, or, where there is none or the check failed, a check made now.
 async function shutdownReadinessNow($: EngineInterface): Promise<ShutdownReadiness> {
   const held = await read($, shutdownReadiness)
-  if (held !== null && (held.isReady || held.reason !== 'check-failed')) return held
+  if (held !== null && readinessFits(held, shutdownMode) && (held.isReady || held.reason !== 'check-failed')) return held
   // The status row says so meanwhile.
   await update($, isCheckingShutdown, () => true)
   try {
@@ -802,8 +805,14 @@ async function runShutdown($: EngineInterface): Promise<void> {
   stopShutdownTimers()
   if ((await read($, shutdownPhase)) !== 'countdown') return
   const readiness = await read($, shutdownReadiness)
-  if (readiness === null || !readiness.isReady) {
+  // Once more right before it runs: an answer for another mode (the option changed meanwhile) runs nothing.
+  if (readiness === null || !readiness.isReady || !readinessFits(readiness, shutdownMode)) {
     await cancelShutdown($, true)
+    if (readiness !== null && !readinessFits(readiness, shutdownMode)) {
+      const t = strings(await currentLang($), shutdownMode)
+      $.ui.toast(t.shutdownFailed(t.modeChanged))
+    }
+    void checkShutdown($).catch(() => undefined)
     return
   }
   const t = strings(await currentLang($), shutdownMode)
@@ -1643,7 +1652,7 @@ export const register: Register = (on, options) => {
       <Button
         key="shutdown"
         label={t.shutdown}
-        dimColor={readiness?.isReady !== true}
+        dimColor={readiness?.isReady !== true || !readinessFits(readiness, shutdownMode)}
         onPress={() => requestShutdown($, askAbove)}
       />
     )

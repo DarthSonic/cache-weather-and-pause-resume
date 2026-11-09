@@ -35,6 +35,14 @@ export function modeOf(option: unknown): ShutdownMode {
   return option === 'sleep' || option === 'hibernate' ? option : 'shutdown'
 }
 
+/**
+ * Whether a check's answer holds for the mode now chosen. The option can change while the session runs (the mod is
+ * loaded anew, the session's state stays): an answer for another mode must not run its command (0.9.5).
+ */
+export function readinessFits(readiness: { mode?: ShutdownMode } | null, mode: ShutdownMode): boolean {
+  return readiness !== null && (readiness.mode ?? 'shutdown') === mode
+}
+
 /** Windows PowerShell in Windows' own folder: the one way Windows offers to go to standby. */
 export function windowsPowerShell(system32: string): string {
   return `${system32}\\WindowsPowerShell\\v1.0\\powershell.exe`

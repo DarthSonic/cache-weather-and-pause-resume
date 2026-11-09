@@ -35,9 +35,13 @@ export type ShutdownMode = 'shutdown' | 'sleep' | 'hibernate'
  * password-free sudo lets the session power off; `unknown-os`: a system the button does not know; `check-failed`: the
  * check itself could not run.
  */
-export type ShutdownReadiness =
+export type ShutdownReadiness = (
   | { isReady: true; os: ShutdownOs; command: readonly string[] }
   | { isReady: false; os: ShutdownOs | 'unknown'; reason: 'no-right' | 'no-permission' | 'no-sleep' | 'no-hibernate' | 'unknown-os' | 'check-failed' }
+) & {
+  /** The mode it was checked for (0.9.5): one checked for another mode, or before 0.9.5 (shutdown), does not count. */
+  mode?: ShutdownMode
+}
 
 /** Where the shutdown stands: none, asked for (the pause runs), counting down, or the command is running. */
 export type ShutdownPhase = 'idle' | 'requested' | 'waiting' | 'countdown' | 'shutting'
