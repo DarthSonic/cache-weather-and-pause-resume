@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.4 — unreleased
+## 0.9.4 — 2026-11-09
 
 - **Pause and shutdown across sessions.** Each session that runs the mod writes a sign of life into the state file
   every 15 seconds (its folder, its pause, how long Claude has been working, its background runs by description).
