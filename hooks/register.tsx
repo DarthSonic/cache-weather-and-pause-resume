@@ -135,7 +135,6 @@ const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt
 const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
 const usageWindows = atom({ plugin: 'cache-weather-and-pause-resume', key: 'usageWindows' } as const, [])
 const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSpent' } as const, 0)
-const keepWarmSaving = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSaving' } as const, null)
 const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
 const turnGrowths = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnGrowths' } as const, [])
 const lastTurnTokens = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnTokens' } as const, null)
@@ -541,7 +540,6 @@ async function markActive($: EngineInterface, at: number, isRequest: boolean): P
   await update($, keepWarmNote, () => null)
   await update($, keepWarmRefreshes, () => 0)
   await update($, keepWarmSpent, () => 0)
-  await update($, keepWarmSaving, () => null)
 }
 
 // The person is back and the conversation's own request read the cache that keep-warm kept: what the refreshes cost,
@@ -591,11 +589,10 @@ async function logWasted($: EngineInterface): Promise<void> {
   const lang = await currentLang($)
   $.ui.log(strings(lang, shutdownMode).keepWarmWastedLog(refreshes, groupDigits(spent, lang)))
   await update($, keepWarmSpent, () => 0)
-  await update($, keepWarmSaving, () => null)
 }
 
 // Refreshes count as unused only once the cache they kept lapses with no request (0.10.1): keep-warm ended, was
-// switched off, or stopped for a usage window. Until then going on still reads it, and the band says what that saves.
+// switched off, or stopped for a usage window. Until then going on still reads it, as the last refresh's line says.
 async function settleUnused($: EngineInterface): Promise<void> {
   if ((await read($, keepWarmRefreshes)) <= 0 || (await read($, keepWarmSpent)) <= 0) return
   const life = await read($, ttl)
@@ -702,7 +699,6 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
         writeRatio: cacheWriteRatio(life?.minutes ?? 60),
       })
       const saving = balance === null || balance.saved <= 0 ? null : savingText(balance)
-      await update($, keepWarmSaving, () => saving)
       $.ui.log(
         t.keepWarmRefreshedLog(
           groupDigits(usage.cache_read_input_tokens, lang),
@@ -1950,7 +1946,7 @@ export const register: Register = (on, options) => {
     // The status rows under the bar, one per message and only while there is one (0.9.3): what lasts stands here
     // rather than among the readings and the buttons, the most pressing first. The shutdown's countdown hides how
     // long the session has been paused, which it then is anyway.
-    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' | 'success' }
+    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' }
     const status: StatusLine[] = []
     // A pause another session asked for says where it came from (0.9.4).
     const role = await read($, requestRole)
@@ -1998,12 +1994,6 @@ export const register: Register = (on, options) => {
     const withoutMod = await read($, sessionsWithoutMod)
     if (role === 'own' && withoutMod > 0) status.push({ key: 'without-mod', text: t.withoutMod(withoutMod), color: 'subtle' })
     if (noteText !== null) status.push({ key: 'keep-warm', text: `${t.keepWarm}: ${noteText}`, color: 'warning' })
-    // What keep-warm's refreshes would save if the person went on now, in green (0.10.1): a positive note for coming
-    // back to an idle session. Only while the cache they kept is still warm.
-    const saving = await read($, keepWarmSaving)
-    if (saving !== null && !isExpired && refreshes > 0) {
-      status.push({ key: 'keep-warm-saving', text: t.keepWarmSaving(saving.percent, groupDigits(saving.tokens, lang)), color: 'success' })
-    }
     if (await read($, isCheckingShutdown)) status.push({ key: 'check', text: t.shutdownChecking, color: 'subtle' })
     const statusRows =
       status.length === 0 ? null : (

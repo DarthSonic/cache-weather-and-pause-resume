@@ -134,11 +134,6 @@ declare module 'claude-code' {
       keepWarmRefreshes: number
       /** What those refreshes cost, in input tokens' worth, until a balance is drawn (0.10.0). */
       keepWarmSpent: number
-      /**
-       * What continuing now would save after the last refresh (0.10.1): the share of the rebuild spared, in whole
-       * percent, and its input tokens' worth; null before a refresh, after a request, or once keep-warm gave up.
-       */
-      keepWarmSaving: { percent: number; tokens: number } | null
       /** The model the main conversation's last request named: it sets what a cache read costs. */
       mainModel: string | null
       /** How many tokens the context grew by in each of the last turns that grew it (0.10.0, the forecast). */

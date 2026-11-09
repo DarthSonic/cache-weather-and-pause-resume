@@ -1304,12 +1304,10 @@ describe('keep-warm', () => {
     await clock.advance(56 * MIN)
     expect(asked.prompts.length).toBe(1)
     expect(await ui.find({ type: 'Text', text: /^Keep-warm: endete nach 1 h ohne Eingabe$/ })).toBeDefined()
-    // The cache the refresh kept is warm for its hour yet: going on still saves, and nothing is called unused (0.10.1).
-    expect(await ui.find({ type: 'Text', text: /^Keep-warm: Weitermachen spart jetzt/ })).toBeDefined()
+    // The cache the refresh kept is warm for its hour yet: going on still reads it, nothing is called unused (0.10.1).
     expect(asked.logs.some(line => line.includes('ohne dass der Cache noch gebraucht wurde'))).toBe(false)
-    // Once it lapses, the saving goes and the refresh counts as unused.
+    // Once it lapses, the refresh counts as unused.
     await clock.advance(5 * MIN)
-    expect(await ui.find({ type: 'Text', text: /Weitermachen spart jetzt/ })).toBeUndefined()
     expect(asked.logs.at(-1)).toContain('ohne dass der Cache noch gebraucht wurde')
     await ui.unmount()
   })
@@ -1345,8 +1343,6 @@ describe('keep-warm', () => {
     // 1 refresh: 150.000 × 0,05 + 30 + 2 × 5 = 7.540; the rebuild 150.000 × 2 = 300.000; paid 7.540 + 7.500.
     // What it saved first (0.10.1).
     expect(asked.logs.at(-1)).toBe('↻ Keep-warm hat ≈ 95 % gespart (≈ 285.000 Input-Tokens): 1 Auffrischung statt Neuaufbau des Caches.')
-    // The request is the person's: the saving's row goes.
-    expect(await ui.find({ type: 'Text', text: /Weitermachen spart jetzt/ })).toBeUndefined()
     await ui.unmount()
   })
 
@@ -1440,9 +1436,8 @@ describe('keep-warm', () => {
     expect(asked.logs.at(-1)).toBe(
       '↻ Keep-warm: Cache aufgefrischt (150.000 Tokens aus dem Cache gelesen, 2 Tokens Antwort); Weitermachen spart jetzt ≈ 90 % (≈ 270.000 Input-Tokens)',
     )
-    // And in green in the status row, while the cache it keeps is warm.
-    const saving = await ui.find({ type: 'Text', text: /^Keep-warm: Weitermachen spart jetzt ≈ 90 % \(≈ 270\.000 Input-Tokens\)$/ })
-    expect(saving?.props.color).toBe('success')
+    // No status row for it: the person needs none (2026-11-09).
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: Weitermachen/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /^Cache noch 60 min/ })).toBeDefined()
     expect((await ui.find({ key: 'keep-warm' }))?.props.label).toBe('☑ Cache warm halten (1× aufgefrischt)')
 

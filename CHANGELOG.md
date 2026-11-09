@@ -2,10 +2,9 @@
 
 ## 0.10.1 — unreleased
 
-- **What keep-warm saves, as it stands.** After each refresh a green row under the bar says what going on now would
-  save against building the cache again („Keep-warm: Weitermachen spart jetzt ≈ 92 % (≈ 835.500 Input-Tokens)“ /
-  “Keep-warm: continuing now saves ≈ 92 % (≈ 835,500 input tokens' worth)”), and the refresh's line says it too. The
-  row stands while the cache keep-warm kept is warm.
+- **What keep-warm saves, as it stands.** Each refresh's line ends with what going on now would save against
+  building the cache again („…; Weitermachen spart jetzt ≈ 92 % (≈ 835.500 Input-Tokens)“ / “…; continuing now saves
+  ≈ 92 % (≈ 835,500 input tokens' worth)”).
 - **The balance leads with the saving**: „↻ Keep-warm hat ≈ 92 % gespart (≈ 835.500 Input-Tokens): 2 Auffrischungen
   statt Neuaufbau des Caches.“ / “↻ Keep-warm saved ≈ 92 % (…): 2 refreshes instead of rebuilding the cache.”
 - **What keep-warm would have saved**: with keep-warm off, the request that writes a lapsed cache again says what

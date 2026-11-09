@@ -91,8 +91,6 @@ export type Strings = {
   compactForecast: (turns: number) => string
   /** Keep-warm's balance once the person is back: refreshes, their cost, the rebuild spared, the share saved. */
   keepWarmBalanceLog: (refreshes: number, tokens: string, savedPercent: number) => string
-  /** What continuing now would save, after a refresh (0.10.1): the green status row. */
-  keepWarmSaving: (percent: number, tokens: string) => string
   /** What keep-warm would have saved, where it was off and the cache lapsed (0.10.1). */
   keepWarmWouldHaveLog: (percent: number, tokens: string, refreshes: number) => string
   /** What the refreshes cost where the cache was not used again. */
@@ -180,7 +178,6 @@ const DE: Omit<Strings, keyof ModeTexts> = {
     saved >= 0
       ? `↻ Keep-warm hat ≈ ${saved} % gespart (≈ ${tokens} Input-Tokens): ${n === 1 ? '1 Auffrischung' : `${n} Auffrischungen`} statt Neuaufbau des Caches.`
       : `↻ Keep-warm-Bilanz: Diesmal hat Keep-warm nichts gespart: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} ≈ ${-saved} % mehr als ein Neuaufbau des Caches.`,
-  keepWarmSaving: (percent, tokens) => `Keep-warm: Weitermachen spart jetzt ≈ ${percent} % (≈ ${tokens} Input-Tokens)`,
   keepWarmWouldHaveLog: (percent, tokens, n) =>
     `Keep-warm hätte hier ≈ ${percent} % gespart (≈ ${tokens} Input-Tokens): Der Cache war abgelaufen und wurde neu geschrieben; ${n === 1 ? '1 Auffrischung hätte' : `${n} Auffrischungen hätten`} ihn warm gehalten.`,
   keepWarmWastedLog: (n, spent) =>
@@ -258,7 +255,6 @@ const EN: Omit<Strings, keyof ModeTexts> = {
     saved >= 0
       ? `↻ Keep-warm saved ≈ ${saved} % (≈ ${tokens} input tokens' worth): ${n === 1 ? '1 refresh' : `${n} refreshes`} instead of rebuilding the cache.`
       : `↻ Keep-warm balance: this time keep-warm saved nothing: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} ≈ ${-saved} % more than rebuilding the cache.`,
-  keepWarmSaving: (percent, tokens) => `Keep-warm: continuing now saves ≈ ${percent} % (≈ ${tokens} input tokens' worth)`,
   keepWarmWouldHaveLog: (percent, tokens, n) =>
     `Keep-warm would have saved ≈ ${percent} % here (≈ ${tokens} input tokens' worth): the cache had expired and was written again; ${n === 1 ? '1 refresh' : `${n} refreshes`} would have kept it warm.`,
   keepWarmWastedLog: (n, spent) =>

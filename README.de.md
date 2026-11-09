@@ -61,7 +61,7 @@ und die zeigt **Weiter**.
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
 | **Shutdown** | Pausiert wie **Pause**, die anderen Sitzungen mit, und fährt den Rechner dann nach 5 Minuten Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
-| **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), wie viele Züge es ungefähr noch bis zum Auto-Compact sind, ab zehn (`Auto-Compact in ≈ 6 Zügen`, ab drei gelb; aus dem Median des Wachstums der letzten fünf Züge, sobald es drei gibt, und nur, wo die Sitzung ihre eigene Schwelle meldet), warum Keep-warm wartet, was Weitermachen nach Auffrischungen durch Keep-warm jetzt spart (grün), die Prüfung, auf die ein Klick auf Shutdown wartet. |
+| **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), wie viele Züge es ungefähr noch bis zum Auto-Compact sind, ab zehn (`Auto-Compact in ≈ 6 Zügen`, ab drei gelb; aus dem Median des Wachstums der letzten fünf Züge, sobald es drei gibt, und nur, wo die Sitzung ihre eigene Schwelle meldet), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
 In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⇲ Compact, ⧉ Sitzungen, ⏸ Pause, ▶ Weiter,
 ⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, in einer eigenen Zeile über den Werten. Ein Terminal zeigt nur die
@@ -225,13 +225,12 @@ Cache kurz vor Ablauf auf:
   volle Laufzeit. Die Frage ist fester Text („antworte mit OK“, in [`hooks/register.tsx`](hooks/register.tsx)); sie darf
   kein Werkzeug aufrufen, und Frage und Antwort bleiben außerhalb der Unterhaltung. Jede Auffrischung schreibt eine
   graue Zeile: die aus dem Cache gelesenen Tokens, die Tokens der Antwort und was Weitermachen jetzt spart.
-- **Was es spart:** Nach einer Auffrischung sagt eine grüne Zeile unter dem Balken, was Weitermachen jetzt gegenüber
-  einem Neuaufbau des Caches spart, als Anteil und in Input-Tokens („Keep-warm: Weitermachen spart jetzt ≈ 92 %
-  (≈ 835.500 Input-Tokens)“). Sie steht, solange der Cache, den Keep-warm gehalten hat, warm ist, auch wenn Keep-warm
-  schon geendet hat oder abgeschaltet ist. Bist du zurück, bestätigt es die erste Anfrage, die diesen Cache liest, in
-  einer Zeile („↻ Keep-warm hat ≈ 92 % gespart (≈ 835.500 Input-Tokens): 2 Auffrischungen statt Neuaufbau des
-  Caches.“). Läuft der Cache ungenutzt ab oder findet Keep-warm ihn schon abgelaufen, sagt eine Zeile, was die
-  Auffrischungen umsonst gekostet haben.
+- **Was es spart:** Die Zeile jeder Auffrischung endet mit dem, was Weitermachen jetzt gegenüber einem Neuaufbau des
+  Caches spart, als Anteil und in Input-Tokens („…; Weitermachen spart jetzt ≈ 92 % (≈ 835.500 Input-Tokens)“). Bist
+  du zurück, bestätigt es die erste Anfrage, die diesen Cache liest, in einer Zeile („↻ Keep-warm hat ≈ 92 % gespart
+  (≈ 835.500 Input-Tokens): 2 Auffrischungen statt Neuaufbau des Caches.“). Läuft der Cache ungenutzt ab (Keep-warm
+  endete oder ist aus, und niemand machte vor Ablauf seiner Laufzeit weiter) oder findet Keep-warm ihn schon
+  abgelaufen, sagt eine Zeile, was die Auffrischungen umsonst gekostet haben.
 - **Was es gespart hätte:** Ist Keep-warm aus, sagt die Anfrage, die einen abgelaufenen Cache neu schreibt, was
   Keep-warm gespart hätte, wo es die Lücke in seiner Leerlaufspanne überbrückt hätte („Keep-warm hätte hier ≈ 90 %
   gespart (≈ 269.900 Input-Tokens): Der Cache war abgelaufen und wurde neu geschrieben; 3 Auffrischungen hätten ihn
