@@ -65,10 +65,12 @@ In the desktop app each button is a one-colour icon with its word: ⇲ Compact, 
 ⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, in a row of their own over the readings. A terminal shows the words
 alone, in the readings' row.
 
-Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
-longer reads from the cache.
+Shortly before the cache runs out, its time and bar turn red; once it has expired, the hit rate and the context are
+hidden until the next response: they describe a request that no longer reads from the cache.
 
-![The band with the cache expired: the cache time in red, the hit rate and Ctx hidden, the cache bar empty](docs/band-expired.png)
+![The band shortly before the cache runs out, Keep cache warm unchecked: “Cache 4 min left” in red, the cache bar nearly empty and red](docs/band-expiring.png)
+
+![The band with the cache expired: “Cache expired” in red, the hit rate and the context hidden, the cache bar empty](docs/band-expired.png)
 
 A terminal gets narrow signs instead of emoji: terminals count an emoji's width in their own way (some one column,
 Claude Code two), and the band would keep leftovers of an earlier frame. The desktop app draws the emoji.

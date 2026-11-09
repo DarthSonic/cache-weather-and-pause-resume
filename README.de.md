@@ -67,10 +67,12 @@ In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⇲ Com
 ⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, in einer eigenen Zeile über den Werten. Ein Terminal zeigt nur die
 Worte, in der Zeile der Werte.
 
-Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
-Anfrage, die nicht mehr aus dem Cache liest.
+Kurz vor dem Ablauf werden Cache-Zeit und Balken rot; ist der Cache abgelaufen, sind Trefferquote und Kontext bis zur
+nächsten Antwort ausgeblendet: Sie beschreiben dann eine Anfrage, die nicht mehr aus dem Cache liest.
 
-![Die Leiste mit abgelaufenem Cache: die Cache-Zeit rot, Trefferquote und Ctx ausgeblendet, der Cache-Balken leer](docs/band-expired.png)
+![Die Leiste kurz vor dem Ablauf des Caches, englisch, „Keep cache warm“ ohne Haken: „Cache 4 min left“ in Rot, der Cache-Balken fast leer und rot](docs/band-expiring.png)
+
+![Die Leiste mit abgelaufenem Cache, englisch: „Cache expired“ in Rot, Trefferquote und Kontext ausgeblendet, der Cache-Balken leer](docs/band-expired.png)
 
 Im Terminal zeigt die Leiste schmale Zeichen statt Emoji: Terminals zählen die Breite eines Emoji auf ihre eigene Art
 (manche eine Spalte, Claude Code zwei), und die Leiste behielte sonst Reste eines früheren Bilds. Die Desktop-App
