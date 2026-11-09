@@ -68,7 +68,6 @@ export type Strings = {
   keepWarmLimit: (percent: number) => string
   /** The sessions overview (0.10.0): its button, the pane's title, and the words it describes a session with. */
   sessions: string
-  hintSessions: string
   sessionsTitle: string
   sessionsNone: string
   thisSession: string
@@ -76,11 +75,6 @@ export type Strings = {
   sessionCache: (minutesLeft: number | null) => string
   sessionKeepWarm: (isOn: boolean) => string
   sessionRuns: (runs: readonly string[]) => string
-  /** What each button does, shown under the pointer in the desktop app, where the buttons are icons (0.10.0). */
-  hintCompact: string
-  hintPause: string
-  hintResume: string
-  hintPauseCancel: string
   /** A model switch that forfeits a warm cache: the new model, the tokens to write, Claude Code's estimate. */
   modelSwitchLog: (to: string, tokens: string, usd: number, pricing: string) => string
   /** About how many turns until auto-compact, as the status row says it. */
@@ -110,9 +104,6 @@ export type Strings = {
   /** The notification as the countdown starts: its heading, and the body naming the session's folder. */
   shutdownNotifyTitle: (seconds: number) => string
   shutdownNotifyBody: (folder: string | null) => string
-  /** The shutdown button's hint, ready or not; its cancel button's. */
-  hintShutdown: (isReady: boolean) => string
-  hintShutdownCancel: string
   /** Whom the shutdown waits for, by folder. */
   waitingFor: (folders: readonly string[]) => string
   /** Sessions at work that run without the mod: they go down unpaused. */
@@ -147,9 +138,7 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   keepWarmCold: 'wartet auf die nächste Anfrage',
   keepWarmLimit: percent => `hält an, Kontingent bei ${percent} %`,
   compactForecast: n => (n <= 1 ? 'Auto-Compact wohl beim nächsten Zug' : `Auto-Compact in ≈ ${n} Zügen`),
-  hintCompact: 'Compact: die Unterhaltung zusammenfassen, wie /compact',
   sessions: 'Sitzungen',
-  hintSessions: 'Sitzungen: Übersicht aller Sitzungen auf diesem Rechner',
   sessionsTitle: 'Sitzungen',
   sessionsNone: 'Noch keine Sitzung hat sich gemeldet; jede mit dem Mod meldet sich alle 15 Sekunden.',
   thisSession: 'diese Sitzung',
@@ -166,9 +155,6 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   sessionCache: m => (m === null ? 'Cache ?' : m <= 0 ? 'Cache abgelaufen' : `Cache ${m} m`),
   sessionKeepWarm: isOn => (isOn ? 'Keep-warm an' : 'Keep-warm aus'),
   sessionRuns: runs => `${runs.length === 1 ? 'Lauf' : 'Läufe'}: ${runs.join(', ')}`,
-  hintPause: 'Pause: Claude lässt Laufendes zu Ende laufen, sichert den Stand und wartet',
-  hintResume: 'Weiter: die Pause beenden, Claude macht am gesicherten Stand weiter',
-  hintPauseCancel: 'Weiter: die angeforderte Pause zurücknehmen',
   modelSwitchLog: (to, tokens, usd, pricing) =>
     `Modellwechsel auf ${to}: Der warme Cache des bisherigen Modells verfällt, die nächste Anfrage schreibt ${tokens} Tokens neu in den Cache, ≈ ${usd.toFixed(2).replace('.', ',')} $ (${pricing === 'configured' ? 'nach eurem eingestellten Preis' : pricing === 'catalog' ? 'Listenpreis' : 'geschätzt, Modell unbekannt'}).`,
   keepWarmBalanceLog: (n, spent, rebuild, saved) =>
@@ -219,9 +205,7 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   keepWarmCold: 'waiting for the next request',
   keepWarmLimit: percent => `stopped, usage at ${percent} %`,
   compactForecast: n => (n <= 1 ? 'Auto-compact likely at the next turn' : `Auto-compact in about ${n} turns`),
-  hintCompact: 'Compact: summarise the conversation, as /compact does',
   sessions: 'Sessions',
-  hintSessions: 'Sessions: an overview of every session on this computer',
   sessionsTitle: 'Sessions',
   sessionsNone: 'No session has reported yet; each one with the mod reports every 15 seconds.',
   thisSession: 'this session',
@@ -238,9 +222,6 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   sessionCache: m => (m === null ? 'Cache ?' : m <= 0 ? 'Cache expired' : `Cache ${m} m`),
   sessionKeepWarm: isOn => (isOn ? 'Keep-warm on' : 'Keep-warm off'),
   sessionRuns: runs => `${runs.length === 1 ? 'Run' : 'Runs'}: ${runs.join(', ')}`,
-  hintPause: 'Pause: Claude lets running work finish, saves the state and waits',
-  hintResume: 'Resume: end the pause, Claude carries on from the saved state',
-  hintPauseCancel: 'Resume: take the pause request back',
   modelSwitchLog: (to, tokens, usd, pricing) =>
     `Model switched to ${to}: the warm cache of the model before is forfeited, and the next request writes ${tokens} tokens to the cache again, ≈ $${usd.toFixed(2)} (${pricing === 'configured' ? 'at your configured price' : pricing === 'catalog' ? 'list price' : 'estimated, model unknown'}).`,
   keepWarmBalanceLog: (n, spent, rebuild, saved) =>
@@ -282,8 +263,6 @@ type ModeTexts = Pick<
   | 'shutdownNotifyTitle'
   | 'shutdownNotifyBody'
   | 'waitingFor'
-  | 'hintShutdown'
-  | 'hintShutdownCancel'
 >
 
 /** The words for what the button does: its label, and what the computer does, for the band and for Claude. */
@@ -366,9 +345,6 @@ function modeTexts(lang: Lang, mode: ShutdownMode): ModeTexts {
       shutdownNotifyTitle: seconds => `${w.label} in ${span(seconds)}`,
       shutdownNotifyBody: folder =>
         `${folder === null ? 'Die Sitzung' : `Die Sitzung in ${folder}`} ist pausiert, der Rechner ${w.soon}. Abbrechen in der Leiste über dem Eingabefeld.`,
-      hintShutdown: isReady =>
-        `${w.label}: erst alle Sitzungen pausieren, dann ${w.doIt}${isReady ? '' : ' – hier nicht verfügbar, ein Klick sagt, was fehlt'}`,
-      hintShutdownCancel: `Abbrechen: ${w.label} absagen; die Pause bleibt`,
       waitingFor: folders =>
         folders.length === 0
           ? `${w.label}: sieht nach den anderen Sitzungen …`
@@ -411,9 +387,6 @@ function modeTexts(lang: Lang, mode: ShutdownMode): ModeTexts {
     shutdownNotifyTitle: seconds => `${w.label} in ${span(seconds)}`,
     shutdownNotifyBody: folder =>
       `${folder === null ? 'The session' : `The session in ${folder}`} is paused, and the computer ${w.soon}. Cancel in the band above the prompt.`,
-    hintShutdown: isReady =>
-      `${w.label}: pause every session first, then ${w.doIt}${isReady ? '' : ' – not available here, a press says what is missing'}`,
-    hintShutdownCancel: `Cancel: call ${w.label.toLowerCase()} off; the pause stays`,
     waitingFor: folders =>
       folders.length === 0
         ? `${w.label}: looking at the other sessions …`

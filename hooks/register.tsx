@@ -1827,19 +1827,18 @@ export const register: Register = (on, options) => {
     const shutting = await read($, shutdownPhase)
     const readiness = await read($, shutdownReadiness)
     // In the desktop app each button is an icon (0.10.0). Under the pointer its word appears right beside it, a plain
-    // button that does the same, and a hint under the band says what it does: both are drawn hidden and revealed while
-    // the button's group is hovered. A Button holds text alone, so the word cannot go inside it. The terminal keeps
-    // the words.
-    type Hint = { scope: string; text: string }
+    // button that does the same: drawn hidden in the icon's keyed Box, which the pointer lights (a Box without a key
+    // lights nothing), and revealed while it is. A Button holds text alone, so the word cannot go inside it. With the
+    // buttons on the right, the group grows to the left and the word comes to lie under the pointer: nothing flickers.
+    // A line under the band would make the band a row taller and move it up from under the pointer: there is none.
+    // The terminal keeps the words.
     type Reveal = { words: string; onPress: () => unknown; dimColor?: boolean }
-    const hints: Hint[] = []
-    const hinted = (scope: string, text: string, control: ReturnType<typeof Button>, reveal: Reveal) => {
+    const hinted = (scope: string, control: ReturnType<typeof Button>, reveal: Reveal) => {
       if (isTerminal) return control
-      hints.push({ scope, text })
       return (
-        <Box flexDirection="row" gap={1} hover={{ scope }}>
+        <Box key={`${scope}-group`} flexDirection="row" gap={1}>
           {control}
-          <Box display="none" hover={{ scope, display: 'flex' }}>
+          <Box display="none" hover={{ display: 'flex' }}>
             <Button
               key={`${scope}-words`}
               plain
@@ -1861,13 +1860,11 @@ export const register: Register = (on, options) => {
     const onResume = () => requestResume($)
     const cancelShutdownButton = hinted(
       'hint-shutdown-cancel',
-      t.hintShutdownCancel,
       <Button key="shutdown-cancel" label={word(t.shutdownCancel, BUTTON_ICONS.cancel)} onPress={onCancelShutdown} />,
       { words: t.shutdownCancel, onPress: onCancelShutdown },
     )
     const shutdownButton = hinted(
       'hint-shutdown',
-      t.hintShutdown(isShutdownReady),
       <Button key="shutdown" label={word(t.shutdown, BUTTON_ICONS[shutdownMode])} dimColor={!isShutdownReady} onPress={onShutdown} />,
       { words: t.shutdown, onPress: onShutdown, dimColor: !isShutdownReady },
     )
@@ -1883,7 +1880,7 @@ export const register: Register = (on, options) => {
     } else if (phase === 'running') {
       pause = (
         <Box flexDirection="row" gap={1}>
-          {hinted('hint-pause', t.hintPause, <Button key="pause" label={word(t.pause, BUTTON_ICONS.pause)} onPress={onPause} />, {
+          {hinted('hint-pause', <Button key="pause" label={word(t.pause, BUTTON_ICONS.pause)} onPress={onPause} />, {
             words: t.pause,
             onPress: onPause,
           })}
@@ -1893,7 +1890,6 @@ export const register: Register = (on, options) => {
     } else if (phase === 'pausing') {
       pause = hinted(
         'hint-pause-cancel',
-        t.hintPauseCancel,
         <Button key="pause-cancel" label={word(t.resume, BUTTON_ICONS.resume)} onPress={onResume} />,
         { words: t.resume, onPress: onResume },
       )
@@ -1902,7 +1898,6 @@ export const register: Register = (on, options) => {
         <Box flexDirection="row" gap={1}>
           {hinted(
             'hint-resume',
-            t.hintResume,
             <Button key="resume" label={word(t.resume, BUTTON_ICONS.resume)} variant="primary" onPress={onResume} />,
             { words: t.resume, onPress: onResume },
           )}
@@ -2014,7 +2009,6 @@ export const register: Register = (on, options) => {
     }
     const sessionsButton = hinted(
       'hint-sessions',
-      t.hintSessions,
       <Button key="sessions" label={word(t.sessions, BUTTON_ICONS.sessions)} onPress={onSessions} />,
       { words: t.sessions, onPress: onSessions },
     )
@@ -2037,7 +2031,6 @@ export const register: Register = (on, options) => {
     }
     const compact = hinted(
       'hint-compact',
-      t.hintCompact,
       <Button
         key="compact"
         label={compacting ? word(t.compacting, BUTTON_ICONS.compacting) : word(t.compact, BUTTON_ICONS.compact)}
@@ -2056,7 +2049,7 @@ export const register: Register = (on, options) => {
     // Two groups a full gap apart, each close-knit: the readings with keep-warm between them, the buttons.
     return withBelow(
       <Box flexDirection="column">
-        <Box flexDirection="row" gap={2}>
+        <Box flexDirection="row" gap={2} {...(isTerminal ? {} : { justifyContent: 'space-between' as const })}>
           <Box flexDirection="row" gap={1}>
             <Box {...keep}>
               <Text color={tone} wrap="truncate-end">
@@ -2081,13 +2074,6 @@ export const register: Register = (on, options) => {
         </Box>
         {bar}
         {statusRows}
-        {hints.map(hint => (
-          <Box key={hint.scope} display="none" hover={{ scope: hint.scope, display: 'flex' }}>
-            <Text dimColor wrap="truncate-end">
-              {hint.text}
-            </Text>
-          </Box>
-        ))}
       </Box>,
     )
   })

@@ -256,7 +256,7 @@ describe('the pause button', () => {
     await $.classic.Stop(stop())
     expect((await terminal.find({ key: 'resume' }))?.props.label).toBe('Weiter')
     expect((await desktop.find({ key: 'resume' }))?.props.label).toBe('▶︎')
-    expect(await desktop.find({ type: 'Text', text: /^Weiter: die Pause beenden/ })).toBeDefined()
+    expect((await desktop.find({ key: 'hint-resume-words' }))?.props.label).toBe('Weiter')
     await terminal.unmount()
     await desktop.unmount()
   })
@@ -541,7 +541,7 @@ describe('the shutdown button', () => {
     expect(host.runs).toEqual([[WHOAMI, '/priv'], [POWERCFG, '/a']])
     const button = await ui.find({ key: 'shutdown' })
     expect(button?.props.label).toBe('⏾')
-    expect(await ui.find({ type: 'Text', text: /^Standby: erst alle Sitzungen pausieren, dann den Rechner in den Standby schicken$/ })).toBeDefined()
+    expect((await ui.find({ key: 'hint-shutdown-words' }))?.props.label).toBe('Standby')
     expect(button?.props.dimColor).toBe(false)
 
     await ui.press({ key: 'shutdown' })
@@ -571,7 +571,8 @@ describe('the shutdown button', () => {
     await clock.settle()
     const button = await ui.find({ key: 'shutdown' })
     expect(button?.props.label).toBe('❄︎')
-    expect(await ui.find({ type: 'Text', text: /^Ruhezustand: .* – hier nicht verfügbar, ein Klick sagt, was fehlt$/ })).toBeDefined()
+    expect((await ui.find({ key: 'hint-shutdown-words' }))?.props.label).toBe('Ruhezustand')
+    expect((await ui.find({ key: 'hint-shutdown-words' }))?.props.dimColor).toBe(true)
     expect(button?.props.dimColor).toBe(true)
     await ui.press({ key: 'shutdown' })
     expect(host.logs.at(-1)).toContain('powercfg /hibernate on')
@@ -821,7 +822,7 @@ describe('pause and shutdown across sessions', () => {
     await terminal.unmount()
     const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
     expect((await band.find({ key: 'sessions' }))?.props.label).toBe('⧉')
-    expect(await band.find({ type: 'Text', text: /^Sitzungen: Übersicht aller Sitzungen auf diesem Rechner$/ })).toBeDefined()
+    expect((await band.find({ key: 'hint-sessions-words' }))?.props.label).toBe('Sitzungen')
     await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
     signOfLife(
       files,
