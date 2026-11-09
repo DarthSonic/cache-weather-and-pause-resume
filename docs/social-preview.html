@@ -4,8 +4,8 @@
 <!-- The repository's social preview (docs/social-preview.png, 1280 x 640). Rendered with a headless browser:
      msedge --headless=new --window-size=1280,640 --allow-file-access-from-files --screenshot=social-preview.png social-preview.html
      The desktop band is drawn here in English with the mod's own texts and layout of 0.10.0 (the buttons with icon and
-     word in a row of their own over the readings; a shutdown waiting for another session); the terminal band is a
-     screenshot. -->
+     word in a row of their own over the readings, every button as a running session shows it, and a usage window past
+     80 % in the status row); the terminal band is a screenshot. -->
 <meta charset="utf-8">
 <style>
   :root {
@@ -89,7 +89,8 @@
         <div class="buttons">
           <span class="btn">⇲ Compact</span>
           <span class="btn">⧉ Sessions</span>
-          <span class="btn">✕ Cancel</span>
+          <span class="btn">⏸︎ Pause</span>
+          <span class="btn">⏻ Shutdown</span>
         </div>
         <div class="row">
           <span class="cache">Cache 60 min left · Hits 100 %</span>
@@ -98,8 +99,7 @@
         </div>
         <div class="bar"></div>
         <div class="gap"></div>
-        <div class="status warning">Shutdown waits for 1 session: api-server</div>
-        <div class="status">Paused for 2 min</div>
+        <div class="status warning">5-hour limit 84 % · resets at 15:00</div>
       </div>
     </div>
     <div class="card dark"><img src="band-terminal.png" alt=""></div>
