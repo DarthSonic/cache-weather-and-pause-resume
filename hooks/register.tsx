@@ -1986,10 +1986,10 @@ export const register: Register = (on, options) => {
       )
     }
 
+    // The press's own hook opens the overview (below); beneath it this writes the sign of life and the view it draws.
     const onSessions = async () => {
       await writeHeartbeat($)
       await refreshSessionsView($)
-      await $.ui.open({ id: SESSIONS_PANE, title: t.sessionsTitle })
     }
     const sessionsButton = iconButton({ key: 'sessions', words: t.sessions, icon: BUTTON_ICONS.sessions, onPress: onSessions })
     const onCompact = async () => {
@@ -2073,6 +2073,17 @@ export const register: Register = (on, options) => {
         {statusRows}
       </Box>,
     )
+  })
+
+  // The sessions button opens the overview from the press's own hook (2026-11-09): there `$` carries the person's
+  // press, and a pane the person asks for is placed at any width. Opened through the band's closure, whose `$` is the
+  // drawing's, it counted as opened unasked and waited undrawn in a terminal under 144 columns: the button did nothing
+  // there. Should a surface still not place it, a toast says why.
+  on('ui.press', { plugin: 'cache-weather-and-pause-resume', element: 'sessions' }, async ($, e, next) => {
+    const t = strings(await currentLang($), shutdownMode)
+    const opened = await $.ui.open({ id: SESSIONS_PANE, title: t.sessionsTitle })
+    if (!opened.isPlaced) $.ui.toast(`${t.sessionsTitle}: ${opened.reason}`)
+    return next(e)
   })
 
   // The sessions overview (0.10.0): each session that runs the mod, from its sign of life. It only shows; pause and

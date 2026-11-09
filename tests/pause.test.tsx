@@ -825,6 +825,10 @@ describe('pause and shutdown across sessions', () => {
     })
     const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
     expect((await terminal.find({ key: 'sessions' }))?.props.label).toBe('Sitzungen')
+    // In a terminal too the press opens it, from the press's own hook (2026-11-09).
+    await terminal.press({ key: 'sessions' })
+    expect(opened).toEqual(['sessions'])
+    opened.length = 0
     await terminal.unmount()
     const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
     expect((await band.find({ key: 'sessions' }))?.props.label).toBe('⧉ Sitzungen')
