@@ -16,6 +16,13 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   someone working in another window), when keep-warm ends and when the pause is reached.
   *To plan:* which of them are on by default, a setting to turn them off, what the terminal and the desktop app each
   show.
+- [ ] **Pause the other sessions too.** Today the shutdown pauses only the session where it was pressed; other Claude
+  sessions on the computer end with it, their runs cut off. The mod in each session could see through its state file
+  that a shutdown is asked for, pause its own session the same way, and the countdown would start once all of them
+  are paused.
+  *To plan:* which sessions count (only ones that run the mod), how long to wait for one that does not answer,
+  questions about long tasks in several sessions at once, showing in the band whom it waits for, writing the shared
+  state file from several sessions safely.
 - [ ] **Hibernate instead of shutdown.** A setting to choose: shutdown, or hibernate (`shutdown /h` on Windows,
   `systemctl hibernate` on Linux). Why: the Windows shutdown closes other programs without asking, so unsaved work in
   them is lost; hibernation keeps them, and the Claude session.
@@ -31,8 +38,8 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: notifications and CI first (small, and they make the shutdown safer), then hibernation, then shutdown when
-done.
+Order: notifications and CI first (small, and they make the shutdown safer), then pausing the other sessions (today
+their runs die with the shutdown), then hibernation, then shutdown when done.
 
 ## 0.10.0 — Next features
 
