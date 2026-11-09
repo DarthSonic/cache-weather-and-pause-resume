@@ -54,16 +54,16 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; why keep-warm waits, when it does, stands in the status row. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
 | **Ctx** | Context fill in percent and, after the slash, the auto-compact threshold (`Ctx 5 % / 97 %`; `*`: the fallback of 83 %, when the session reports none). |
-| **Sessions** | Opens a pane with every session on the computer that runs the mod (below). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
+| **Sessions** | Opens a pane with every session on the computer that runs the mod (below). |
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
 | **Shutdown** | Pauses like **Pause**, the other sessions with it, then shuts the computer down after a 5-minute countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
 | **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), about how many turns are left until auto-compact from ten on (`Auto-compact in about 6 turns`, yellow from three; from the median growth of the last five turns, once there are three, and only where the session reports its own threshold), why keep-warm waits, the shutdown check a press waits for. |
 
-In the desktop app each button is a one-colour icon with its word: ⧉ Sessions, ⇲ Compact, ⏸ Pause, ▶ Resume,
-⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, in a row of their own under the readings, on the right. A terminal
-shows the words alone, in the readings' row.
+In the desktop app each button is a one-colour icon with its word: ⇲ Compact, ⧉ Sessions, ⏸ Pause, ▶ Resume,
+⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, in a row of their own under the readings. A terminal shows the words
+alone, in the readings' row.
 
 Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.

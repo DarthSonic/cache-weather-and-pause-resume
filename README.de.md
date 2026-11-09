@@ -56,16 +56,16 @@ und die zeigt **Weiter**.
 | **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; warum Keep-warm wartet, wenn es wartet, steht in der Statuszeile. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx** | Füllung des Kontexts in Prozent und, hinter dem Schrägstrich, die Auto-Compact-Schwelle (`Ctx 5 % / 97 %`; `*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
-| **Sitzungen** | Öffnet eine Seitenleiste mit allen Sitzungen auf dem Rechner, in denen der Mod läuft (unten). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
+| **Sitzungen** | Öffnet eine Seitenleiste mit allen Sitzungen auf dem Rechner, in denen der Mod läuft (unten). |
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
 | **Shutdown** | Pausiert wie **Pause**, die anderen Sitzungen mit, und fährt den Rechner dann nach 5 Minuten Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 | **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), wie viele Züge es ungefähr noch bis zum Auto-Compact sind, ab zehn (`Auto-Compact in ≈ 6 Zügen`, ab drei gelb; aus dem Median des Wachstums der letzten fünf Züge, sobald es drei gibt, und nur, wo die Sitzung ihre eigene Schwelle meldet), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
-In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⧉ Sitzungen, ⇲ Compact, ⏸ Pause, ▶ Weiter,
-⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, in einer eigenen Zeile unter den Werten, rechtsbündig. Ein Terminal
-zeigt nur die Worte, in der Zeile der Werte.
+In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⇲ Compact, ⧉ Sitzungen, ⏸ Pause, ▶ Weiter,
+⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, in einer eigenen Zeile unter den Werten. Ein Terminal zeigt nur die
+Worte, in der Zeile der Werte.
 
 Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
