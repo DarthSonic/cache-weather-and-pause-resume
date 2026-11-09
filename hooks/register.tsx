@@ -136,6 +136,10 @@ const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'kee
 const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
 const turnGrowths = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnGrowths' } as const, [])
 const lastTurnTokens = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnTokens' } as const, null)
+const sessionsView = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionsView' } as const, [])
+
+// The pane of the sessions overview (0.10.0).
+const SESSIONS_PANE = 'sessions'
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
@@ -1004,8 +1008,38 @@ async function writeHeartbeat($: EngineInterface): Promise<void> {
     runs: await read($, backgroundRuns),
     isAwaitingPerson: await read($, isAwaitingPerson),
     requestId: (await read($, pausedByRequest)) ?? handledRequestId,
+    ...(await overviewFields($)),
   }
   await writePersisted($, p => ({ ...p, liveSessions: { ...withoutForgotten(p.liveSessions, at), [self]: entry } }))
+}
+
+// What the sessions overview shows of a session (0.10.0): since when it is paused, its context against its threshold,
+// when its cache lapses, keep-warm, its model.
+async function overviewFields($: EngineInterface): Promise<Partial<LiveSession>> {
+  const fill = await read($, context)
+  const limit = await read($, threshold)
+  const life = await read($, ttl)
+  const used = (await read($, cacheUsedAt)) ?? (await read($, lastResponseAt))
+  return {
+    pausedAt: (await read($, pausePhase)) === 'paused' ? await read($, pausedAt) : null,
+    contextPercent: fill?.percent ?? null,
+    thresholdPercent: limit === null || limit.isFallback ? null : limit.percent,
+    cacheUntil: used === null || life === null ? null : used + life.minutes * 60_000,
+    keepWarm: await read($, keepWarm),
+    model: await read($, mainModel),
+  }
+}
+
+// The overview's list from the signs of life: this session's first, then the others alive by folder.
+async function refreshSessionsView($: EngineInterface): Promise<void> {
+  const self = await currentSessionId($)
+  const at = await $.clock.now()
+  const live = (await readPersisted($)).liveSessions ?? {}
+  const rows = Object.entries(live)
+    .filter(([id, entry]) => id === self || isAlive(entry, at))
+    .map(([id, entry]) => ({ id, isSelf: id === self, entry }))
+    .sort((a, b) => (a.isSelf ? -1 : b.isSelf ? 1 : (a.entry.folder ?? '').localeCompare(b.entry.folder ?? '')))
+  await update($, sessionsView, () => rows)
 }
 
 async function forgetHeartbeat($: EngineInterface, id: string): Promise<void> {
@@ -1031,6 +1065,7 @@ function startHeartbeat($: EngineInterface): void {
 async function sessionsTick($: EngineInterface): Promise<void> {
   await writeHeartbeat($)
   await followRequest($)
+  await refreshSessionsView($)
 }
 
 // The request for all sessions lives in a file of its own, which only the session that made it writes.
@@ -1952,6 +1987,19 @@ export const register: Register = (on, options) => {
       )
     }
 
+    const sessionsButton = hinted(
+      'hint-sessions',
+      t.hintSessions,
+      <Button
+        key="sessions"
+        label={word(t.sessions, BUTTON_ICONS.sessions)}
+        onPress={async () => {
+          await writeHeartbeat($)
+          await refreshSessionsView($)
+          await $.ui.open({ id: SESSIONS_PANE, title: t.sessionsTitle })
+        }}
+      />,
+    )
     const compact = hinted(
       'hint-compact',
       t.hintCompact,
@@ -2006,6 +2054,7 @@ export const register: Register = (on, options) => {
             </Box>
           </Box>
           <Box flexDirection="row" gap={1}>
+            {sessionsButton}
             {compact}
             {pause}
           </Box>
@@ -2020,6 +2069,69 @@ export const register: Register = (on, options) => {
           </Box>
         ))}
       </Box>,
+    )
+  })
+
+  // The sessions overview (0.10.0): each session that runs the mod, from its sign of life. It only shows; pause and
+  // shutdown across sessions go through the band.
+  on('ui.render', { component: 'Pane', requestId: SESSIONS_PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const lang = await currentLang($)
+    const t = strings(lang, shutdownMode)
+    // The minute's tick redraws it; the clock itself keeps it right before the first tick.
+    const at = Math.max(await read($, now), await $.clock.now())
+    const rows = await read($, sessionsView)
+    const usage = await read($, usageWindows)
+    const minutesSince = (from: number | null | undefined) =>
+      from === null || from === undefined ? null : Math.max(0, Math.floor((at - from) / 60_000))
+    return (
+      <Box flexDirection="column" gap={1}>
+        {usage.length === 0 ? null : (
+          <Text dimColor wrap="truncate-end">
+            {usage
+              .map(w => t.usageLine(t.usageWindow(w.kind), Math.round(w.percentUsed), resetClock(w.resetsAt, at, lang)))
+              .join('  ·  ')}
+          </Text>
+        )}
+        {rows.length === 0 ? <Text dimColor>{t.sessionsNone}</Text> : null}
+        {rows.map(({ id, isSelf, entry }) => {
+          const state =
+            entry.phase === 'paused'
+              ? 'paused'
+              : entry.phase === 'pausing'
+                ? 'pausing'
+                : entry.isAwaitingPerson
+                  ? 'awaiting'
+                  : entry.workingSince !== null
+                    ? 'working'
+                    : 'idle'
+          const since = state === 'paused' ? minutesSince(entry.pausedAt) : state === 'working' ? minutesSince(entry.workingSince) : null
+          const details = [
+            entry.contextPercent === null || entry.contextPercent === undefined
+              ? null
+              : `${t.ctx} ${entry.contextPercent} %${entry.thresholdPercent ? ` / ${entry.thresholdPercent} %` : ''}`,
+            entry.cacheUntil === undefined ? null : t.sessionCache(entry.cacheUntil === null ? null : Math.ceil((entry.cacheUntil - at) / 60_000)),
+            entry.keepWarm === undefined ? null : t.sessionKeepWarm(entry.keepWarm),
+            entry.model ?? null,
+          ].filter((part): part is string => part !== null)
+          return (
+            <Box key={`session-${id}`} flexDirection="column">
+              <Text bold wrap="truncate-end">
+                {`${entry.folder ?? id.slice(0, 8)}${isSelf ? ` · ${t.thisSession}` : ''}`}
+              </Text>
+              <Text color={state === 'paused' ? undefined : state === 'awaiting' ? 'warning' : undefined} wrap="truncate-end">
+                {t.sessionState(state, since)}
+              </Text>
+              {details.length === 0 ? null : (
+                <Text dimColor wrap="truncate-end">
+                  {details.join('  ·  ')}
+                </Text>
+              )}
+              {entry.runs.length === 0 ? null : <Text wrap="truncate-end">{t.sessionRuns(entry.runs)}</Text>}
+            </Box>
+          )
+        })}
+      </Box>
     )
   })
 }

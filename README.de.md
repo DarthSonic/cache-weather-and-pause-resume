@@ -56,11 +56,16 @@ und die zeigt **Weiter**.
 | **Keep-warm** | Ein Haken, im Terminal `[ ]` / `[✓]`, in der Desktop-App ☐ / ☑, standardmäßig gesetzt: frischt den Cache kurz vor Ablauf auf (unten). `↻2` zählt die Auffrischungen seit der letzten Anfrage; warum Keep-warm wartet, wenn es wartet, steht in der Statuszeile. |
 | **Wetter** | ☀️ bis zur Hälfte der Auto-Compact-Schwelle, 🌧️ bis 80 % davon, ⛈️ darüber. Im Terminal ☼ (gelb), ≋ (hellblau) und ↯ (rot). |
 | **Ctx** | Füllung des Kontexts in Prozent und, hinter dem Schrägstrich, die Auto-Compact-Schwelle (`Ctx 5 % / 97 %`; `*` = Ersatzwert 83 %, wenn die Sitzung keine meldet). |
+| **Sitzungen** | Öffnet eine Seitenleiste mit allen Sitzungen auf dem Rechner, in denen der Mod läuft (unten). |
 | **Compact** | Wie `/compact`; bei ⛈️ hervorgehoben. In der Desktop-App oder während Claude arbeitet wird `/compact` eingereiht. |
 | **Pause / Weiter** | Bittet Claude, die Sitzung zu pausieren, und setzt sie fort (unten). |
 | **Shutdown** | Pausiert wie **Pause**, die anderen Sitzungen mit, und fährt den Rechner dann nach 5 Minuten Countdown herunter (unten). Gedimmt, wo sich der Rechner nicht unbeaufsichtigt herunterfahren lässt; ein Klick sagt, was fehlt. |
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 | **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), wie viele Züge es ungefähr noch bis zum Auto-Compact sind, ab zehn (`Auto-Compact in ≈ 6 Zügen`, ab drei gelb; aus dem Median des Wachstums der letzten fünf Züge, sobald es drei gibt, und nur, wo die Sitzung ihre eigene Schwelle meldet), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
+
+In der Desktop-App sind die Knöpfe einfarbige Icons: ⧉ Sitzungen, ⇲ Compact, ⏸ Pause, ▶ Weiter, ⏻ Shutdown (⏾ Standby,
+❄ Ruhezustand), ✕ Abbrechen; liegt der Mauszeiger auf einem, nennt eine Zeile unter der Leiste ihn und sagt, was er tut.
+Ein Terminal zeigt die Worte, weil es keinen Mauszeiger für einen Hinweis hat.
 
 Ist der Cache abgelaufen, sind Trefferquote und Ctx bis zur nächsten Antwort ausgeblendet: Sie beschreiben dann eine
 Anfrage, die nicht mehr aus dem Cache liest.
@@ -175,7 +180,13 @@ gedimmte Knopf schon, unter Windows). Rückmeldungen gern als Issue.
 
 Die Leiste kennt die anderen Claude-Code-Sitzungen auf dem Rechner, in denen der Mod läuft: Jede schreibt alle 15
 Sekunden ein Lebenszeichen in die Zustandsdatei (ihren Ordner, ihre Pause, wie lange Claude dort schon arbeitet, ihre
-Hintergrund-Läufe nach Beschreibung).
+Hintergrund-Läufe nach Beschreibung, und für die Übersicht ihren Kontext gegen die Schwelle, wann ihr Cache abläuft,
+Keep-warm und ihr Modell).
+
+**Die Übersicht.** Der Knopf ⧉ („Sitzungen“ im Terminal) öffnet eine Seitenleiste mit jeder von ihnen, diese Sitzung
+zuerst: ihr Zustand (arbeitet seit 12 min, pausiert seit 3 min, untätig, wartet auf eine Freigabe), `Ctx 42 % / 97 %`,
+die Restzeit des Caches, Keep-warm, das Modell und die Läufe im Hintergrund; darüber die Nutzungsfenster eines Abos. Sie
+zeigt nur an; Pause und Shutdown über Sitzungen laufen über die Leiste, wie unten.
 
 - **Pause** bleibt bei der eigenen Sitzung, solange du nichts anderes sagst. Arbeiten andere Sitzungen gerade, nennt
   die Pause-Bitte sie, und Claude fragt einmal, in derselben Rückfrage wie zu seinen langen Tasks: nur diese Sitzung
@@ -227,7 +238,10 @@ Cache kurz vor Ablauf auf:
 - **Findet eine Auffrischung den Cache schon abgelaufen** (etwa weil der Rechner schlief), wartet Keep-warm auf die
   nächste Anfrage, statt ihn neu aufzubauen, und sagt das.
 - **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die nächste Anfrage
-  schreibt den neuen Cache, und Keep-warm wartet auf sie („Keep-warm: wartet auf die nächste Anfrage“).
+  schreibt den neuen Cache, und Keep-warm wartet auf sie („Keep-warm: wartet auf die nächste Anfrage“). Verfällt bei
+  einem Wechsel ein Cache, der noch warm war, sagt eine Zeile, was das neue Schreiben kostet: die Tokens und die eigene
+  Schätzung von Claude Code („Modellwechsel auf claude-sonnet-5-5: … schreibt 180.000 Tokens neu in den Cache, ≈ 0,72 $
+  (Listenpreis)“).
 - **Wenn das Kontingent knapp wird:** Mit Abo frischt Keep-warm nichts mehr auf, sobald das 5-Stunden- oder das
   7-Tage-Fenster bei 90 % oder mehr steht („Keep-warm: hält an, Kontingent bei 92 %“), damit es nicht den Rest
   verbraucht, und macht von selbst weiter, wenn das Fenster zurückgesetzt ist. Die Statuszeile zeigt jedes Fenster ab

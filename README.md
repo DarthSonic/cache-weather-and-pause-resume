@@ -54,11 +54,16 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Keep-warm** | A checkbox, `[ ]` / `[✓]` in a terminal, ☐ / ☑ in the desktop app, checked by default: refreshes the cache shortly before it runs out (below). `↻2` counts the refreshes since the last request; why keep-warm waits, when it does, stands in the status row. |
 | **Weather** | ☀️ up to half the auto-compact threshold, 🌧️ up to 80 % of it, ⛈️ above. In a terminal ☼ (yellow), ≋ (light blue) and ↯ (red). |
 | **Ctx** | Context fill in percent and, after the slash, the auto-compact threshold (`Ctx 5 % / 97 %`; `*`: the fallback of 83 %, when the session reports none). |
+| **Sessions** | Opens a pane with every session on the computer that runs the mod (below). |
 | **Compact** | Same as `/compact`; highlighted during ⛈️. In the desktop app, or while Claude is working, `/compact` is queued. |
 | **Pause / Resume** | Asks Claude to pause the session, and carries on (below). |
 | **Shutdown** | Pauses like **Pause**, the other sessions with it, then shuts the computer down after a 5-minute countdown (below). Dimmed where the computer cannot be shut down unattended; a press says what is missing. |
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
 | **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), about how many turns are left until auto-compact from ten on (`Auto-compact in about 6 turns`, yellow from three; from the median growth of the last five turns, once there are three, and only where the session reports its own threshold), why keep-warm waits, the shutdown check a press waits for. |
+
+In the desktop app the buttons are one-colour icons: ⧉ Sessions, ⇲ Compact, ⏸ Pause, ▶ Resume, ⏻ Shutdown (⏾ Standby,
+❄ Hibernate), ✕ Cancel; with the pointer on one, a line under the band names it and says what it does. A terminal
+shows the words, as it has no pointer for a hint.
 
 Once the cache has expired, the hit rate and Ctx are hidden until the next response: they describe a request that no
 longer reads from the cache.
@@ -169,7 +174,12 @@ button have, on Windows). Reports are welcome as an issue.
 
 The band knows the other Claude Code sessions on the computer that run the mod: each writes a sign of life into the
 state file every 15 seconds (its folder, its pause, how long Claude has been working there, its background runs by
-description).
+description, and for the overview its context against its threshold, when its cache lapses, keep-warm and its model).
+
+**The overview.** The ⧉ button (“Sessions” in a terminal) opens a pane with each of them, this session first: its
+state (working for 12 min, paused for 3 min, idle, waiting for an approval), `Ctx 42 % / 97 %`, the cache time left,
+keep-warm, the model and the runs in the background; above them the usage windows of a subscription. It only shows;
+pausing and shutting down across sessions go through the band, as below.
 
 - **Pause** stays with its own session unless you say otherwise. Where other sessions have work running, the pause
   request lists them, and Claude asks once, in the same question as about its own long tasks: this session only, or
@@ -219,7 +229,9 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
 - **When a refresh finds the cache already gone** (the machine slept, say), keep-warm waits for the next request
   rather than build it afresh, and says so.
 - **After `/compact` or a switch to another model** there is nothing to keep warm: the next request writes the new
-  cache, and keep-warm waits for it (“Keep-warm: waiting for the next request”).
+  cache, and keep-warm waits for it (“Keep-warm: waiting for the next request”). Where a switch forfeits a cache that
+  was still warm, a line says what writing it again costs: the tokens and Claude Code's own estimate (“Model switched
+  to claude-sonnet-5-5: … writes 180,000 tokens to the cache again, ≈ $0.72 (list price)”).
 - **When the usage runs short:** with a subscription, once the 5-hour or the 7-day window stands at 90 % or more,
   keep-warm refreshes nothing (“Keep-warm: stopped, usage at 92 %”), so it does not spend the last of it, and goes on
   by itself once the window starts over. The status row shows each window from 80 % on, with the time it resets; a

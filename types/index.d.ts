@@ -61,6 +61,14 @@ export type LiveSession = {
   isAwaitingPerson: boolean
   /** The request of another session it has taken up. */
   requestId: string | null
+  /** For the sessions overview (0.10.0; absent from earlier versions): since when it is paused, its context and
+   * threshold in percent, when its cache lapses, whether keep-warm is on, its model. */
+  pausedAt?: number | null
+  contextPercent?: number | null
+  thresholdPercent?: number | null
+  cacheUntil?: number | null
+  keepWarm?: boolean
+  model?: string | null
 }
 
 /** A request for all sessions, written by the session where Pause or Shutdown was pressed, and by no other. */
@@ -132,6 +140,8 @@ declare module 'claude-code' {
       turnGrowths: number[]
       /** The context's tokens when the last turn ended. */
       lastTurnTokens: number | null
+      /** The sessions the overview shows (0.10.0): the signs of life alive, this session's first. */
+      sessionsView: { id: string; isSelf: boolean; entry: LiveSession }[]
       /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */
       isAwaitingPerson: boolean
       /** Whether and how the computer can be shut down unattended; null until the session start has checked. */

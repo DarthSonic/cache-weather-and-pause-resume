@@ -8,6 +8,14 @@
   then each change of a whole point); a session on an API key has none and shows none.
 - **Keep-warm stops at 90 %** of any window: a refresh would spend the last of it. It says so once in the status row
   („Keep-warm: hält an, Kontingent bei 92 %“) and in a line, and refreshes again by itself once the window starts over.
+- **Sessions overview**: a new button (⧉ in the desktop app, „Sitzungen“ / “Sessions” in a terminal) opens a pane with
+  every session on the computer that runs the mod, this one first: its state (working, paused, idle, waiting for an
+  approval, for how long), its context against its threshold, the cache time left, keep-warm, the model and the runs
+  in the background, with the usage windows above. The signs of life carry these now; the pane only shows.
+- **Icons in the desktop app**: the buttons are one-colour icons in text form (⧉ ⇲ ⏸ ▶ ⏻ ⏾ ❄ ✕), and with the pointer
+  on one a line under the band names it and says what it does. A terminal keeps the words.
+- **What a model switch costs**: where a switch forfeits a cache that was still warm, a line with the tokens the next
+  request writes again and Claude Code's own estimate in dollars (list price, a configured price, or estimated).
 - **Context forecast** in the status row: about how many turns are left until auto-compact, from ten on („Auto-Compact
   in ≈ 6 Zügen“, yellow from three, „wohl beim nächsten Zug“ at one). It reckons with the median growth of the last
   five turns that grew the context, once there are three (a turn after which it shrank, a compaction, adds nothing),

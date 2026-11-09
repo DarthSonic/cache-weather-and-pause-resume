@@ -783,6 +783,60 @@ describe('pause and shutdown across sessions', () => {
     files[STATE] = JSON.stringify({ ...now, liveSessions: { ...(now.liveSessions ?? {}), [id]: entry } })
   }
 
+  // The sessions overview (0.10.0): a button of the band opens a pane with every session that runs the mod.
+  const PANE = {
+    plugin: 'cache-weather-and-pause-resume',
+    component: 'Pane',
+    requestId: 'sessions',
+    props: { title: 'Sitzungen', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
+  } as const
+
+  test('the sessions button opens the overview: each session with its state, context, cache, keep-warm, model and runs', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const files = disk(on)
+    engine(on)
+    const opened: string[] = []
+    on('ui.open', ($, e) => {
+      opened.push(e.id)
+      return { value: { isPlaced: true } }
+    })
+    const terminal = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect((await terminal.find({ key: 'sessions' }))?.props.label).toBe('Sitzungen')
+    await terminal.unmount()
+    const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    expect((await band.find({ key: 'sessions' }))?.props.label).toBe('⧉')
+    expect(await band.find({ type: 'Text', text: /^Sitzungen: Übersicht aller Sitzungen auf diesem Rechner$/ })).toBeDefined()
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    signOfLife(
+      files,
+      'b2b2b2b2-9',
+      live({
+        workingSince: T0 - 18 * 60_000,
+        runs: ['Suite'],
+        contextPercent: 42,
+        thresholdPercent: 97,
+        cacheUntil: T0 + 30 * 60_000,
+        keepWarm: true,
+        model: 'claude-opus-5-5',
+      }),
+    )
+    await band.press({ key: 'sessions' })
+    expect(opened).toEqual(['sessions'])
+    await band.unmount()
+
+    const pane = await $.ui.mount({ ...PANE, surface: 'desktop' })
+    expect(await pane.find({ type: 'Text', text: /^repo-b$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^arbeitet seit 18 min$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^Ctx 42 % \/ 97 % {2}· {2}Cache 30 m {2}· {2}Keep-warm an {2}· {2}claude-opus-5-5$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /^Lauf: Suite$/ })).toBeDefined()
+    expect(await pane.find({ type: 'Text', text: /· diese Sitzung$/ })).toBeDefined()
+    // A session gone quiet a minute and a half ago drops out at the next look.
+    await clock.advance(105_000)
+    expect(await pane.find({ type: 'Text', text: /^repo-b$/ })).toBeUndefined()
+    await pane.unmount()
+  })
+
   test('each session writes its sign of life every 15 seconds', DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: T0 })
