@@ -1,6 +1,73 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { hasShutdownRight, logindAllows, osFromUname, secondsLeft, shutdownCommand, windowsSystem32 } from '../hooks/shutdown'
+import {
+  hasShutdownRight,
+  hibernateCommand,
+  hibernateEnabled,
+  logindAllows,
+  modeOf,
+  osFromUname,
+  secondsLeft,
+  shutdownCommand,
+  sleepCommand,
+  standbyAvailable,
+  windowsPowerShell,
+  windowsSystem32,
+} from '../hooks/shutdown'
+
+// `powercfg /a` on a German Windows with standby (S3) and hibernation turned off, as it answered on 2026-11-09.
+const POWERCFG_DE = [
+  'Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar:',
+  '    Standby (S3)',
+  '',
+  'Die folgenden Standbymodusfunktionen sind auf diesem System nicht verfügbar:',
+  '    Standby (S1)',
+  '\tDie Systemfirmware unterstützt diesen Standbystatus nicht.',
+  '',
+  '    Ruhezustand',
+  '\tRuhezustand wurde nicht aktiviert.',
+  '',
+].join('\r\n')
+// One where no standby is available: S3 is listed with the reason it is not.
+const POWERCFG_NONE = [
+  'The following sleep states are not available on this system:',
+  '    Standby (S3)',
+  '\tThe system firmware does not support this standby state.',
+  '',
+  '    Standby (S0 Low Power Idle)',
+  '\tThe system firmware does not support this standby state.',
+  '',
+].join('\r\n')
+
+describe('standby and hibernation (0.9.5)', () => {
+  test('the option picks the mode; anything else shuts down', async () => {
+    expect(modeOf('sleep')).toBe('sleep')
+    expect(modeOf('hibernate')).toBe('hibernate')
+    expect(modeOf('off')).toBe('shutdown')
+    expect(modeOf(undefined)).toBe('shutdown')
+  })
+
+  test('the commands per system, each program by its full path', async () => {
+    const ps = windowsPowerShell('C:\\Windows\\System32')
+    expect(ps).toBe('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+    const sleep = sleepCommand('windows', ps)
+    expect(sleep.slice(0, 4)).toEqual([ps, '-NoProfile', '-NonInteractive', '-Command'])
+    expect(sleep[4]).toContain("SetSuspendState('Suspend', $false, $false)")
+    expect(sleepCommand('linux', '/usr/bin/systemctl')).toEqual(['/usr/bin/systemctl', 'suspend'])
+    expect(sleepCommand('macos', '/usr/bin/pmset')).toEqual(['/usr/bin/pmset', 'sleepnow'])
+    expect(hibernateCommand('windows', 'C:\\Windows\\System32\\shutdown.exe')).toEqual(['C:\\Windows\\System32\\shutdown.exe', '/h'])
+    expect(hibernateCommand('linux', '/usr/bin/systemctl')).toEqual(['/usr/bin/systemctl', 'hibernate'])
+  })
+
+  test('hibernation is read off the registry value, standby off the shape of powercfg’s answer', async () => {
+    const reg = (value: string) => `\r\nHKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Power\r\n    HibernateEnabled    REG_DWORD    ${value}\r\n`
+    expect(hibernateEnabled(reg('0x1'))).toBe(true)
+    expect(hibernateEnabled(reg('0x0'))).toBe(false)
+    expect(hibernateEnabled('ERROR: The system was unable to find the specified registry key or value.')).toBe(false)
+    expect(standbyAvailable(POWERCFG_DE)).toBe(true)
+    expect(standbyAvailable(POWERCFG_NONE)).toBe(false)
+  })
+})
 
 describe('the shutdown command', () => {
   test('Windows forces the other programs closed after its own ten seconds; Linux uses logind or sudo; macOS sudo', async () => {

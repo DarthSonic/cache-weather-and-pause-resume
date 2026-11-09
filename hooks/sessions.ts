@@ -1,8 +1,9 @@
 // Pause and shutdown across sessions (0.9.4): each session's sign of life in the state file, the request one session
 // makes for all of them, and the words Claude reads about it. No `$` here, so the tests read the rules directly.
 
+import { modeWords } from './i18n'
 import type { Lang } from './i18n'
-import type { LiveSession, RunsDecision, SessionRequest } from '../types'
+import type { LiveSession, RunsDecision, SessionRequest, ShutdownMode } from '../types'
 
 export type { LiveSession, RunsDecision, SessionRequest } from '../types'
 
@@ -130,12 +131,14 @@ export function othersNote(
   others: readonly [string, LiveSession][],
   now: number,
   lang: Lang,
+  mode: ShutdownMode = 'shutdown',
 ): string {
   const list = others.map(([id, s]) => describeSession(id, s, now, lang)).join('\n')
+  const label = modeWords(mode, lang).label
   if (lang === 'de') {
     const ask =
       kind === 'shutdown'
-        ? 'Der Shutdown pausiert sie mit. Frag den Menschen in derselben Rückfrage wie zu deinen langen Tasks je Sitzung: ihre Läufe jetzt beenden oder zu Ende laufen lassen (der Shutdown wartet dann auf sie).'
+        ? `Der ${label} pausiert sie mit. Frag den Menschen in derselben Rückfrage wie zu deinen langen Tasks je Sitzung: ihre Läufe jetzt beenden oder zu Ende laufen lassen (der ${label} wartet dann auf sie).`
         : 'Frag den Menschen in derselben Rückfrage wie zu deinen langen Tasks, ob diese Sitzungen mitpausieren sollen, und wenn ja, je Sitzung: ihre Läufe jetzt beenden oder zu Ende laufen lassen.'
     return [
       '🖥 Andere Sitzungen auf diesem Rechner, in denen gerade etwas läuft:',
@@ -146,7 +149,7 @@ export function othersNote(
   }
   const ask =
     kind === 'shutdown'
-      ? 'The shutdown pauses them too. In the same question as about your own long tasks, ask the person for each session: end its runs now, or let them finish (the shutdown then waits for them).'
+      ? `${label} pauses them too. In the same question as about your own long tasks, ask the person for each session: end its runs now, or let them finish (${label.toLowerCase()} then waits for them).`
       : 'In the same question as about your own long tasks, ask the person whether these sessions pause too and, if so, for each session: end its runs now, or let them finish.'
   return [
     '🖥 Other sessions on this computer with work running:',
@@ -161,16 +164,18 @@ export function shutdownOthersPrompt(
   others: readonly [string, LiveSession][],
   now: number,
   lang: Lang,
+  mode: ShutdownMode = 'shutdown',
 ): string {
+  const w = modeWords(mode, lang)
   const head =
     lang === 'de'
-      ? '⏻ Shutdown-Knopf: Diese Sitzung ist pausiert, und der Mensch möchte den Rechner herunterfahren. Starte hier nichts.'
-      : '⏻ Shutdown button: this session is paused, and the person wants to shut the computer down. Start nothing here.'
+      ? `⏻ ${w.label}-Knopf: Diese Sitzung ist pausiert, und der Mensch möchte ${w.doIt}. Starte hier nichts.`
+      : `⏻ ${w.label} button: this session is paused, and the person wants to ${w.doIt}. Start nothing here.`
   const tail =
     lang === 'de'
       ? 'Melde danach kurz, was entschieden ist, und beende deinen Zug; die Sitzung bleibt pausiert.'
       : 'Then report briefly what was decided and end your turn; the session stays paused.'
-  return [head, '', othersNote('shutdown', others, now, lang), tail].join('\n')
+  return [head, '', othersNote('shutdown', others, now, lang, mode), tail].join('\n')
 }
 
 /** What the Claude of a session that another one paused reads: no questions now, its runs as the person decided. */
@@ -179,12 +184,14 @@ export function foreignPauseRequest(
   byFolder: string | null,
   decision: RunsDecision,
   lang: Lang,
+  mode: ShutdownMode = 'shutdown',
 ): string {
+  const w = modeWords(mode, lang)
   if (lang === 'de') {
     const where = byFolder === null ? 'einer anderen Sitzung' : `der Sitzung in ${byFolder}`
     const what =
       kind === 'shutdown'
-        ? 'den Rechner zum Herunterfahren angemeldet; vorher werden alle Sitzungen pausiert, auch diese'
+        ? `angefordert, ${w.doIt}; vorher werden alle Sitzungen pausiert, auch diese`
         : 'alle Sitzungen pausiert, auch diese'
     const runs =
       decision === 'end'
@@ -202,7 +209,7 @@ export function foreignPauseRequest(
   const where = byFolder === null ? 'another session' : `the session in ${byFolder}`
   const what =
     kind === 'shutdown'
-      ? 'is shutting the computer down; first every session pauses, this one too'
+      ? `asked to ${w.doIt}; first every session pauses, this one too`
       : 'paused every session, this one too'
   const runs =
     decision === 'end'

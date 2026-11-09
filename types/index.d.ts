@@ -26,6 +26,9 @@ export type KeepWarmNote = 'ended' | 'missed' | 'cold'
 /** The systems the shutdown button knows. */
 export type ShutdownOs = 'windows' | 'linux' | 'macos'
 
+/** What the button does once the sessions are paused: shut down, sleep (standby) or hibernate (option `shutdownMode`). */
+export type ShutdownMode = 'shutdown' | 'sleep' | 'hibernate'
+
 /**
  * Whether the shutdown button can shut the computer down unattended, and with which command; or why not. `no-right`:
  * the Windows account lacks the right to shut the system down; `no-permission`: neither systemd-logind nor a
@@ -34,7 +37,7 @@ export type ShutdownOs = 'windows' | 'linux' | 'macos'
  */
 export type ShutdownReadiness =
   | { isReady: true; os: ShutdownOs; command: readonly string[] }
-  | { isReady: false; os: ShutdownOs | 'unknown'; reason: 'no-right' | 'no-permission' | 'unknown-os' | 'check-failed' }
+  | { isReady: false; os: ShutdownOs | 'unknown'; reason: 'no-right' | 'no-permission' | 'no-sleep' | 'no-hibernate' | 'unknown-os' | 'check-failed' }
 
 /** Where the shutdown stands: none, asked for (the pause runs), counting down, or the command is running. */
 export type ShutdownPhase = 'idle' | 'requested' | 'waiting' | 'countdown' | 'shutting'
@@ -73,6 +76,8 @@ export type SessionRequest = {
   decidedAt: number | null
   /** Per other session with running work: end its runs now, or wait for them. */
   decisions: Record<string, RunsDecision>
+  /** For a shutdown: what the computer does, as the making session's option says (0.9.5; absent before: shut down). */
+  mode?: ShutdownMode
   countdownUntil: number | null
 }
 

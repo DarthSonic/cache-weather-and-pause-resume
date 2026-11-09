@@ -142,9 +142,26 @@ Antwort vorfindet:
 | Linux | `loginctl can-power-off` antwortet `yes` (bei einer lokalen Desktop-Anmeldung meist so), sonst gelingt `sudo -n -l shutdown` | `systemctl poweroff`, sonst `sudo -n shutdown -h now` | `shutdown` ohne Passwort erlauben: `sudo visudo -f /etc/sudoers.d/shutdown` mit der Zeile `DEIN_NAME ALL=(root) NOPASSWD: PFAD` (PFAD aus `command -v shutdown`) |
 | macOS (auf einem Mac noch ungetestet) | `sudo -n -l shutdown` gelingt | `sudo -n shutdown -h now` | dieselbe sudoers-Zeile, mit `/sbin/shutdown` |
 
+**Standby oder Ruhezustand statt Herunterfahren.** Mit der Option `shutdownMode` schickt der Knopf den Rechner in
+den Standby (`sleep`) oder den Ruhezustand (`hibernate`), statt ihn herunterzufahren; Knopf, Statuszeile und
+Benachrichtigung heißen dann danach („Standby in 4:47“). Geschlossen wird nichts: Die anderen Programme und die
+Claude-Sitzungen sind beim Aufwachen wieder da, weiter pausiert, bis du **Weiter** drückst. Jeder Modus wird beim
+Sitzungsstart geprüft wie der Shutdown:
+
+| Modus | System | Prüfung | Befehl |
+| --- | --- | --- | --- |
+| `sleep` | Windows | `powercfg /a` nennt Standby (S3 oder S0) als verfügbar | Windows PowerShell mit dem systemeigenen `SetSuspendState('Suspend')` |
+| `sleep` | Linux | `loginctl can-suspend` antwortet `yes` | `systemctl suspend` |
+| `sleep` | macOS (auf einem Mac noch ungetestet) | `pmset` ist da | `pmset sleepnow` |
+| `hibernate` | Windows | `reg query …\Control\Power /v HibernateEnabled` liest 1 (einschalten als Administrator mit `powercfg /hibernate on`) | `shutdown /h` |
+| `hibernate` | Linux | `loginctl can-hibernate` antwortet `yes` | `systemctl hibernate` |
+
+Unter macOS ist der Ruhezustand eine Einstellung von `pmset`, kein Befehl: Dort bietet der Knopf Standby oder
+Shutdown an.
+
 **Beachten:**
 
-- Unter Windows werden andere Programme ohne Rückfrage geschlossen (`/f`; Windows setzt es bei jedem Vorlauf ohnehin),
+- Unter Windows schließt ein Shutdown andere Programme ohne Rückfrage (`/f`; Windows setzt es bei jedem Vorlauf ohnehin),
   damit kein Bildschirm „Apps verhindern das Herunterfahren“ auf jemanden wartet, der gegangen ist. Speichere deine
   Arbeit in anderen Programmen vorher.
 - Sitzungen mit dem Mod pausieren vorher ([Andere Sitzungen](#andere-sitzungen)); Sitzungen ohne ihn enden mit dem Rechner.
@@ -244,6 +261,7 @@ Zustandsdatei (`~/.claude/cache-wetter/`) wird nicht übernommen und kann weg.
 | `askAboveMinutes` | `5` | Ab welcher Restlaufzeit eines laufenden Tasks Claude bei einer Pause nachfragt. |
 | `keepWarm` | `on` | Ob eine neue Sitzung mit gesetztem Keep-warm startet; `off` startet ohne. |
 | `notifications` | `on` | Eine Benachrichtigung, wenn der Shutdown-Countdown startet; `off` schickt keine. |
+| `shutdownMode` | `shutdown` | Was der Shutdown-Knopf tut: `shutdown`, `sleep` (Standby) oder `hibernate` (Ruhezustand); der Knopf heißt danach. |
 
 Setzen mit `/plugin configure cache-weather-and-pause-resume@darthsonic` oder in `~/.claude/settings.json`:
 
@@ -311,8 +329,9 @@ Sitzungen ohne den Mod zu zählen.
 **Programme.** Bei jedem Sitzungsstart (und bei einem Klick auf **Shutdown**, der keine Antwort vorfindet) prüft er,
 ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
 sonst `uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und
-nichts ausführt. Erst wenn du **Shutdown** gedrückt hast, die Sitzungen pausiert sind und der 5-Minuten-Countdown
-abgelaufen ist, startet er den Befehl aus der Tabelle oben. Andere Programme startet er nicht, und jedes über seinen
+nichts ausführt; für Standby oder Ruhezustand `powercfg /a` oder `reg query` unter Windows, `loginctl can-suspend` oder
+`can-hibernate` unter Linux, die alle nur lesen. Erst wenn du den Knopf gedrückt hast, die Sitzungen pausiert sind und
+der 5-Minuten-Countdown abgelaufen ist, startet er den Befehl aus den Tabellen oben. Andere Programme startet er nicht, und jedes über seinen
 vollen Pfad in den Ordnern des Systems (`%SystemRoot%\System32` unter Windows, sonst `/usr/bin` oder `/bin`), mit
 diesem Ordner als Arbeitsordner: Ein gleichnamiges Programm im Ordner der Sitzung oder auf deinem PATH läuft nie.
 

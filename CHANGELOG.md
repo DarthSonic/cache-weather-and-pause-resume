@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.5 — unreleased
+
+- **Standby or hibernation instead of shutdown**, with the new option `shutdownMode` (`shutdown`, `sleep`,
+  `hibernate`; default `shutdown`). Nothing is closed: the other programs and the Claude sessions are there again when
+  the computer wakes, still paused until „Weiter“, and a shutdown request of several sessions ends with the pauses kept.
+  The button, the status row, the countdown and the notification are named after the mode („Standby in 4:47“,
+  „Ruhezustand“), and so are the words Claude and the other sessions read. Each mode is checked at session start:
+  standby on Windows when `powercfg /a` lists S3 or S0 as available (read off the shape of its answer, not its words),
+  run through Windows PowerShell's `SetSuspendState('Suspend')`; hibernation on Windows when the registry value
+  `HibernateEnabled` reads 1, run with `shutdown /h`; on Linux through `loginctl can-suspend` / `can-hibernate` and
+  `systemctl suspend` / `hibernate`; on macOS standby through `pmset sleepnow` (not yet tested on a Mac). Where a mode
+  is not available the button is dimmed and a press says what is missing, for hibernation on Windows how to turn it
+  on (`powercfg /hibernate on`, as administrator).
+
 ## 0.9.4 — 2026-11-09
 
 - **Pause and shutdown across sessions.** Each session that runs the mod writes a sign of life into the state file

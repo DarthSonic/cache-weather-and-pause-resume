@@ -8,6 +8,7 @@ import type {
   PausePhase,
   RunsDecision,
   SessionRequest,
+  ShutdownMode,
   ShutdownReadiness,
   Threshold,
   Ttl,
@@ -80,15 +81,21 @@ import {
   SHUTDOWN_COUNTDOWN_MS,
   UNIX_PROGRAMS,
   hasShutdownRight,
+  hibernateCommand,
+  hibernateEnabled,
   logindAllows,
+  modeOf,
   osFromUname,
   secondsLeft,
   shutdownCommand,
+  sleepCommand,
+  standbyAvailable,
+  windowsPowerShell,
   windowsSystem32,
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.9.4'
+const CODE_VERSION = '0.9.5'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -261,7 +268,7 @@ async function detectFromTranscript($: EngineInterface): Promise<void> {
 }
 
 async function queueCompact($: EngineInterface): Promise<void> {
-  const t = strings(await currentLang($))
+  const t = strings(await currentLang($), shutdownMode)
   $.ui.toast(t.compactQueued)
   try {
     await $.command.run({ command: 'compact' })
@@ -449,6 +456,8 @@ const WAITING_NOTICES = new Set(['permission_prompt', 'elicitation_dialog', 'eli
 // The module's own: a reload starts them over, and its timers go with the old module.
 let keepWarmByDefault = true
 let isNotifying = true
+// What the button does once the sessions are paused (option `shutdownMode`, 0.9.5).
+let shutdownMode: ShutdownMode = 'shutdown'
 let shutdownCheck: Promise<void> | null = null
 let shutdownTimer: Timer | null = null
 let shutdownTicker: Timer | null = null
@@ -513,7 +522,7 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
     now: at,
   })
   const lang = await currentLang($)
-  const t = strings(lang)
+  const t = strings(lang, shutdownMode)
   if (step === 'ended' && life !== null) {
     await update($, keepWarmNote, () => 'ended')
     $.ui.log(t.keepWarmEndedLog(keepWarmSpanText(life.minutes), life.minutes === 60 ? '1-h' : '5-m'))
@@ -620,17 +629,33 @@ async function shutdownReadinessNow($: EngineInterface): Promise<ShutdownReadine
 
 // Each program by its full path, from a system folder as the working folder: nothing the session's folder holds runs.
 async function detectShutdown($: EngineInterface): Promise<ShutdownReadiness> {
+  const mode = shutdownMode
   if ((await $.env.get('OS')) === 'Windows_NT') {
     const system32 = windowsSystem32(await $.env.get('SystemRoot'))
     const priv = await $.process.run([`${system32}\\whoami.exe`, '/priv'], { cwd: system32, timeoutMs: 10_000 })
-    return hasShutdownRight(priv.stdout)
-      ? { isReady: true, os: 'windows', command: shutdownCommand('windows', false, `${system32}\\shutdown.exe`) }
-      : { isReady: false, os: 'windows', reason: 'no-right' }
+    if (!hasShutdownRight(priv.stdout)) return { isReady: false, os: 'windows', reason: 'no-right' }
+    // Hibernation: whether Windows has it on, read off the registry value, which no language words.
+    if (mode === 'hibernate') {
+      const power = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power'
+      const reg = await $.process.run([`${system32}\\reg.exe`, 'query', power, '/v', 'HibernateEnabled'], { cwd: system32, timeoutMs: 10_000 })
+      return hibernateEnabled(reg.stdout)
+        ? { isReady: true, os: 'windows', command: hibernateCommand('windows', `${system32}\\shutdown.exe`) }
+        : { isReady: false, os: 'windows', reason: 'no-hibernate' }
+    }
+    // Standby: whether `powercfg /a` lists S3 or S0 as available.
+    if (mode === 'sleep') {
+      const states = await $.process.run([`${system32}\\powercfg.exe`, '/a'], { cwd: system32, timeoutMs: 10_000 })
+      return standbyAvailable(states.stdout)
+        ? { isReady: true, os: 'windows', command: sleepCommand('windows', windowsPowerShell(system32)) }
+        : { isReady: false, os: 'windows', reason: 'no-sleep' }
+    }
+    return { isReady: true, os: 'windows', command: shutdownCommand('windows', false, `${system32}\\shutdown.exe`) }
   }
   const uname = await unixProgram($, 'uname')
   if (uname === null) return { isReady: false, os: 'unknown', reason: 'unknown-os' }
   const os = osFromUname((await $.process.run([uname, '-s'], { cwd: '/', timeoutMs: 10_000 })).stdout)
   if (os === null) return { isReady: false, os: 'unknown', reason: 'unknown-os' }
+  if (mode !== 'shutdown') return detectSleep($, os, mode)
   if (os === 'linux') {
     const loginctl = await unixProgram($, 'loginctl')
     const systemctl = await unixProgram($, 'systemctl')
@@ -657,6 +682,29 @@ async function detectShutdown($: EngineInterface): Promise<ShutdownReadiness> {
   return { isReady: false, os, reason: 'no-permission' }
 }
 
+// Standby and hibernation on Linux through systemd-logind, as far as it lets the session; on macOS standby through
+// pmset (hibernation is a setting there, not a command).
+async function detectSleep($: EngineInterface, os: 'linux' | 'macos', mode: 'sleep' | 'hibernate'): Promise<ShutdownReadiness> {
+  const missing: ShutdownReadiness = { isReady: false, os, reason: mode === 'sleep' ? 'no-sleep' : 'no-hibernate' }
+  if (os === 'macos') {
+    if (mode === 'hibernate') return missing
+    const pmset = await unixProgram($, 'pmset')
+    return pmset === null ? missing : { isReady: true, os, command: sleepCommand(os, pmset) }
+  }
+  const loginctl = await unixProgram($, 'loginctl')
+  const systemctl = await unixProgram($, 'systemctl')
+  if (loginctl === null || systemctl === null) return missing
+  try {
+    const answer = await $.process.run([loginctl, mode === 'sleep' ? 'can-suspend' : 'can-hibernate'], { cwd: '/', timeoutMs: 10_000 })
+    if (answer.exitCode === 0 && logindAllows(answer.stdout)) {
+      return { isReady: true, os, command: mode === 'sleep' ? sleepCommand(os, systemctl) : hibernateCommand(os, systemctl) }
+    }
+  } catch {
+    // systemd-logind does not answer.
+  }
+  return missing
+}
+
 async function unixProgram($: EngineInterface, name: keyof typeof UNIX_PROGRAMS): Promise<string | null> {
   for (const path of UNIX_PROGRAMS[name]) {
     try {
@@ -672,7 +720,7 @@ async function unixProgram($: EngineInterface, name: keyof typeof UNIX_PROGRAMS)
 // computer down. Pressed while paused, it counts down at once; pressed where it cannot, it says what is missing.
 async function requestShutdown($: EngineInterface, askAbove: number): Promise<void> {
   const lang = await currentLang($)
-  const t = strings(lang)
+  const t = strings(lang, shutdownMode)
   const readiness = await shutdownReadinessNow($)
   if (!readiness.isReady) {
     $.ui.toast(t.shutdownHelp(readiness))
@@ -690,11 +738,12 @@ async function requestShutdown($: EngineInterface, askAbove: number): Promise<vo
   const others = await prepareRequest($, 'shutdown')
   if (phase === 'paused') {
     if (others.busy.length === 0) await beginShutdownWait($)
-    else await handToModel($, shutdownOthersPrompt(others.busy, others.at, lang))
+    else await handToModel($, shutdownOthersPrompt(others.busy, others.at, lang, shutdownMode))
     return
   }
   // A pause under way: Claude learns that the computer goes off after it.
-  await handToModel($, others.note === null ? shutdownNote(lang) : `${shutdownNote(lang)}\n\n${others.note}`)
+  const note = shutdownNote(lang, shutdownMode)
+  await handToModel($, others.note === null ? note : `${note}\n\n${others.note}`)
 }
 
 async function startShutdownCountdown($: EngineInterface): Promise<void> {
@@ -721,7 +770,7 @@ async function startShutdownCountdown($: EngineInterface): Promise<void> {
 // the mod's own runs for it. The option `notifications` turns it off.
 async function notifyCountdown($: EngineInterface): Promise<void> {
   if (!isNotifying) return
-  const t = strings(await currentLang($))
+  const t = strings(await currentLang($), shutdownMode)
   const folder = await currentFolder($)
   await $.ui.notify(t.shutdownNotifyBody(folder), { title: t.shutdownNotifyTitle(SHUTDOWN_COUNTDOWN_MS / 1000) })
 }
@@ -746,7 +795,7 @@ async function cancelShutdown($: EngineInterface, isQuiet: boolean): Promise<voi
       ? { ...r, state: 'cancelled' }
       : null,
   )
-  if (!isQuiet) $.ui.toast(strings(await currentLang($)).shutdownCancelled)
+  if (!isQuiet) $.ui.toast(strings(await currentLang($), shutdownMode).shutdownCancelled)
 }
 
 async function runShutdown($: EngineInterface): Promise<void> {
@@ -757,22 +806,39 @@ async function runShutdown($: EngineInterface): Promise<void> {
     await cancelShutdown($, true)
     return
   }
-  const t = strings(await currentLang($))
+  const t = strings(await currentLang($), shutdownMode)
   await update($, shutdownPhase, () => 'shutting')
-  await changeOwnRequest($, r => ({ ...r, state: 'done' }))
+  const isComingBack = shutdownMode !== 'shutdown'
+  if (!isComingBack) await changeOwnRequest($, r => ({ ...r, state: 'done' }))
   $.ui.log(t.shutdownLog)
+  const startedAt = await $.clock.now()
   try {
     const program = readiness.command[0] ?? ''
     const folder = readiness.os === 'windows' ? program.slice(0, program.lastIndexOf('\\')) : '/'
-    const result = await $.process.run(readiness.command, { cwd: folder, timeoutMs: 30_000 })
+    // Standby on Windows returns only once the computer is awake again: the call may take as long as allowed.
+    const result = await $.process.run(readiness.command, { cwd: folder, timeoutMs: isComingBack ? 600_000 : 30_000 })
     if (result.exitCode !== 0) throw new Error(result.stderr.trim().split('\n')[0] || `exit code ${result.exitCode}`)
+    if (isComingBack) await afterWaking($)
   } catch (error) {
+    // A call that outlasted its time while the computer slept has done its work.
+    if (isComingBack && (await $.clock.now()) - startedAt >= 20_000) {
+      await afterWaking($)
+      return
+    }
     await update($, shutdownPhase, () => 'idle')
     await update($, shutdownAt, () => null)
     const message = t.shutdownFailed(error instanceof Error ? error.message : String(error))
     $.ui.toast(message)
     $.ui.log(message)
   }
+}
+
+// Back from standby or hibernation: the sessions stay paused until „Weiter“, and the request's countdown is over.
+async function afterWaking($: EngineInterface): Promise<void> {
+  await update($, shutdownPhase, () => 'idle')
+  await update($, shutdownAt, () => null)
+  await update($, waitingSessions, () => [])
+  await changeOwnRequest($, r => (r.state === 'countdown' ? { ...r, state: 'cancelled' } : null))
 }
 
 // Claude's way to tell the band that it paused the session or picks the work back up (pause_state): a pause asked
@@ -911,8 +977,9 @@ async function prepareRequest(
       decidedAt: isOpen ? null : at,
       decisions: {},
       countdownUntil: null,
+      ...(kind === 'shutdown' ? { mode: shutdownMode } : {}),
     })
-    return { busy, note: isOpen ? othersNote(kind, busy, at, await currentLang($)) : null, at }
+    return { busy, note: isOpen ? othersNote(kind, busy, at, await currentLang($), shutdownMode) : null, at }
   } catch {
     return { busy: [], note: null, at }
   }
@@ -1019,7 +1086,7 @@ async function followRequest($: EngineInterface): Promise<void> {
     } else {
       const lang = await currentLang($)
       await enterPausing($, true)
-      const text = foreignPauseRequest(request.kind, request.byFolder, request.decisions[self] ?? 'wait', lang)
+      const text = foreignPauseRequest(request.kind, request.byFolder, request.decisions[self] ?? 'wait', lang, request.mode)
       if ((await handToModel($, text)) === 'appended') await update($, pauseDelivered, () => false)
     }
   }
@@ -1135,7 +1202,7 @@ async function handToModel($: EngineInterface, text: string): Promise<'appended'
       // The run takes no plugin rows: queue the text as a prompt instead.
     }
   }
-  const t = strings(await currentLang($))
+  const t = strings(await currentLang($), shutdownMode)
   $.prompt.submit({ text, asUser: true }).catch(error => {
     $.ui.toast(t.sendFailed(String(error)))
   })
@@ -1148,7 +1215,7 @@ async function requestPause($: EngineInterface, askAbove: number, kind: 'pause' 
   const others = await prepareRequest($, kind)
   await enterPausing($, true)
   const parts = [pauseRequest(askAbove, lang)]
-  if (kind === 'shutdown') parts.push(shutdownNote(lang))
+  if (kind === 'shutdown') parts.push(shutdownNote(lang, shutdownMode))
   if (others.note !== null) parts.push(others.note)
   const request = parts.join('\n\n')
   // An appended row waits for the turn's next request; should the turn end first, the Stop hook hands it on.
@@ -1172,7 +1239,7 @@ async function requestResume($: EngineInterface): Promise<void> {
     // Without the note „weitermachen“ still reads plainly after the pause report.
   }
   $.prompt.submit({ text: resumeText(lang), asUser: true }).catch(error => {
-    $.ui.toast(strings(lang).resumeSendFailed(String(error)))
+    $.ui.toast(strings(lang, shutdownMode).resumeSendFailed(String(error)))
   })
 }
 
@@ -1204,6 +1271,7 @@ export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
   keepWarmByDefault = options.keepWarm !== 'off'
   isNotifying = options.notifications !== 'off'
+  shutdownMode = modeOf(options.shutdownMode)
   shutdownCheck = null
   stopShutdownTimers()
   pauseToolRegistered = false
@@ -1513,7 +1581,7 @@ export const register: Register = (on, options) => {
     const limit = (await read($, threshold)) ?? { percent: FALLBACK_THRESHOLD_PERCENT, isFallback: true }
     const compacting = await read($, isCompacting)
     const lang = await currentLang($)
-    const t = strings(lang)
+    const t = strings(lang, shutdownMode)
 
     const share = remainingShare(last, life?.minutes ?? null, at)
     const sky = weather(fill?.percent ?? null, limit.percent)
@@ -1615,6 +1683,8 @@ export const register: Register = (on, options) => {
     const role = await read($, requestRole)
     const request = await read($, sessionRequest)
     const from = role === 'foreign' && request !== null ? ` · ${t.fromSession(request.byFolder)}` : ''
+    // Another session's request speaks of what it does there (shut down, standby, hibernation).
+    const tr = role === 'foreign' && request !== null ? strings(lang, request.mode ?? 'shutdown') : t
     if (shutting === 'countdown') {
       const until = (await read($, shutdownAt)) ?? at
       status.push({ key: 'shutdown', text: t.shutdownIn(secondsLeft(until, at)), color: 'error' })
@@ -1625,13 +1695,13 @@ export const register: Register = (on, options) => {
     } else if (shutting === 'requested' && phase === 'paused') {
       status.push({ key: 'shutdown', text: t.shutdownRequested, color: 'warning' })
     } else if (role === 'foreign' && request?.state === 'countdown' && request.countdownUntil !== null) {
-      status.push({ key: 'shutdown', text: `${t.shutdownIn(secondsLeft(request.countdownUntil, at))}${from}`, color: 'error' })
+      status.push({ key: 'shutdown', text: `${tr.shutdownIn(secondsLeft(request.countdownUntil, at))}${from}`, color: 'error' })
     }
     if (phase === 'pausing') {
       const left = await read($, pauseTasksLeft)
       // Paused for another session's shutdown, it says so too.
       const isForShutdown = shutting === 'requested' || (role === 'foreign' && request?.kind === 'shutdown')
-      const asked = isForShutdown ? t.shutdownRequested : t.pauseRequested
+      const asked = shutting === 'requested' ? t.shutdownRequested : isForShutdown ? tr.shutdownRequested : t.pauseRequested
       status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}${from}`, color: 'warning' })
     } else if (phase === 'paused' && shutting !== 'countdown' && shutting !== 'shutting') {
       status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${from}` })

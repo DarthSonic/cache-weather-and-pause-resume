@@ -1,6 +1,6 @@
 // The band's and the toasts' words in German and English; no `$` here, so the tests read them directly.
 
-import type { ShutdownReadiness } from '../types'
+import type { ShutdownMode, ShutdownReadiness } from '../types'
 
 export type Lang = 'de' | 'en'
 
@@ -89,7 +89,7 @@ export type Strings = {
   fromSession: (folder: string | null) => string
 }
 
-const DE: Strings = {
+const DE: Omit<Strings, keyof ModeTexts> = {
   cacheUnknown: 'Cache ?',
   cacheNone: 'Cache –',
   cacheExpired: 'Cache abgelaufen',
@@ -117,32 +117,7 @@ const DE: Strings = {
   keepWarmMissedLog:
     'Keep-warm: Der Cache war schon abgelaufen, die Auffrischung hat ihn nicht mehr erreicht. Nach der nächsten Anfrage hält Keep-warm ihn wieder warm.',
   cacheBarAlt: cache => `Restlaufzeit des Caches: ${cache}`,
-  shutdown: 'Shutdown',
   shutdownCancel: 'Abbrechen',
-  shutdownRequested: 'Shutdown wird vorbereitet …',
-  shutdownIn: seconds => `Shutdown in ${clock(seconds)}`,
-  shutdownRunning: 'Fährt herunter …',
-  shutdownCancelled: 'Shutdown abgebrochen. Die Pause bleibt, wie sie ist.',
-  shutdownFailed: error => `Shutdown fehlgeschlagen: ${error}`,
-  shutdownChecking: 'Shutdown: Die Voraussetzungen werden geprüft …',
-  shutdownHelp: r =>
-    r.reason === 'no-right'
-      ? 'Shutdown ist nicht verfügbar: Deinem Windows-Konto fehlt das Recht „Herunterfahren des Systems“ (SeShutdownPrivilege). Ein Administrator vergibt es unter Lokale Sicherheitsrichtlinie → Lokale Richtlinien → Zuweisen von Benutzerrechten → „Herunterfahren des Systems“. Danach eine neue Sitzung öffnen.'
-      : r.os === 'linux'
-        ? 'Shutdown ist nicht verfügbar: Deine Sitzung darf diesen Linux-Rechner nicht ohne Rückfrage ausschalten. Entweder antwortet `loginctl can-power-off` mit „yes“ (bei einer lokalen Desktop-Anmeldung meist so), oder sudo erlaubt `shutdown` ohne Passwort: `sudo visudo -f /etc/sudoers.d/shutdown` mit der Zeile `DEIN_NAME ALL=(root) NOPASSWD: PFAD` (PFAD aus `command -v shutdown`). Danach eine neue Sitzung öffnen.'
-        : r.os === 'macos'
-          ? 'Shutdown ist nicht verfügbar: macOS fährt ohne Rückfrage nur mit sudo herunter. Einmal einrichten: `sudo visudo -f /etc/sudoers.d/shutdown` mit der Zeile `DEIN_NAME ALL=(root) NOPASSWD: /sbin/shutdown`. Danach eine neue Sitzung öffnen.'
-          : r.reason === 'check-failed'
-            ? 'Shutdown ist nicht verfügbar: Die Prüfung der Voraussetzungen ließ sich nicht ausführen. Eine neue Sitzung prüft erneut.'
-            : 'Shutdown ist nicht verfügbar: Das Betriebssystem wurde nicht erkannt (Windows, Linux und macOS werden unterstützt).',
-  shutdownLog: '⏻ Shutdown: Die Sitzung ist pausiert, der Rechner fährt jetzt herunter.',
-  shutdownNotifyTitle: seconds => `Shutdown in ${span(seconds)}`,
-  shutdownNotifyBody: folder =>
-    `${folder === null ? 'Die Sitzung' : `Die Sitzung in ${folder}`} ist pausiert, der Rechner fährt gleich herunter. Abbrechen in der Leiste über dem Eingabefeld.`,
-  waitingFor: folders =>
-    folders.length === 0
-      ? 'Shutdown: sieht nach den anderen Sitzungen …'
-      : `Shutdown wartet auf ${folders.length === 1 ? '1 Sitzung' : `${folders.length} Sitzungen`}: ${folders.join(', ')}`,
   withoutMod: n =>
     n === 1
       ? '1 weitere Sitzung arbeitet ohne den Mod und wird nicht pausiert'
@@ -150,7 +125,7 @@ const DE: Strings = {
   fromSession: folder => (folder === null ? 'aus einer anderen Sitzung' : `aus ${folder}`),
 }
 
-const EN: Strings = {
+const EN: Omit<Strings, keyof ModeTexts> = {
   cacheUnknown: 'Cache ?',
   cacheNone: 'Cache –',
   cacheExpired: 'Cache expired',
@@ -178,32 +153,7 @@ const EN: Strings = {
   keepWarmMissedLog:
     'Keep-warm: the cache had already expired, so the refresh no longer reached it. After the next request keep-warm keeps it warm again.',
   cacheBarAlt: cache => `Cache time left: ${cache}`,
-  shutdown: 'Shutdown',
   shutdownCancel: 'Cancel',
-  shutdownRequested: 'Preparing the shutdown …',
-  shutdownIn: seconds => `Shutdown in ${clock(seconds)}`,
-  shutdownRunning: 'Shutting down …',
-  shutdownCancelled: 'Shutdown cancelled. The pause stays as it is.',
-  shutdownFailed: error => `Shutdown failed: ${error}`,
-  shutdownChecking: 'Shutdown: checking what it needs …',
-  shutdownHelp: r =>
-    r.reason === 'no-right'
-      ? 'Shutdown is not available: your Windows account lacks the right "Shut down the system" (SeShutdownPrivilege). An administrator grants it under Local Security Policy → Local Policies → User Rights Assignment → "Shut down the system". Then open a new session.'
-      : r.os === 'linux'
-        ? 'Shutdown is not available: your session may not power this Linux machine off without being asked. Either `loginctl can-power-off` answers "yes" (usually so for a local desktop login), or sudo allows `shutdown` without a password: `sudo visudo -f /etc/sudoers.d/shutdown` with the line `YOUR_NAME ALL=(root) NOPASSWD: PATH` (PATH from `command -v shutdown`). Then open a new session.'
-        : r.os === 'macos'
-          ? 'Shutdown is not available: macOS shuts down without being asked only through sudo. Set it up once: `sudo visudo -f /etc/sudoers.d/shutdown` with the line `YOUR_NAME ALL=(root) NOPASSWD: /sbin/shutdown`. Then open a new session.'
-          : r.reason === 'check-failed'
-            ? 'Shutdown is not available: the check of what it needs could not run. A new session checks again.'
-            : 'Shutdown is not available: the operating system was not recognised (Windows, Linux and macOS are supported).',
-  shutdownLog: '⏻ Shutdown: the session is paused, the computer shuts down now.',
-  shutdownNotifyTitle: seconds => `Shutdown in ${span(seconds)}`,
-  shutdownNotifyBody: folder =>
-    `${folder === null ? 'The session' : `The session in ${folder}`} is paused, and the computer shuts down shortly. Cancel in the band above the prompt.`,
-  waitingFor: folders =>
-    folders.length === 0
-      ? 'Shutdown: looking at the other sessions …'
-      : `Shutdown waits for ${folders.length === 1 ? '1 session' : `${folders.length} sessions`}: ${folders.join(', ')}`,
   withoutMod: n =>
     n === 1
       ? '1 more session is at work without the mod and is not paused'
@@ -211,6 +161,152 @@ const EN: Strings = {
   fromSession: folder => (folder === null ? 'from another session' : `from ${folder}`),
 }
 
-export function strings(lang: Lang): Strings {
-  return lang === 'de' ? DE : EN
+// The texts that name what the button does: shut down, standby or hibernation (option `shutdownMode`, 0.9.5).
+type ModeTexts = Pick<
+  Strings,
+  | 'shutdown'
+  | 'shutdownRequested'
+  | 'shutdownIn'
+  | 'shutdownRunning'
+  | 'shutdownCancelled'
+  | 'shutdownFailed'
+  | 'shutdownChecking'
+  | 'shutdownHelp'
+  | 'shutdownLog'
+  | 'shutdownNotifyTitle'
+  | 'shutdownNotifyBody'
+  | 'waitingFor'
+>
+
+/** The words for what the button does: its label, and what the computer does, for the band and for Claude. */
+export function modeWords(
+  mode: ShutdownMode,
+  lang: Lang,
+): { label: string; running: string; soon: string; now: string; doIt: string } {
+  if (lang === 'de') {
+    if (mode === 'sleep') {
+      return {
+        label: 'Standby',
+        running: 'Geht in den Standby …',
+        soon: 'geht gleich in den Standby',
+        now: 'geht jetzt in den Standby',
+        doIt: 'den Rechner in den Standby schicken',
+      }
+    }
+    if (mode === 'hibernate') {
+      return {
+        label: 'Ruhezustand',
+        running: 'Geht in den Ruhezustand …',
+        soon: 'geht gleich in den Ruhezustand',
+        now: 'geht jetzt in den Ruhezustand',
+        doIt: 'den Rechner in den Ruhezustand schicken',
+      }
+    }
+    return {
+      label: 'Shutdown',
+      running: 'Fährt herunter …',
+      soon: 'fährt gleich herunter',
+      now: 'fährt jetzt herunter',
+      doIt: 'den Rechner herunterfahren',
+    }
+  }
+  if (mode === 'sleep') {
+    return { label: 'Sleep', running: 'Going to sleep …', soon: 'goes to sleep shortly', now: 'goes to sleep now', doIt: 'put the computer to sleep' }
+  }
+  if (mode === 'hibernate') {
+    return { label: 'Hibernate', running: 'Hibernating …', soon: 'hibernates shortly', now: 'hibernates now', doIt: 'hibernate the computer' }
+  }
+  return { label: 'Shutdown', running: 'Shutting down …', soon: 'shuts down shortly', now: 'shuts down now', doIt: 'shut the computer down' }
+}
+
+function modeTexts(lang: Lang, mode: ShutdownMode): ModeTexts {
+  const w = modeWords(mode, lang)
+  if (lang === 'de') {
+    const missing = `${w.label} ist nicht verfügbar:`
+    return {
+      shutdown: w.label,
+      shutdownRequested: `${w.label} wird vorbereitet …`,
+      shutdownIn: seconds => `${w.label} in ${clock(seconds)}`,
+      shutdownRunning: w.running,
+      shutdownCancelled: `${w.label} abgebrochen. Die Pause bleibt, wie sie ist.`,
+      shutdownFailed: error => `${w.label} fehlgeschlagen: ${error}`,
+      shutdownChecking: `${w.label}: Die Voraussetzungen werden geprüft …`,
+      shutdownHelp: r =>
+        r.reason === 'no-right'
+          ? `${missing} Deinem Windows-Konto fehlt das Recht „Herunterfahren des Systems“ (SeShutdownPrivilege). Ein Administrator vergibt es unter Lokale Sicherheitsrichtlinie → Lokale Richtlinien → Zuweisen von Benutzerrechten → „Herunterfahren des Systems“. Danach eine neue Sitzung öffnen.`
+          : r.reason === 'no-hibernate'
+            ? r.os === 'windows'
+              ? `${missing} Windows hat den Ruhezustand ausgeschaltet. Einschalten in einer Eingabeaufforderung als Administrator mit \`powercfg /hibernate on\`, danach eine neue Sitzung öffnen; oder mit der Option \`shutdownMode\` „sleep“ (Standby) oder „shutdown“ wählen.`
+              : r.os === 'linux'
+                ? `${missing} \`loginctl can-hibernate\` antwortet nicht mit „yes“ (oft fehlt ein Swap, so groß wie der Arbeitsspeicher, oder die Resume-Einstellung). Mit der Option \`shutdownMode\` „sleep“ oder „shutdown“ wählen.`
+                : `${missing} Unter macOS ist der Ruhezustand eine Einstellung von pmset (hibernatemode), kein Befehl. Mit der Option \`shutdownMode\` „sleep“ oder „shutdown“ wählen.`
+            : r.reason === 'no-sleep'
+              ? r.os === 'windows'
+                ? `${missing} \`powercfg /a\` nennt keinen verfügbaren Standby-Modus (S3 oder S0). Mit der Option \`shutdownMode\` „shutdown“ wählen.`
+                : `${missing} \`loginctl can-suspend\` antwortet nicht mit „yes“ (oder pmset fehlt). Mit der Option \`shutdownMode\` „shutdown“ wählen.`
+              : r.os === 'linux'
+                ? `${missing} Deine Sitzung darf diesen Linux-Rechner nicht ohne Rückfrage ausschalten. Entweder antwortet \`loginctl can-power-off\` mit „yes“ (bei einer lokalen Desktop-Anmeldung meist so), oder sudo erlaubt \`shutdown\` ohne Passwort: \`sudo visudo -f /etc/sudoers.d/shutdown\` mit der Zeile \`DEIN_NAME ALL=(root) NOPASSWD: PFAD\` (PFAD aus \`command -v shutdown\`). Danach eine neue Sitzung öffnen.`
+                : r.os === 'macos'
+                  ? `${missing} macOS fährt ohne Rückfrage nur mit sudo herunter. Einmal einrichten: \`sudo visudo -f /etc/sudoers.d/shutdown\` mit der Zeile \`DEIN_NAME ALL=(root) NOPASSWD: /sbin/shutdown\`. Danach eine neue Sitzung öffnen.`
+                  : r.reason === 'check-failed'
+                    ? `${missing} Die Prüfung der Voraussetzungen ließ sich nicht ausführen. Eine neue Sitzung prüft erneut.`
+                    : `${missing} Das Betriebssystem wurde nicht erkannt (Windows, Linux und macOS werden unterstützt).`,
+      shutdownLog:
+        mode === 'shutdown'
+          ? '⏻ Shutdown: Die Sitzung ist pausiert, der Rechner fährt jetzt herunter.'
+          : `⏾ ${w.label}: Die Sitzung ist pausiert, der Rechner ${w.now}. Danach bleibt sie pausiert, bis du „Weiter“ drückst.`,
+      shutdownNotifyTitle: seconds => `${w.label} in ${span(seconds)}`,
+      shutdownNotifyBody: folder =>
+        `${folder === null ? 'Die Sitzung' : `Die Sitzung in ${folder}`} ist pausiert, der Rechner ${w.soon}. Abbrechen in der Leiste über dem Eingabefeld.`,
+      waitingFor: folders =>
+        folders.length === 0
+          ? `${w.label}: sieht nach den anderen Sitzungen …`
+          : `${w.label} wartet auf ${folders.length === 1 ? '1 Sitzung' : `${folders.length} Sitzungen`}: ${folders.join(', ')}`,
+    }
+  }
+  const missing = `${w.label} is not available:`
+  return {
+    shutdown: w.label,
+    shutdownRequested: `Preparing ${mode === 'shutdown' ? 'the shutdown' : mode === 'sleep' ? 'sleep' : 'hibernation'} …`,
+    shutdownIn: seconds => `${w.label} in ${clock(seconds)}`,
+    shutdownRunning: w.running,
+    shutdownCancelled: `${w.label} cancelled. The pause stays as it is.`,
+    shutdownFailed: error => `${w.label} failed: ${error}`,
+    shutdownChecking: `${w.label}: checking what it needs …`,
+    shutdownHelp: r =>
+      r.reason === 'no-right'
+        ? `${missing} your Windows account lacks the right "Shut down the system" (SeShutdownPrivilege). An administrator grants it under Local Security Policy → Local Policies → User Rights Assignment → "Shut down the system". Then open a new session.`
+        : r.reason === 'no-hibernate'
+          ? r.os === 'windows'
+            ? `${missing} Windows has hibernation turned off. Turn it on in a command prompt run as administrator with \`powercfg /hibernate on\`, then open a new session; or choose "sleep" or "shutdown" with the option \`shutdownMode\`.`
+            : r.os === 'linux'
+              ? `${missing} \`loginctl can-hibernate\` does not answer "yes" (often there is no swap as large as the memory, or no resume setting). Choose "sleep" or "shutdown" with the option \`shutdownMode\`.`
+              : `${missing} on macOS hibernation is a setting of pmset (hibernatemode), not a command. Choose "sleep" or "shutdown" with the option \`shutdownMode\`.`
+          : r.reason === 'no-sleep'
+            ? r.os === 'windows'
+              ? `${missing} \`powercfg /a\` lists no standby state as available (S3 or S0). Choose "shutdown" with the option \`shutdownMode\`.`
+              : `${missing} \`loginctl can-suspend\` does not answer "yes" (or pmset is missing). Choose "shutdown" with the option \`shutdownMode\`.`
+            : r.os === 'linux'
+              ? `${missing} your session may not power this Linux machine off without being asked. Either \`loginctl can-power-off\` answers "yes" (usually so for a local desktop login), or sudo allows \`shutdown\` without a password: \`sudo visudo -f /etc/sudoers.d/shutdown\` with the line \`YOUR_NAME ALL=(root) NOPASSWD: PATH\` (PATH from \`command -v shutdown\`). Then open a new session.`
+              : r.os === 'macos'
+                ? `${missing} macOS shuts down without being asked only through sudo. Set it up once: \`sudo visudo -f /etc/sudoers.d/shutdown\` with the line \`YOUR_NAME ALL=(root) NOPASSWD: /sbin/shutdown\`. Then open a new session.`
+                : r.reason === 'check-failed'
+                  ? `${missing} the check of what it needs could not run. A new session checks again.`
+                  : `${missing} the operating system was not recognised (Windows, Linux and macOS are supported).`,
+    shutdownLog:
+      mode === 'shutdown'
+        ? '⏻ Shutdown: the session is paused, the computer shuts down now.'
+        : `⏾ ${w.label}: the session is paused, and the computer ${w.now}. It stays paused until you press "Resume".`,
+    shutdownNotifyTitle: seconds => `${w.label} in ${span(seconds)}`,
+    shutdownNotifyBody: folder =>
+      `${folder === null ? 'The session' : `The session in ${folder}`} is paused, and the computer ${w.soon}. Cancel in the band above the prompt.`,
+    waitingFor: folders =>
+      folders.length === 0
+        ? `${w.label}: looking at the other sessions …`
+        : `${w.label} waits for ${folders.length === 1 ? '1 session' : `${folders.length} sessions`}: ${folders.join(', ')}`,
+  }
+}
+
+export function strings(lang: Lang, mode: ShutdownMode = 'shutdown'): Strings {
+  return { ...(lang === 'de' ? DE : EN), ...modeTexts(lang, mode) }
 }

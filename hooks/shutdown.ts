@@ -1,7 +1,7 @@
 // The shutdown button's pure parts: which system the session runs on, whether it can be shut down with nobody at the
 // keyboard, and the command that does it. No `$` here, so the tests call them directly.
 
-import type { ShutdownOs } from '../types'
+import type { ShutdownMode, ShutdownOs } from '../types'
 
 /** How long the band counts down once the session is paused, before the command runs. */
 export const SHUTDOWN_COUNTDOWN_MS = 300_000
@@ -27,7 +27,49 @@ export const UNIX_PROGRAMS = {
   loginctl: ['/usr/bin/loginctl', '/bin/loginctl'],
   systemctl: ['/usr/bin/systemctl', '/bin/systemctl'],
   sudo: ['/usr/bin/sudo', '/bin/sudo'],
+  pmset: ['/usr/bin/pmset'],
 } as const
+
+/** The option `shutdownMode`: shut down (the default), sleep (standby) or hibernate (0.9.5). */
+export function modeOf(option: unknown): ShutdownMode {
+  return option === 'sleep' || option === 'hibernate' ? option : 'shutdown'
+}
+
+/** Windows PowerShell in Windows' own folder: the one way Windows offers to go to standby. */
+export function windowsPowerShell(system32: string): string {
+  return `${system32}\\WindowsPowerShell\\v1.0\\powershell.exe`
+}
+
+// Standby through the system's own call, fixed text: no profile, nothing typed in, nothing of the person's.
+const SLEEP_SCRIPT =
+  "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"
+
+/** Standby: Windows through PowerShell, Linux through systemd-logind, macOS through pmset. */
+export function sleepCommand(os: ShutdownOs, program: string): readonly string[] {
+  if (os === 'windows') return [program, '-NoProfile', '-NonInteractive', '-Command', SLEEP_SCRIPT]
+  if (os === 'linux') return [program, 'suspend']
+  return [program, 'sleepnow']
+}
+
+/** Hibernation: Windows' shutdown.exe, Linux through systemd-logind (macOS offers none of its own to call). */
+export function hibernateCommand(os: ShutdownOs, program: string): readonly string[] {
+  return os === 'windows' ? [program, '/h'] : [program, 'hibernate']
+}
+
+/** Whether `reg query …\Control\Power /v HibernateEnabled` reads 1: words of no language, only the value. */
+export function hibernateEnabled(regOutput: string): boolean {
+  return /HibernateEnabled\s+REG_DWORD\s+0x0*1\s*$/im.test(regOutput)
+}
+
+/**
+ * Whether `powercfg /a` lists a standby state (S3, or S0 low power idle) as available. Its words follow the system's
+ * language; its shape does not: each state it lists as not available is followed by a line, indented with a tab, that
+ * says why. A state line with no such line under it is available.
+ */
+export function standbyAvailable(powercfgOutput: string): boolean {
+  const lines = powercfgOutput.split(/\r?\n/)
+  return lines.some((line, i) => /^ +\S/.test(line) && /\(S[03]/.test(line) && !/^\t/.test(lines[i + 1] ?? ''))
+}
 
 /**
  * The command per system, `program` the full path of the program it starts (`shutdown.exe`, `systemctl` or `sudo`).

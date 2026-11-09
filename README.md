@@ -138,9 +138,25 @@ says what is missing. The mod checks at each session start, and again at a press
 | Linux | `loginctl can-power-off` answers `yes` (usually so for a local desktop login), else `sudo -n -l shutdown` succeeds | `systemctl poweroff`, else `sudo -n shutdown -h now` | allow `shutdown` without a password: `sudo visudo -f /etc/sudoers.d/shutdown` with the line `YOUR_NAME ALL=(root) NOPASSWD: PATH` (PATH from `command -v shutdown`) |
 | macOS (not yet tested on a Mac) | `sudo -n -l shutdown` succeeds | `sudo -n shutdown -h now` | the same sudoers line, with `/sbin/shutdown` |
 
+**Standby or hibernation instead.** With the option `shutdownMode` the button puts the computer to sleep
+(`sleep`) or into hibernation (`hibernate`) instead of shutting it down; the button, the status row and the
+notification are named after it (“Standby in 4:47”). Nothing is closed: the other programs and the Claude sessions
+are there again when the computer wakes, still paused until you press **Resume**. Each mode is checked at session
+start like the shutdown:
+
+| Mode | System | Check | Command |
+| --- | --- | --- | --- |
+| `sleep` | Windows | `powercfg /a` lists standby (S3 or S0) as available | Windows PowerShell with the system's own `SetSuspendState('Suspend')` |
+| `sleep` | Linux | `loginctl can-suspend` answers `yes` | `systemctl suspend` |
+| `sleep` | macOS (not yet tested on a Mac) | `pmset` is there | `pmset sleepnow` |
+| `hibernate` | Windows | `reg query …\Control\Power /v HibernateEnabled` reads 1 (turn it on as administrator with `powercfg /hibernate on`) | `shutdown /h` |
+| `hibernate` | Linux | `loginctl can-hibernate` answers `yes` | `systemctl hibernate` |
+
+On macOS hibernation is a setting of `pmset`, not a command: the button there offers standby or shutdown.
+
 **Mind:**
 
-- On Windows the other programs are closed without asking (`/f`; Windows implies it for any delay), so that no “apps
+- On Windows a shutdown closes the other programs without asking (`/f`; Windows implies it for any delay), so that no “apps
   are preventing shutdown” screen waits for someone who left. Save your work in other programs first.
 - Sessions that run the mod pause first ([Other sessions](#other-sessions)); sessions without it end with the computer.
 - macOS is not yet tested on a real Mac: the button follows the same path as on Linux (a password-free sudo), and
@@ -237,6 +253,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
 | `keepWarm` | `on` | Whether a new session starts with keep-warm checked; `off` starts it unchecked. |
 | `notifications` | `on` | A notification as the shutdown countdown starts; `off` sends none. |
+| `shutdownMode` | `shutdown` | What the shutdown button does: `shutdown`, `sleep` (standby) or `hibernate`; the button is named after it. |
 
 Set them with `/plugin configure cache-weather-and-pause-resume@darthsonic`, or in `~/.claude/settings.json`:
 
@@ -300,8 +317,9 @@ deleted sessions and, during a shutdown, to count the sessions at work without t
 **Programs.** At each session start (and at a press of **Shutdown** that finds no answer) it checks whether the
 shutdown button can work: `whoami /priv` on Windows;
 elsewhere `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and
-runs nothing. Only once you pressed **Shutdown**, the sessions are paused and the 5-minute countdown has run out does it
-run the shutdown command from the table above. It starts no other program, and each one by its full path in the
+runs nothing; for standby or hibernation `powercfg /a` or `reg query` on Windows, `loginctl can-suspend` or
+`can-hibernate` on Linux, all of which only read. Only once you pressed the button, the sessions are paused and the
+5-minute countdown has run out does it run the command from the tables above. It starts no other program, and each one by its full path in the
 system's own folders (`%SystemRoot%\System32` on Windows, `/usr/bin` or `/bin` elsewhere) with that folder as the
 working folder: a program of the same name in the session's folder or on your PATH is never run.
 

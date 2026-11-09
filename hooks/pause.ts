@@ -1,7 +1,9 @@
 // The pause button's words to the model and the rules it reads the prompts by; no `$` here, so the tests read them
 // directly. The words follow the mod's language; reading what the person types understands both languages.
 
+import { modeWords } from './i18n'
 import type { Lang } from './i18n'
+import type { ShutdownMode } from '../types'
 
 export const PLUGIN = 'cache-weather-and-pause-resume'
 export const DEFAULT_ASK_ABOVE_MINUTES = 5
@@ -56,10 +58,16 @@ export function pauseRequest(askAboveMinutes: number, lang: Lang): string {
 }
 
 /** Beside the pause request when the shutdown button asked for it: the person leaves once Claude has asked. */
-export function shutdownNote(lang: Lang): string {
+export function shutdownNote(lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  if (mode === 'shutdown') {
+    return lang === 'de'
+      ? '⏻ Shutdown-Knopf: Nach dieser Pause fährt der Mod den Rechner herunter, und der Mensch geht weg. Stell Rückfragen zu langen Tasks deshalb sofort, bevor du anderes tust, solange der Mensch noch da ist; danach fragst du nichts mehr. Fahre den Rechner nicht selbst herunter, das übernimmt der Mod.'
+      : '⏻ Shutdown button: after this pause the mod shuts the computer down, and the person leaves. So ask about long tasks right away, before anything else, while the person is still there; ask nothing after that. Do not shut the computer down yourself; the mod does.'
+  }
+  const w = modeWords(mode, lang)
   return lang === 'de'
-    ? '⏻ Shutdown-Knopf: Nach dieser Pause fährt der Mod den Rechner herunter, und der Mensch geht weg. Stell Rückfragen zu langen Tasks deshalb sofort, bevor du anderes tust, solange der Mensch noch da ist; danach fragst du nichts mehr. Fahre den Rechner nicht selbst herunter, das übernimmt der Mod.'
-    : '⏻ Shutdown button: after this pause the mod shuts the computer down, and the person leaves. So ask about long tasks right away, before anything else, while the person is still there; ask nothing after that. Do not shut the computer down yourself; the mod does.'
+    ? `⏾ ${w.label}-Knopf: Nach dieser Pause wird der Mod ${w.doIt}, und der Mensch geht weg; laufende Tasks stehen dann still und brechen oft ab. Stell Rückfragen zu langen Tasks deshalb sofort, bevor du anderes tust, solange der Mensch noch da ist; danach fragst du nichts mehr. Tu das nicht selbst, das übernimmt der Mod.`
+    : `⏾ ${w.label} button: after this pause the mod will ${w.doIt}, and the person leaves; running tasks then stand still and often break. So ask about long tasks right away, before anything else, while the person is still there; ask nothing after that. Do not do it yourself; the mod does.`
 }
 
 /** What the model reads beside „weitermachen“ / „continue“. */

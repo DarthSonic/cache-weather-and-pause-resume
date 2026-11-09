@@ -494,6 +494,73 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  // Standby and hibernation (0.9.5): the option names the button, and the computer comes back to paused sessions.
+  const POWERCFG = 'C:\\Windows\\System32\\powercfg.exe'
+  const REG = 'C:\\Windows\\System32\\reg.exe'
+  const POWERSHELL = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+  function windowsWith(on: On, answers: Record<string, string>): { runs: string[][]; logs: string[] } {
+    const runs: string[][] = []
+    const logs: string[] = []
+    on('process.run', ($, e) => {
+      runs.push([...e.argv])
+      const stdout = e.argv[0] === WHOAMI ? PRIVILEGES : (answers[e.argv[0] ?? ''] ?? '')
+      return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    on('ui.log', ($, e) => {
+      logs.push(e.text)
+      return { value: undefined }
+    })
+    return { runs, logs }
+  }
+
+  test('in standby mode the button says Standby, counts down, and the computer comes back to a paused session', { options: { language: 'de', shutdownMode: 'sleep' } }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    const host = windowsWith(on, { [POWERCFG]: 'Verfügbar:\r\n    Standby (S3)\r\n\r\n' })
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 's1' })
+    await clock.settle()
+    expect(host.runs).toEqual([[WHOAMI, '/priv'], [POWERCFG, '/a']])
+    const button = await ui.find({ key: 'shutdown' })
+    expect(button?.props.label).toBe('Standby')
+    expect(button?.props.dimColor).toBe(false)
+
+    await ui.press({ key: 'shutdown' })
+    expect(prompts.at(-1)?.text).toContain('⏾ Standby-Knopf')
+    expect(prompts.at(-1)?.text).toContain('den Rechner in den Standby schicken')
+    expect(await ui.find({ type: 'Text', text: /Standby wird vorbereitet/ })).toBeDefined()
+    await $.classic.Stop(stop(undefined, 's1'))
+    expect(await ui.find({ type: 'Text', text: /^Standby in 5:00$/ })).toBeDefined()
+    await clock.advance(300_000)
+    const sleep = host.runs.at(-1) ?? []
+    expect(sleep.slice(0, 2)).toEqual([POWERSHELL, '-NoProfile'])
+    expect(host.logs.at(-1)).toContain('geht jetzt in den Standby')
+    // Awake again: the session is still paused, nothing counts down.
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Standby in|Geht in den Standby/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('hibernation turned off in Windows leaves the button dimmed, and a press says how to turn it on', { options: { language: 'de', shutdownMode: 'hibernate' } }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windowsWith(on, { [REG]: '    HibernateEnabled    REG_DWORD    0x0\r\n' })
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'h1' })
+    await clock.settle()
+    const button = await ui.find({ key: 'shutdown' })
+    expect(button?.props.label).toBe('Ruhezustand')
+    expect(button?.props.dimColor).toBe(true)
+    await ui.press({ key: 'shutdown' })
+    expect(host.logs.at(-1)).toContain('powercfg /hibernate on')
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+    await ui.unmount()
+  })
+
   // The last chance to cancel, through Claude Code's own notification channel (0.9.4); the option turns it off.
   for (const [name, options, expected] of [
     ['the countdown raises one notification', DE, 1],

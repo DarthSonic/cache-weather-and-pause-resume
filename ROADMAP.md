@@ -26,18 +26,16 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   where the Pause or Shutdown button was pressed (this session or all of them; per session at work, end its runs or
   wait for them); the others pause without a question, an idle one at once; the shutdown waits for them, then counts
   down 5 minutes. Cancel keeps the pauses, Resume picks them all up.
-- [ ] **Hibernate instead of shutdown.** A setting to choose: shutdown, or hibernate (`shutdown /h` on Windows,
-  `systemctl hibernate` on Linux). Why: the Windows shutdown closes other programs without asking, so unsaved work in
-  them is lost; hibernation keeps them, and the Claude session.
-  *To plan:* checking at session start whether hibernation is available (as for the shutdown today), sleep as a
-  third choice, macOS.
+- [x] **0.9.5: standby or hibernation instead of shutdown**, option `shutdownMode`. Nothing is closed; the sessions
+  are there again on waking, still paused. Each mode is checked at session start (on Windows hibernation is often off:
+  `powercfg /hibernate on`).
 - [ ] **CI on Windows and macOS** next to Ubuntu, so the path logic is tested where it runs. It does not test a real
   shutdown.
 - [ ] **A macOS test.** An issue labelled `help wanted` asking someone with a Mac to try the shutdown button; until
   then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: hibernation next; the CI matrix alongside.
+Order: the CI matrix and the macOS test; then 0.10.0.
 
 ## 0.10.0 — Next features
 
