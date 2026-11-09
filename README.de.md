@@ -159,6 +159,9 @@ Sitzungsstart geprüft wie der Shutdown:
 Unter macOS ist der Ruhezustand eine Einstellung von `pmset`, kein Befehl: Dort bietet der Knopf Standby oder
 Shutdown an.
 
+Standby und Ruhezustand sind geprüft und getestet, aber noch nicht auf echter Hardware gelaufen (die Prüfungen und der
+gedimmte Knopf schon, unter Windows). Rückmeldungen gern als Issue.
+
 **Beachten:**
 
 - Unter Windows schließt ein Shutdown andere Programme ohne Rückfrage (`/f`; Windows setzt es bei jedem Vorlauf ohnehin),

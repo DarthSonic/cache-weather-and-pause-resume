@@ -154,6 +154,9 @@ start like the shutdown:
 
 On macOS hibernation is a setting of `pmset`, not a command: the button there offers standby or shutdown.
 
+Standby and hibernation are checked and tested, but have not yet run on real hardware (the checks and the dimmed
+button have, on Windows). Reports are welcome as an issue.
+
 **Mind:**
 
 - On Windows a shutdown closes the other programs without asking (`/f`; Windows implies it for any delay), so that no “apps

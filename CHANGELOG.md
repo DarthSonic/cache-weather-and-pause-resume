@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.5 — unreleased
+## 0.9.5 — 2026-11-09
 
 - **Standby or hibernation instead of shutdown**, with the new option `shutdownMode` (`shutdown`, `sleep`,
   `hibernate`; default `shutdown`). Nothing is closed: the other programs and the Claude sessions are there again when
@@ -12,7 +12,8 @@
   `HibernateEnabled` reads 1, run with `shutdown /h`; on Linux through `loginctl can-suspend` / `can-hibernate` and
   `systemctl suspend` / `hibernate`; on macOS standby through `pmset sleepnow` (not yet tested on a Mac). Where a mode
   is not available the button is dimmed and a press says what is missing, for hibernation on Windows how to turn it
-  on (`powercfg /hibernate on`, as administrator).
+  on (`powercfg /hibernate on`, as administrator). Standby and hibernation have not yet run on real hardware; the
+  checks and the dimmed button have, on Windows.
 - A check's answer holds the mode it was checked for. Changing `shutdownMode` reloads the mod while the session's
   state stays: an answer checked for shutting down must not stand for hibernation, or the button would pause and
   then run `shutdown /s /f`. An answer for another mode counts for nothing: the button is dimmed, the next start or
