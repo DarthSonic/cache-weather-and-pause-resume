@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.0 — unreleased
+## 0.10.0 — 2026-11-09
 
 - **Usage limits.** With a subscription, the status row shows the 5-hour and the 7-day window (and a gateway's spend
   limit) once one stands at 80 % or more, fullest first, with the time it resets („5-h-Limit 84 % · neu um 15:00“,
@@ -14,8 +14,8 @@
   in the background, with the usage windows above. The signs of life carry these now; the pane only shows.
 - **Icons in the desktop app**: each button is a one-colour icon in text form (⇲ ⧉ ⏸ ▶ ⏻ ⏾ ❄ ✕) with its word, in a
   row of their own over the readings: beside the readings there was no room for them. The cache bar keeps 10 px from
-  the row above it (6 before). A terminal keeps the words in
-  one row. In both, Compact comes before the new Sessions button.
+  the row above it (6 before). A terminal keeps the words in one row. In both, Compact comes before the new Sessions
+  button.
 - **Readings spelled out in the desktop app**, now that they have a row of their own: „Cache noch 58 min · Treffer
   100 %“ / “Cache 58 min left · Hits 100 %”, „☑ Cache warm halten (2× aufgefrischt)“ / “☑ Keep cache warm (refreshed
   2×)”, „Kontext 24 % · Auto-Compact bei 97 %“ / “Context 24 % · auto-compact at 97 %” (an assumed threshold „ca.“ /

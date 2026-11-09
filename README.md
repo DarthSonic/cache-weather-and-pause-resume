@@ -170,7 +170,7 @@ button have, on Windows). Reports are welcome as an issue.
   are preventing shutdown” screen waits for someone who left. Save your work in other programs first.
 - Sessions that run the mod pause first ([Other sessions](#other-sessions)); sessions without it end with the computer.
 - macOS is not yet tested on a real Mac: the button follows the same path as on Linux (a password-free sudo), and
-  where that fails the band says so. Reports are welcome as an issue.
+  where that fails the band says so. If you have a Mac, [issue #1](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues/1) lists what to try.
 
 ## Other sessions
 

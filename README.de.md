@@ -176,7 +176,7 @@ gedimmte Knopf schon, unter Windows). Rückmeldungen gern als Issue.
   Arbeit in anderen Programmen vorher.
 - Sitzungen mit dem Mod pausieren vorher ([Andere Sitzungen](#andere-sitzungen)); Sitzungen ohne ihn enden mit dem Rechner.
 - macOS ist auf einem echten Mac noch ungetestet: Der Knopf nimmt denselben Weg wie unter Linux (sudo ohne Passwort),
-  und wo das scheitert, sagt es die Leiste. Rückmeldungen gern als Issue.
+  und wo das scheitert, sagt es die Leiste. Wer einen Mac hat: [Issue #1](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues/1) sagt, was zu probieren ist.
 
 ## Andere Sitzungen
 

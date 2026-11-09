@@ -31,11 +31,11 @@ votes are welcome as [issues](https://github.com/DarthSonic/cache-weather-and-pa
   `powercfg /hibernate on`).
 - [x] **CI on Windows and macOS** next to Ubuntu (0.10.0), so the path logic is tested where it runs. It does not test a real
   shutdown.
-- [ ] **A macOS test.** An issue labelled `help wanted` asking someone with a Mac to try the shutdown button; until
-  then the README marks macOS as untested.
+- [ ] **A macOS test.** [Issue #1](https://github.com/DarthSonic/cache-weather-and-pause-resume/issues/1) (`help wanted`) asks someone with a Mac to try the band, standby and the
+  shutdown button; until then the README marks macOS as untested.
 - [ ] Bug fixes from issues.
 
-Order: the CI matrix and the macOS test; then 0.10.0.
+The CI matrix came with 0.10.0; the macOS test waits for a report.
 
 ## 0.10.0 — Next features
 
