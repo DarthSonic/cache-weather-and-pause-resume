@@ -124,6 +124,10 @@ declare module 'claude-code' {
       usageWindows: { kind: string; percentUsed: number; resetsAt?: string }[]
       /** Refreshes since the last request that was none. */
       keepWarmRefreshes: number
+      /** What those refreshes cost, in input tokens' worth, until a balance is drawn (0.10.0). */
+      keepWarmSpent: number
+      /** The model the main conversation's last request named: it sets what a cache read costs. */
+      mainModel: string | null
       /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */
       isAwaitingPerson: boolean
       /** Whether and how the computer can be shut down unattended; null until the session start has checked. */

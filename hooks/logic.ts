@@ -362,3 +362,58 @@ export function resetClock(resetsAt: string | undefined, now: number, lang: 'de'
   const days = lang === 'de' ? ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   return `${days[at.getDay()]} ${time}`
 }
+
+// ── Keep-warm's balance (0.10.0) ─────────────────────────────────────────────────────────────────────────────────
+
+/** Output tokens cost five times the input price on every current model. */
+export const OUTPUT_RATIO = 5
+
+/**
+ * What a cache read costs against the base input price, by model: Claude Opus 5.5 a twentieth, Claude Fable 5.1 and
+ * Claude Mythos 5.1 a fortieth, the others a tenth (Anthropic's prices, 2026-10). A model the mod does not know is
+ * reckoned at a tenth, which rather understates what keep-warm saves than flatters it.
+ */
+export function cacheReadRatio(model: string | null): number {
+  if (model === null) return 0.1
+  const id = model.toLowerCase()
+  if (/(fable|mythos)-5-1/.test(id)) return 0.025
+  if (/opus-5-5/.test(id)) return 0.05
+  return 0.1
+}
+
+/** What writing the cache costs against the base input price: 1.25 for the five-minute cache, 2 for the hour's. */
+export function cacheWriteRatio(ttlMinutes: 5 | 60): number {
+  return ttlMinutes === 5 ? 1.25 : 2
+}
+
+/** One refresh's cost, in input tokens' worth: what it read from the cache, wrote, sent fresh and answered. */
+export function refreshCost(
+  usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number },
+  readRatio: number,
+  writeRatio: number,
+): number {
+  return (
+    usage.cache_read_input_tokens * readRatio +
+    usage.cache_creation_input_tokens * writeRatio +
+    usage.input_tokens +
+    usage.output_tokens * OUTPUT_RATIO
+  )
+}
+
+/**
+ * The balance once the person is back and the next request read the cache: without keep-warm that request would have
+ * written what it read (`rebuild`); with it, the refreshes cost `spent` and the request read it at the read price. The
+ * share saved is what was spared of the rebuild, below 0 where keep-warm cost more. Null where the request read
+ * nothing from the cache: there was nothing to spare.
+ */
+export function keepWarmBalance(s: {
+  spent: number
+  readTokens: number
+  readRatio: number
+  writeRatio: number
+}): { rebuild: number; spent: number; savedShare: number } | null {
+  if (s.readTokens <= 0) return null
+  const rebuild = s.readTokens * s.writeRatio
+  const paid = s.spent + s.readTokens * s.readRatio
+  return { rebuild, spent: s.spent, savedShare: (rebuild - paid) / rebuild }
+}

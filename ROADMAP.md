@@ -41,12 +41,11 @@ Order: the CI matrix and the macOS test; then 0.10.0.
 
 - [x] **Usage limits.** The 5-hour and 7-day windows in the status row from 80 % on, with the time they reset; red
   from 95 %. Keep-warm stops from 90 % and goes on once the window starts over. A session on an API key shows none.
-- [ ] **Keep-warm balance.** What the refreshes cost, set against the rebuild of the cache they avoided.
-  *To plan:* honest wording (the saving is real only if you come back), prices per model, where it shows (a log
-  line, the band).
+- [x] **Keep-warm balance**, a log line: what the refreshes cost against the rebuild they spared, in input tokens' worth
+  and as a share, priced at the session model's cache read rate; what they cost for nothing where the cache went unused.
 - [x] **Longer keep-warm for the 60-minute cache**, option `keepWarmHours` (1 to 18, 8 by default): a refresh reads the
-  cache at about 0.1× the input price, a rebuild writes it at 2×, so it pays up to some 18 hours. The 5-minute cache
-  keeps 45 minutes.
+  cache at 0.1× the input price or less (Opus 5.5 0.05×), a rebuild writes it at 2×, so it pays up to some 18 hours.
+  The 5-minute cache keeps 45 minutes.
 - [ ] **Context forecast.** "Auto-compact in about 6 turns", from the average of the last turns.
   *To plan:* whether it is steady enough (one large file read skews it); shown only near the threshold?
 

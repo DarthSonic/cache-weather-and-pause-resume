@@ -17,17 +17,21 @@ import { langOf, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
   FALLBACK_THRESHOLD_PERCENT,
+  cacheReadRatio,
   cacheTone,
+  cacheWriteRatio,
   compactionLines,
   groupDigits,
   hitRate,
   isWarmRead,
+  keepWarmBalance,
   keepWarmHoursOf,
   keepWarmSpanText,
   keepWarmStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
   pauseSigns,
+  refreshCost,
   remainingMinutes,
   resetClock,
   usageStopping,
@@ -123,6 +127,8 @@ const cacheUsedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'cache
 const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt' } as const, null)
 const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
 const usageWindows = atom({ plugin: 'cache-weather-and-pause-resume', key: 'usageWindows' } as const, [])
+const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSpent' } as const, 0)
+const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
@@ -520,6 +526,59 @@ async function markActive($: EngineInterface, at: number, isRequest: boolean): P
   await update($, activeAt, () => at)
   await update($, keepWarmNote, () => null)
   await update($, keepWarmRefreshes, () => 0)
+  await update($, keepWarmSpent, () => 0)
+}
+
+// The person is back and the conversation's own request read the cache that keep-warm kept: what the refreshes cost,
+// set against the rebuild they spared (0.10.0). Drawn once, before the new idle span starts.
+async function drawBalance(
+  $: EngineInterface,
+  usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number },
+): Promise<void> {
+  const spent = await read($, keepWarmSpent)
+  const refreshes = await read($, keepWarmRefreshes)
+  const life = await read($, ttl)
+  if (spent <= 0 || refreshes <= 0 || life === null) return
+  const balance = keepWarmBalance({
+    spent,
+    readTokens: usage.cache_read_input_tokens,
+    readRatio: cacheReadRatio(await sessionModel($)),
+    writeRatio: cacheWriteRatio(life.minutes),
+  })
+  if (balance === null) return
+  const lang = await currentLang($)
+  $.ui.log(
+    strings(lang, shutdownMode).keepWarmBalanceLog(
+      refreshes,
+      groupDigits(balance.spent, lang),
+      groupDigits(balance.rebuild, lang),
+      Math.round(balance.savedShare * 100),
+    ),
+  )
+}
+
+// The session's model, which sets what a cache read costs: the one its last request named, else the session's own
+// (a resumed session names none before its first request); null where neither answers.
+async function sessionModel($: EngineInterface): Promise<string | null> {
+  const known = await read($, mainModel)
+  if (known !== null) return known
+  try {
+    const model = await $.session.model()
+    await update($, mainModel, () => model)
+    return model
+  } catch {
+    return null
+  }
+}
+
+// Where the refreshes went unused (keep-warm ended, or found the cache gone): what they cost, once (0.10.0).
+async function logWasted($: EngineInterface): Promise<void> {
+  const spent = await read($, keepWarmSpent)
+  const refreshes = await read($, keepWarmRefreshes)
+  if (spent <= 0 || refreshes <= 0) return
+  const lang = await currentLang($)
+  $.ui.log(strings(lang, shutdownMode).keepWarmWastedLog(refreshes, groupDigits(spent, lang)))
+  await update($, keepWarmSpent, () => 0)
 }
 
 async function keepWarmTick($: EngineInterface): Promise<void> {
@@ -563,6 +622,7 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
   if (step === 'ended' && life !== null) {
     await update($, keepWarmNote, () => 'ended')
     $.ui.log(t.keepWarmEndedLog(keepWarmSpanText(life.minutes, keepWarmHours), life.minutes === 60 ? '1-h' : '5-m'))
+    await logWasted($)
     return
   }
   if (step !== 'refresh') return
@@ -575,7 +635,9 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
       return
     }
     const usage = result.usage
+    const cost = refreshCost(usage, cacheReadRatio(await sessionModel($)), cacheWriteRatio(life?.minutes ?? 60))
     if (isWarmRead(usage)) {
+      await update($, keepWarmSpent, n => n + cost)
       await update($, cacheUsedAt, () => at)
       await update($, lastResponseAt, () => at)
       await update($, now, () => at)
@@ -585,6 +647,8 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
       // Answered, but not from the cache: it had lapsed. The next request of the conversation builds it again.
       await update($, keepWarmNote, () => 'missed')
       $.ui.log(t.keepWarmMissedLog)
+      await update($, keepWarmSpent, n => n + cost)
+      await logWasted($)
     } else {
       retryAt = at + KEEP_WARM_RETRY_MS
     }
@@ -1418,6 +1482,12 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined && result.usage) {
       const at = await $.clock.now()
       const rate = hitRate(result.usage)
+      try {
+        await update($, mainModel, () => e.model)
+        if (sentAt !== null) await drawBalance($, result.usage)
+      } catch {
+        // The balance waits; the readings below must not.
+      }
       await update($, lastResponseAt, () => at)
       await update($, lastHitRate, () => rate)
       await update($, now, () => at)

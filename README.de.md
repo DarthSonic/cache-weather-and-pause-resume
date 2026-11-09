@@ -210,6 +210,15 @@ Cache kurz vor Ablauf auf:
   volle Laufzeit. Die Frage ist fester Text („antworte mit OK“, in [`hooks/register.tsx`](hooks/register.tsx)); sie darf
   kein Werkzeug aufrufen, und Frage und Antwort bleiben außerhalb der Unterhaltung. Jede Auffrischung schreibt eine
   graue Zeile: die aus dem Cache gelesenen Tokens und die Tokens der Antwort.
+- **Die Bilanz:** Bist du zurück und liest die erste Anfrage den Cache, den Keep-warm gehalten hat, stellt eine Zeile
+  die Kosten der Auffrischungen dem ersparten Neuaufbau gegenüber, in Input-Tokens gerechnet und als Anteil („↻
+  Keep-warm-Bilanz: 3 Auffrischungen kosteten so viel wie 22.620 Input-Tokens; der ersparte Neuaufbau des Caches hätte
+  300.000 gekostet. Gespart: ≈ 90 %.“). Endet Keep-warm, ohne dass du zurückkommst, oder findet es den Cache schon
+  abgelaufen, sagt eine Zeile, was die Auffrischungen umsonst gekostet haben. Ein Lesen aus dem Cache rechnet der Mod
+  zum Preis des Modells der Sitzung: ein Zehntel des Input-Preises, bei Claude Opus 5.5 ein Zwanzigstel, bei Claude
+  Fable 5.1 und Mythos 5.1 ein Vierzigstel (ein Modell, das er nicht kennt, mit einem Zehntel, was die Ersparnis eher
+  unterschätzt); ein Schreiben zum 1,25-Fachen (5-Minuten-Cache) oder Doppelten (1-Stunden-Cache); die Antwort zum
+  Fünffachen.
 - **Während Claude arbeitet** (ein langer Lauf, ein Subagent, eine angeforderte Pause): so lange es dauert.
 - **Während die Sitzung ruht, pausiert ist oder Claude auf dich wartet** (eine Berechtigungsfrage, eine Rückfrage): beim 1-Stunden-Cache 8 Stunden (Option `keepWarmHours`, 1 bis 18), beim 5-Minuten-Cache 45 Minuten, ab
   der letzten Anfrage oder Eingabe. Dann steht in der Statuszeile „Keep-warm: endete nach 8 h ohne Eingabe“, und eine Zeile erklärt
@@ -267,7 +276,7 @@ Zustandsdatei (`~/.claude/cache-wetter/`) wird nicht übernommen und kann weg.
 | `language` | `auto` | `de` oder `en` für Leiste, Meldungen und die Texte an Claude. `auto` folgt `LC_ALL` / `LC_MESSAGES` / `LANG`, dann der Systemsprache (unter Windows, wo `LANG` meist leer ist). |
 | `askAboveMinutes` | `5` | Ab welcher Restlaufzeit eines laufenden Tasks Claude bei einer Pause nachfragt. |
 | `keepWarm` | `on` | Ob eine neue Sitzung mit gesetztem Keep-warm startet; `off` startet ohne. |
-| `keepWarmHours` | `8` | Wie lange Keep-warm beim 1-Stunden-Cache in einer Sitzung weiterläuft, in der niemand arbeitet: 1 bis 18 Stunden. Bis 18 kostet eine Auffrischung weniger als ein Neuaufbau (ein Zehntel des Input-Preises gegen das Doppelte); etwa 16 hält ihn über Nacht warm. Der 5-Minuten-Cache bleibt bei 45 Minuten. |
+| `keepWarmHours` | `8` | Wie lange Keep-warm beim 1-Stunden-Cache in einer Sitzung weiterläuft, in der niemand arbeitet: 1 bis 18 Stunden. Bis 18 kostet eine Auffrischung weniger als ein Neuaufbau (ein Zehntel des Input-Preises oder weniger, bei Opus 5.5 ein Zwanzigstel, gegen das Doppelte); etwa 16 hält ihn über Nacht warm. Der 5-Minuten-Cache bleibt bei 45 Minuten. |
 | `notifications` | `on` | Eine Benachrichtigung, wenn der Shutdown-Countdown startet; `off` schickt keine. |
 | `shutdownMode` | `shutdown` | Was der Shutdown-Knopf tut: `shutdown`, `sleep` (Standby) oder `hibernate` (Ruhezustand); der Knopf heißt danach. |
 
@@ -360,7 +369,7 @@ und reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
 `tool.call` sonst (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
-`turn.step` (Token-Zahlen, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen und die
+`turn.step` (Token-Zahlen, das genannte Modell, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen und die
 Nutzungsfenster eines Abos), `turn.start`,
 `turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
 Modell nicht liest. Der Hook auf

@@ -66,6 +66,10 @@ export type Strings = {
   keepWarmCold: string
   /** Keep-warm stopped for a usage window at or past 90 %. */
   keepWarmLimit: (percent: number) => string
+  /** Keep-warm's balance once the person is back: refreshes, their cost, the rebuild spared, the share saved. */
+  keepWarmBalanceLog: (refreshes: number, spent: string, rebuild: string, savedPercent: number) => string
+  /** What the refreshes cost where the cache was not used again. */
+  keepWarmWastedLog: (refreshes: number, spent: string) => string
   keepWarmLimitLog: (window: string, percent: number) => string
   /** A usage window as the status row shows it: its name, how full, when it starts over. */
   usageWindow: (kind: string) => string
@@ -120,6 +124,10 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   keepWarmMissed: 'Cache war schon abgelaufen',
   keepWarmCold: 'wartet auf die nächste Anfrage',
   keepWarmLimit: percent => `hält an, Kontingent bei ${percent} %`,
+  keepWarmBalanceLog: (n, spent, rebuild, saved) =>
+    `↻ Keep-warm-Bilanz: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} so viel wie ${spent} Input-Tokens; der ersparte Neuaufbau des Caches hätte ${rebuild} gekostet. ${saved >= 0 ? `Gespart: ≈ ${saved} %.` : `Diesmal hat Keep-warm nichts gespart (≈ ${-saved} % mehr).`}`,
+  keepWarmWastedLog: (n, spent) =>
+    `Keep-warm-Bilanz: ${n === 1 ? '1 Auffrischung kostete' : `${n} Auffrischungen kosteten`} so viel wie ${spent} Input-Tokens, ohne dass der Cache noch gebraucht wurde.`,
   keepWarmLimitLog: (window, percent) =>
     `Keep-warm: hält an, weil das ${window} bei ${percent} % steht. Eine Auffrischung würde den Rest verbrauchen. Ist das Fenster zurückgesetzt, frischt Keep-warm wieder auf.`,
   usageWindow: kind =>
@@ -163,6 +171,10 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   keepWarmMissed: 'the cache had already expired',
   keepWarmCold: 'waiting for the next request',
   keepWarmLimit: percent => `stopped, usage at ${percent} %`,
+  keepWarmBalanceLog: (n, spent, rebuild, saved) =>
+    `↻ Keep-warm balance: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} as much as ${spent} input tokens; rebuilding the cache, which they spared, would have cost ${rebuild}. ${saved >= 0 ? `Saved: ≈ ${saved} %.` : `This time keep-warm saved nothing (≈ ${-saved} % more).`}`,
+  keepWarmWastedLog: (n, spent) =>
+    `Keep-warm balance: ${n === 1 ? '1 refresh cost' : `${n} refreshes cost`} as much as ${spent} input tokens, and the cache was not used again.`,
   keepWarmLimitLog: (window, percent) =>
     `Keep-warm: stopped because the ${window} stands at ${percent} %. A refresh would spend the rest of it. Once the window starts over, keep-warm refreshes again.`,
   usageWindow: kind =>

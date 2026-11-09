@@ -1224,6 +1224,41 @@ describe('keep-warm', () => {
     await ui.unmount()
   })
 
+  test('back after refreshes, the first request that reads the cache draws keep-warm’s balance', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    on('turn.step', async function* ($, e) {
+      return {
+        turnId: e.turnId,
+        index: e.index,
+        answer: 'Weiter.',
+        toolUses: [],
+        stopReason: 'end_turn',
+        usage: { input_tokens: 40, output_tokens: 300, cache_read_input_tokens: 150_000, cache_creation_input_tokens: 0 },
+      }
+    } as never)
+    // A resumed session names its model before any request of its own: the refresh is priced on it too.
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+    await clock.advance(53 * MIN)
+    expect(asked.prompts.length).toBe(1)
+    // The person is back: a turn of the conversation's own reads the cache on Opus 5.5.
+    await $.turn.start({ text: 'weiter geht es', turnId: 't9' })
+    const step = $.turn.step({ turnId: 't9', index: 0, model: 'claude-opus-5-5' } as never) as unknown as AsyncIterable<unknown>
+    for await (const _ of step) {
+      // drained
+    }
+    // 1 refresh: 150.000 × 0,05 + 30 + 2 × 5 = 7.540; the rebuild 150.000 × 2 = 300.000; paid 7.540 + 7.500.
+    expect(asked.logs.at(-1)).toBe(
+      '↻ Keep-warm-Bilanz: 1 Auffrischung kostete so viel wie 7.540 Input-Tokens; der ersparte Neuaufbau des Caches hätte 300.000 gekostet. Gespart: ≈ 95 %.',
+    )
+    await ui.unmount()
+  })
+
   test('the hour cache is refreshed five minutes before it lapses, and counts down afresh', SLOW, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: START })
@@ -1358,7 +1393,9 @@ describe('keep-warm', () => {
     // At 4, 8, … 44 minutes; the one due at 48 is past the 45 minutes. (The hour cache's 8 hours: the logic's tests.)
     expect(asked.prompts.length).toBe(11)
     expect(await ui.find({ type: 'Text', text: /^Keep-warm: endete nach 45 m ohne Eingabe$/ })).toBeDefined()
-    expect(asked.logs.at(-1)).toContain('nach 45 m ohne Eingabe nicht weiter aufgefrischt')
+    expect(asked.logs.some(line => line.includes('nach 45 m ohne Eingabe nicht weiter aufgefrischt'))).toBe(true)
+    // What the unused refreshes cost (0.10.0): 11 × (150.000 × 0,1 + 30 + 2 × 5).
+    expect(asked.logs.at(-1)).toContain('11 Auffrischungen kosteten so viel wie 165.440 Input-Tokens')
     // The checkbox stays as the person set it.
     expect((await ui.find({ key: 'keep-warm' }))?.props.label).toMatch(/^☑ Keep-warm/)
     await ui.unmount()

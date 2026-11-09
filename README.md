@@ -203,6 +203,14 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
   question is fixed text (“reply with OK”, in [`hooks/register.tsx`](hooks/register.tsx)); it may call no tool, and
   question and answer stay out of the conversation. Each refresh writes a dim line: the tokens read from the cache and
   the tokens of the reply.
+- **The balance:** when you are back and the first request reads the cache keep-warm kept, a line sets what the
+  refreshes cost against the rebuild they spared, in input tokens' worth and as a share (“↻ Keep-warm balance: 3
+  refreshes cost as much as 22,620 input tokens; rebuilding the cache, which they spared, would have cost 300,000.
+  Saved: ≈ 90 %.”). Where keep-warm ends without you coming back, or finds the cache already gone, a line says what
+  the refreshes cost for nothing. A cache read is priced at the session model's rate: a tenth of the input price, on
+  Claude Opus 5.5 a twentieth, on Claude Fable 5.1 and Mythos 5.1 a fortieth (a model the mod does not know at a
+  tenth, which rather understates the saving); a write at 1.25 times (5-minute cache) or twice (1-hour cache); the
+  reply at five times.
 - **While Claude works** (a long run, a subagent, a pause being requested): for as long as it takes.
 - **While the session is idle or paused, or Claude waits for you** (a permission prompt, a question): for 8 hours with the 1-hour cache (option `keepWarmHours`, 1 to 18), for 45 minutes with the 5-minute one,
   counted from the last request or input. Then the status row says “Keep-warm: stopped after 8 h without input”, and a line explains
@@ -259,7 +267,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | `language` | `auto` | `de` or `en` for the band, the toasts and the texts Claude gets. `auto` follows `LC_ALL` / `LC_MESSAGES` / `LANG`, then the system locale (on Windows, where `LANG` is usually unset). |
 | `askAboveMinutes` | `5` | From which remaining time of a running task Claude asks at a pause. |
 | `keepWarm` | `on` | Whether a new session starts with keep-warm checked; `off` starts it unchecked. |
-| `keepWarmHours` | `8` | How long keep-warm goes on with the 1-hour cache in a session nobody works in: 1 to 18 hours. Up to 18 a refresh costs less than building the cache again (a tenth of the input price against twice); about 16 keeps it warm overnight. The 5-minute cache keeps 45 minutes. |
+| `keepWarmHours` | `8` | How long keep-warm goes on with the 1-hour cache in a session nobody works in: 1 to 18 hours. Up to 18 a refresh costs less than building the cache again (a tenth of the input price or less, on Opus 5.5 a twentieth, against twice); about 16 keeps it warm overnight. The 5-minute cache keeps 45 minutes. |
 | `notifications` | `on` | A notification as the shutdown countdown starts; `off` sends none. |
 | `shutdownMode` | `shutdown` | What the shutdown button does: `shutdown`, `sleep` (standby) or `hibernate`; the button is named after it. |
 
@@ -346,7 +354,7 @@ own tools and turns a question dialog away during a pause as it says. Every othe
 on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
-conversation has run, and when a question to you is answered), `turn.step` (token counts, and when a request reads
+conversation has run, and when a question to you is answered), `turn.step` (token counts, the model it names, and when a request reads
 the cache) and `session.measure` (token counts, and the usage windows of a subscription), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,
 after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
 band and stacks the bands of other mods beneath it.

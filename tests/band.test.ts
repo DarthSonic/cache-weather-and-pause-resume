@@ -2,17 +2,21 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import {
+  cacheReadRatio,
   cacheTone,
+  cacheWriteRatio,
   chunkSummary,
   compactionLines,
   hitRate,
   isWarmRead,
+  keepWarmBalance,
   keepWarmHoursOf,
   keepWarmSpanText,
   keepWarmStep,
   lastResponseFromTranscript,
   lifetimeFromResume,
   pauseSigns,
+  refreshCost,
   remainingMinutes,
   remainingShare,
   resetClock,
@@ -25,6 +29,33 @@ import {
   usageToShow,
   weather,
 } from '../hooks/logic'
+
+// Keep-warm's balance (0.10.0): in input tokens' worth, at each model's cache read price.
+describe('keep-warm’s balance', () => {
+  test('a cache read costs a tenth of the input, on Opus 5.5 a twentieth, on Fable and Mythos 5.1 a fortieth', async () => {
+    expect(cacheReadRatio('claude-sonnet-5-5')).toBe(0.1)
+    expect(cacheReadRatio('claude-opus-5-5[1m]')).toBe(0.05)
+    expect(cacheReadRatio('claude-fable-5-1')).toBe(0.025)
+    expect(cacheReadRatio('claude-mythos-5-1')).toBe(0.025)
+    expect(cacheReadRatio('claude-unknown-9')).toBe(0.1)
+    expect(cacheReadRatio(null)).toBe(0.1)
+    expect(cacheWriteRatio(5)).toBe(1.25)
+    expect(cacheWriteRatio(60)).toBe(2)
+  })
+
+  test('a refresh costs its read, its fresh input and its answer; the balance sets the refreshes against the rebuild', async () => {
+    const warm = { input_tokens: 30, output_tokens: 2, cache_read_input_tokens: 150_000, cache_creation_input_tokens: 0 }
+    expect(refreshCost(warm, 0.05, 2)).toBe(7_540)
+    // Three refreshes on Opus 5.5 and the hour's cache, then a request reads 150.000 tokens from the cache.
+    const balance = keepWarmBalance({ spent: 3 * 7_540, readTokens: 150_000, readRatio: 0.05, writeRatio: 2 })
+    expect(balance?.rebuild).toBe(300_000)
+    expect(Math.round((balance?.savedShare ?? 0) * 100)).toBe(90)
+    // Many refreshes for a small cache cost more than its rebuild: below 0.
+    expect((keepWarmBalance({ spent: 400_000, readTokens: 150_000, readRatio: 0.1, writeRatio: 2 })?.savedShare ?? 0) < 0).toBe(true)
+    // A request that read nothing from the cache spared nothing.
+    expect(keepWarmBalance({ spent: 10, readTokens: 0, readRatio: 0.1, writeRatio: 2 })).toBeNull()
+  })
+})
 
 // The usage windows (0.10.0): shown from 80 %, red from 95 %, keep-warm stops from 90 %.
 describe('the usage windows', () => {

@@ -8,6 +8,13 @@
   then each change of a whole point); a session on an API key has none and shows none.
 - **Keep-warm stops at 90 %** of any window: a refresh would spend the last of it. It says so once in the status row
   („Keep-warm: hält an, Kontingent bei 92 %“) and in a line, and refreshes again by itself once the window starts over.
+- **Keep-warm's balance**, as a line in the log: when the person is back and the first request reads the cache
+  keep-warm kept, what the refreshes cost set against the rebuild they spared, in input tokens' worth and as a share
+  („↻ Keep-warm-Bilanz: 3 Auffrischungen kosteten so viel wie 22.620 Input-Tokens; der ersparte Neuaufbau des Caches
+  hätte 300.000 gekostet. Gespart: ≈ 90 %.“); where keep-warm ends or finds the cache gone, what the refreshes cost
+  for nothing. Cache reads are priced at the session model's rate (a tenth of the input price, Claude Opus 5.5 a
+  twentieth, Claude Fable 5.1 and Mythos 5.1 a fortieth, an unknown model a tenth), writes at 1.25 or 2 times, the
+  reply at five times. The model comes from the requests, or from the session before its first one.
 - **Keep-warm for longer**, with the new option `keepWarmHours`: how long it goes on with the 1-hour cache in a session
   nobody works in, 1 to 18 hours, 8 by default. Up to 18 a refresh costs less than building the cache again; about 16
   keeps it warm overnight, and the 90 % stop keeps it from spending a subscription's last. The 5-minute cache keeps
