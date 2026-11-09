@@ -2,7 +2,9 @@
 <html>
 <head>
 <!-- The repository's social preview (docs/social-preview.png, 1280 x 640). Rendered with a headless browser:
-     msedge --headless=new --window-size=1280,640 --allow-file-access-from-files --screenshot=social-preview.png social-preview.html -->
+     msedge --headless=new --window-size=1280,640 --allow-file-access-from-files --screenshot=social-preview.png social-preview.html
+     The desktop band is drawn here in English with the mod's own texts (a shutdown waiting for another session); the
+     terminal band is a screenshot. -->
 <meta charset="utf-8">
 <style>
   :root {
@@ -24,14 +26,14 @@
       linear-gradient(160deg, var(--navy) 0%, #183a63 45%, var(--teal) 100%);
     position: relative;
   }
-  .wrap { position: absolute; inset: 0; padding: 70px 72px; box-sizing: border-box; }
-  .head { display: flex; align-items: center; gap: 36px; }
-  .icon { width: 160px; height: 160px; border-radius: 36px; box-shadow: 0 18px 40px rgba(4, 10, 30, 0.45); }
-  .title { font-size: 52px; font-weight: 650; letter-spacing: -0.5px; line-height: 1.05; }
+  .wrap { position: absolute; inset: 0; padding: 56px 72px; box-sizing: border-box; }
+  .head { display: flex; align-items: center; gap: 34px; }
+  .icon { width: 140px; height: 140px; border-radius: 32px; box-shadow: 0 18px 40px rgba(4, 10, 30, 0.45); }
+  .title { font-size: 50px; font-weight: 650; letter-spacing: -0.5px; line-height: 1.05; }
   .title .dim { color: var(--muted); font-weight: 500; }
-  .tag { margin-top: 12px; font-size: 25px; color: var(--muted); font-weight: 400; }
+  .tag { margin-top: 10px; font-size: 24px; color: var(--muted); font-weight: 400; }
   .tag b { color: var(--ink); font-weight: 600; }
-  .chips { margin-top: 38px; display: flex; flex-wrap: nowrap; gap: 9px; }
+  .chips { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 9px; max-width: 1136px; }
   .chip {
     font-size: 17px; font-weight: 600; padding: 6px 13px; border-radius: 999px; white-space: nowrap;
     background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.18);
@@ -39,19 +41,27 @@
   .chip i { font-style: normal; margin-right: 7px; }
   .chip.sun i { color: var(--sun); }
   .chip.green i { color: var(--green); }
-  .shots { position: absolute; left: 72px; right: 72px; bottom: 70px; display: flex; flex-direction: column; gap: 14px; }
-  .card {
-    border-radius: 14px; overflow: hidden; box-shadow: 0 16px 36px rgba(3, 8, 24, 0.5);
-    display: flex; align-items: center;
+  .chip.new { background: rgba(251, 191, 47, 0.16); border-color: rgba(251, 191, 47, 0.45); }
+  .shots { position: absolute; left: 72px; right: 72px; bottom: 52px; display: flex; flex-direction: column; gap: 14px; }
+  .card { border-radius: 14px; overflow: hidden; box-shadow: 0 16px 36px rgba(3, 8, 24, 0.5); }
+  .card.light { background: #ffffff; padding: 10px 14px; }
+  .card.dark { background: #0c0c0c; padding: 12px 14px; display: flex; align-items: center; }
+  .card.dark img { display: block; width: 100%; height: auto; }
+
+  /* The band as the Claude desktop app draws it. */
+  .band {
+    background: #f3f3f2; border-radius: 10px; padding: 10px 14px 9px;
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #1f1f1f; font-size: 21px;
   }
-  .card.light { background: #f6f6f4; padding: 10px 14px; }
-  .card.dark { background: #0c0c0c; padding: 12px 14px; }
-  .card img { display: block; width: 100%; height: auto; }
-  .label {
-    position: absolute; right: 72px; top: 64px; font-size: 18px; color: var(--muted);
-    text-align: right; line-height: 1.5;
-  }
-  .label b { color: var(--ink); font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 24px; }
+  .row .group { display: flex; align-items: center; gap: 14px; }
+  .cache { color: #2b8a3e; }
+  .btn { background: #e4e4e2; border-radius: 7px; padding: 4px 13px; font-size: 20px; }
+  .bar { margin-top: 8px; height: 4px; border-radius: 2px; background: #3aa35a; }
+  .gap { height: 8px; }
+  .status { font-size: 19px; line-height: 1.45; }
+  .warning { color: #a3640b; }
+  .subtle { color: #8a8a86; }
 </style>
 </head>
 <body>
@@ -69,10 +79,31 @@
     <span class="chip sun"><i>☀</i>Context weather</span>
     <span class="chip"><i>⇲</i>Compact</span>
     <span class="chip"><i>❚❚</i>Pause / Resume</span>
-    <span class="chip"><i>⏻</i>Shutdown</span>
+    <span class="chip new"><i>⧉</i>Across all sessions</span>
+    <span class="chip new"><i>⏻</i>Shutdown · Standby · Hibernate</span>
   </div>
   <div class="shots">
-    <div class="card light"><img src="band-desktop.png" alt=""></div>
+    <div class="card light">
+      <div class="band">
+        <div class="row">
+          <div class="group">
+            <span class="cache">Cache 60 m / 100 %</span>
+            <span>☑ Keep-warm</span>
+            <span>☀️</span>
+            <span>Ctx 9 % / 97 %</span>
+          </div>
+          <div class="group">
+            <span class="btn">Compact</span>
+            <span class="btn">Cancel</span>
+          </div>
+        </div>
+        <div class="bar"></div>
+        <div class="gap"></div>
+        <div class="status warning">Shutdown waits for 1 session: api-server</div>
+        <div class="status">Paused for 2 min</div>
+        <div class="status subtle">1 more session is at work without the mod and is not paused</div>
+      </div>
+    </div>
     <div class="card dark"><img src="band-terminal.png" alt=""></div>
   </div>
 </div>

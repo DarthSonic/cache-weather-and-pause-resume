@@ -7,7 +7,7 @@
 
 *English: [README.md](README.md)*
 
-![cache-weather-and-pause-resume: die Leiste in der Claude-Desktop-App und im Terminal, mit Cache-Countdown und Balken, Keep-warm, Kontext-Wetter und den Knöpfen Compact, Pause und Shutdown](docs/social-preview.png)
+![cache-weather-and-pause-resume: die Leiste über dem Eingabefeld von Claude Code — Cache-Countdown und Balken, Keep-warm, Kontext-Wetter, Compact, Pause / Weiter über alle Sitzungen, Shutdown, Standby oder Ruhezustand. In der Desktop-App wartet ein Shutdown auf eine andere Sitzung, mit der Statuszeile unter dem Balken; darunter die Leiste im Terminal](docs/social-preview.png)
 
 > [!TIP]
 > **Kostenlos und Open Source.** Spart dir die Leiste Zeit oder Cache, kannst du ihre Weiterentwicklung unterstützen:

@@ -7,7 +7,7 @@
 
 *Deutsch: [README.de.md](README.de.md)*
 
-![cache-weather-and-pause-resume: the band in the Claude desktop app and in a terminal, with the prompt-cache countdown and its bar, keep-warm, the context weather, and the Compact, Pause and Shutdown buttons](docs/social-preview.png)
+![cache-weather-and-pause-resume: the band above the Claude Code prompt — prompt-cache countdown and bar, keep-warm, context weather, Compact, Pause / Resume across all sessions, Shutdown, Standby or Hibernate. In the desktop app a shutdown waits for another session, its status row under the bar; below, the band in a terminal](docs/social-preview.png)
 
 > [!TIP]
 > **Free and open source.** If the band saves you time or cache, you can support its development:
