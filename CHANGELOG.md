@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.2 — unreleased
+## 0.10.2 — 2026-11-10
 
 - **Approvals during a pause.** From the press of Pause or Shutdown until the pause is over, no new approval comes up:
   the request tells Claude that steps needing your approval wait for “continue”, and a call of the main conversation
