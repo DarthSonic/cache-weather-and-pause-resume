@@ -251,6 +251,44 @@ describe('the pause button', () => {
     await desktop.unmount()
   })
 
+  test('an approval open at the press is named and asked for; from the press on, new approvals wait for the resume', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 1_000_000 })
+    mock.session(on)
+    const prompts = engine(on)
+    // The engine's own verdict beneath: the person would be asked.
+    on('tool.check', () => ({ decision: 'ask' }))
+    on('classic.Notification', () => ({}))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    const check = (tool: string, extra: Record<string, unknown> = {}) =>
+      $.tool.check({ tool, input: {}, tool_use_id: 'tu1', approver: 'person', ...extra } as never)
+    // Running: an ask goes to the person.
+    expect((await check('Bash')).decision).toBe('ask')
+    // A permission prompt is on screen as Pause is pressed: a mod cannot cancel it, so the band asks the person to
+    // answer it (0.10.2).
+    await $.classic.Notification({ notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' } as never)
+    await ui.press({ key: 'pause' })
+    expect(prompts.at(-1)?.text).toContain('Schritte, die eine Freigabe des Menschen bräuchten, führst du nicht mehr aus')
+    expect(await ui.find({ type: 'Text', text: /^Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen: Bitte beantworte sie/ })).toBeDefined()
+    // From the press on, a new approval waits for the resume.
+    const held = await check('Bash')
+    expect(held.decision).toBe('deny')
+    expect(held.reason).toContain('wiederhole ihn nach „weitermachen“')
+    // The mod's own tools, questions to the person and a subagent's calls go their own ways.
+    expect((await check('AskUserQuestion')).decision).toBe('ask')
+    expect((await check('mcp__cache-weather-and-pause-resume__pause_state')).decision).toBe('ask')
+    expect((await check('Bash', { agentId: 'a1' })).decision).toBe('ask')
+    // Paused: the hint goes with the turn, and approvals still wait.
+    await $.classic.Stop(stop())
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Eine Freigabe ist offen/ })).toBeUndefined()
+    expect((await check('Bash')).decision).toBe('deny')
+    // Resumed: the person answers again.
+    await ui.press({ key: 'resume' })
+    expect((await check('Bash')).decision).toBe('ask')
+    await ui.unmount()
+  })
+
   test('in a terminal the pause signs are narrow (❚❚, ►), in the desktop app emoji (⏸, ⏳, ▶)', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 1_000_000 })

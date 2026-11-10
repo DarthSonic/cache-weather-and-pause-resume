@@ -85,6 +85,7 @@ import {
   liveOthers,
   othersNote,
   questionRefusal,
+  approvalRefusal,
   readDecisions,
   sessionsToolDescription,
   shortId,
@@ -111,7 +112,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.10.1'
+const CODE_VERSION = '0.10.2'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -144,6 +145,7 @@ const sessionsView = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sess
 const SESSIONS_PANE = 'sessions'
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
+const isAwaitingApproval = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingApproval' } as const, false)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
 const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
 const shutdownPhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPhase' } as const, 'idle')
@@ -1212,7 +1214,11 @@ async function evaluateShutdownWait($: EngineInterface): Promise<void> {
     request === null || (await read($, requestRole)) !== 'own'
       ? []
       : waitingFor(request, (await readPersisted($)).liveSessions, self, at)
-  await update($, waitingSessions, () => pending.map(([id, s]) => s.folder ?? shortId(id)))
+  // One held up by a question or an approval nobody answers says so (0.10.2): it waits until someone does.
+  const t = strings(await currentLang($), shutdownMode)
+  await update($, waitingSessions, () =>
+    pending.map(([id, s]) => `${s.folder ?? shortId(id)}${s.isAwaitingPerson ? ` ${t.waitsForYou}` : ''}`),
+  )
   if (pending.length === 0) await startShutdownCountdown($)
 }
 
@@ -1590,6 +1596,7 @@ export const register: Register = (on, options) => {
       // nothing and counts for nothing.
       if (sentAt !== null) await markActive($, sentAt, true)
       await update($, isAwaitingPerson, () => false)
+      await update($, isAwaitingApproval, () => false)
     }
     return result
   })
@@ -1642,6 +1649,7 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined) {
       await update($, turnRunning, () => false)
       await update($, isAwaitingPerson, () => false)
+      await update($, isAwaitingApproval, () => false)
       await update($, workingSince, () => null)
       // The forecast's reading (0.10.0): how many tokens this turn added to the context.
       const tokens = (await read($, context))?.tokens ?? null
@@ -1659,7 +1667,10 @@ export const register: Register = (on, options) => {
   // classic.PermissionRequest could, and the plugin directory cannot tell that it leaves the answer to the person.
   on('classic.Notification', async ($, e, next) => {
     const result = await next(e)
-    if (WAITING_NOTICES.has(e.notification_type)) await update($, isAwaitingPerson, () => true)
+    if (WAITING_NOTICES.has(e.notification_type)) {
+      await update($, isAwaitingPerson, () => true)
+      await update($, isAwaitingApproval, () => true)
+    }
     return result
   }).catch(($, e, next) => next(e))
 
@@ -1712,11 +1723,28 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     try {
       await update($, isAwaitingPerson, () => false)
+      await update($, isAwaitingApproval, () => false)
       if (isQuestion) await markActive($, await $.clock.now(), false)
     } catch {
       // The call has run; the bookkeeping waits for the next response.
     }
     return result
+  }).catch(($, e, next) => next(e))
+
+  // From the press of Pause or Shutdown on, a call of the main conversation that would ask the person for approval
+  // waits for the resume (0.10.2, the person's rule): the pause request already tells Claude so, and a call that asks
+  // anyway is turned away; Claude notes it in the pause state and repeats it after "continue". Only an ask the person
+  // would answer is turned away: the engine's verdict stands for everything else, and the mod's own tools and questions
+  // to the person go their own ways. An approval already on screen stays: a mod cannot take it back, and the status
+  // row asks the person to answer it.
+  on('tool.check', async ($, e, next) => {
+    const verdict = await next(e)
+    if (verdict.decision !== 'ask' || e.approver !== 'person' || e.agentId !== undefined || e.tool_use_id === undefined) {
+      return verdict
+    }
+    if (e.tool === 'AskUserQuestion' || e.tool.startsWith('mcp__cache-weather-and-pause-resume__')) return verdict
+    if ((await read($, pausePhase)) === 'running' && !(await read($, questionsClosed))) return verdict
+    return { decision: 'deny', reason: approvalRefusal(await currentLang($)) }
   }).catch(($, e, next) => next(e))
 
   // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.
@@ -1972,6 +2000,9 @@ export const register: Register = (on, options) => {
       const isForShutdown = shutting === 'requested' || (role === 'foreign' && request?.kind === 'shutdown')
       const asked = shutting === 'requested' ? t.shutdownRequested : isForShutdown ? tr.shutdownRequested : t.pauseRequested
       status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}${from}`, color: 'warning' })
+      // An approval on screen holds the pause up, and a shutdown with it, until someone answers: a mod cannot take it
+      // back, so the band asks the person to (0.10.2). Claude's own question about long tasks is no approval.
+      if (await read($, isAwaitingApproval)) status.push({ key: 'pause-approval', text: t.approvalOpen, color: 'warning' })
     } else if (phase === 'paused' && shutting !== 'countdown' && shutting !== 'shutting') {
       status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${from}` })
     }

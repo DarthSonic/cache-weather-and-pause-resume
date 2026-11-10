@@ -200,7 +200,7 @@ export function foreignPauseRequest(
     return [
       `⏸ Pause aus ${where}: Der Mensch hat dort ${what}. Er ist nicht hier: Stell ihm jetzt keine Frage und zeig keinen Dialog; was du fragen willst, hebst du für „weitermachen“ auf.`,
       '',
-      '1. Starte ab jetzt nichts Neues mehr.',
+      '1. Starte ab jetzt nichts Neues mehr. Schritte, die eine Freigabe des Menschen bräuchten, führst du nicht aus: notiere sie für nach „weitermachen“.',
       runs,
       '3. Sichere den Stand nach den Regeln dieses Projekts (CLAUDE.md, Memory): was erledigt ist, was lief, was abgebrochen wurde und wie es neu startet, was als Nächstes kommt.',
       '4. Rufe dann das Werkzeug pause_state mit state „paused“ auf, melde kurz „Pausiert“ und beende deinen Zug.',
@@ -218,7 +218,7 @@ export function foreignPauseRequest(
   return [
     `⏸ Pause from ${where}: the person there ${what}. They are not here: ask them nothing now and show no dialog; keep what you want to ask for "continue".`,
     '',
-    '1. From now on, start nothing new.',
+    '1. From now on, start nothing new. Steps that would need the person\'s approval you do not run: note them for after "continue".',
     runs,
     "3. Save the state following this project's rules (CLAUDE.md, memory): what is done, what was running, what was stopped and how it restarts, what comes next.",
     '4. Then call the tool pause_state with state "paused", report "Paused" briefly and end your turn.',
@@ -226,6 +226,16 @@ export function foreignPauseRequest(
 }
 
 /** Why the band turns a question dialog away during a pause. */
+/**
+ * What Claude reads when a call that would ask the person for approval is turned away during a pause (0.10.2): the
+ * person is away or about to leave, so the call waits for the resume like a question.
+ */
+export function approvalRefusal(lang: Lang): string {
+  return lang === 'de'
+    ? 'Die Sitzung wird pausiert oder ist pausiert: Dieser Schritt bräuchte eine Freigabe des Menschen, der sie jetzt nicht geben kann. Führ ihn nicht aus, notiere ihn im Pausenstand und wiederhole ihn nach „weitermachen“.'
+    : 'The session is being paused or is paused: this step would need the person\'s approval, which they cannot give now. Do not run it; note it in the pause state and repeat it after "continue".'
+}
+
 export function questionRefusal(lang: Lang): string {
   return lang === 'de'
     ? 'Die Sitzung wird pausiert: Stell jetzt keine Frage. Heb sie für „weitermachen“ auf und notiere sie im Pausenstand.'

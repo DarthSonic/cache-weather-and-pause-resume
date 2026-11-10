@@ -134,6 +134,8 @@ declare module 'claude-code' {
       keepWarmRefreshes: number
       /** What those refreshes cost, in input tokens' worth, until a balance is drawn (0.10.0). */
       keepWarmSpent: number
+      /** A permission prompt (or an MCP server's form) waits for the person (0.10.2): what a pause asks them to answer. */
+      isAwaitingApproval: boolean
       /** The model the main conversation's last request named: it sets what a cache read costs. */
       mainModel: string | null
       /** How many tokens the context grew by in each of the last turns that grew it (0.10.0, the forecast). */

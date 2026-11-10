@@ -62,6 +62,10 @@ export type Strings = {
   pause: string
   resume: string
   pauseRequested: string
+  /** While the pause is prepared and an approval is on screen, which a mod cannot cancel (0.10.2). */
+  approvalOpen: string
+  /** Beside a session the shutdown waits for that waits for the person (0.10.2). */
+  waitsForYou: string
   /** How long the session has been paused, in whole minutes. */
   pausedFor: (minutes: number) => string
   tasksLeft: (n: number | null) => string
@@ -142,6 +146,8 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   pause: 'Pause',
   resume: 'Weiter',
   pauseRequested: 'Pause wird vorbereitet …',
+  approvalOpen: 'Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen: Bitte beantworte sie, damit die Pause eingerichtet werden kann',
+  waitsForYou: '(wartet auf eine Antwort oder Freigabe)',
   pausedFor: m => `Pausiert seit ${duration(m)}`,
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 Task läuft noch' : ` · ${n} Tasks laufen noch`),
   compactQueued: '/compact eingereiht: startet, sobald Claude fertig ist',
@@ -219,6 +225,8 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   pause: 'Pause',
   resume: 'Resume',
   pauseRequested: 'Preparing the pause …',
+  approvalOpen: 'An approval is open, and the mod cannot cancel it: please answer it so the pause can be set up',
+  waitsForYou: '(waits for an answer or approval)',
   pausedFor: m => `Paused for ${duration(m)}`,
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 task still running' : ` · ${n} tasks still running`),
   compactQueued: '/compact queued: it starts once Claude is done',

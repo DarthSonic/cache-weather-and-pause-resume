@@ -99,7 +99,7 @@ the pause as the button does. The button and the words above keep working on the
 
 The request Claude gets (full text in [`hooks/pause.ts`](hooks/pause.ts)):
 
-1. Start nothing new; whatever is running finishes.
+1. Start nothing new; whatever is running finishes. Steps that would need your approval wait for “continue”.
 2. Estimate the remaining time of each background task (runs, agents, monitors, workflows). For one that will take
    longer than the threshold (**5 minutes** by default, option `askAboveMinutes`) or has no foreseeable end, ask you —
    as a dialog where available, with each task's remaining time — whether to stop it now and restart it after resuming
@@ -110,6 +110,15 @@ The request Claude gets (full text in [`hooks/pause.ts`](hooks/pause.ts)):
 
 On “continue” Claude is told to carry on from the saved state and restart what was stopped for the pause. A message
 written during the pause is answered without picking the paused work back up.
+
+**Approvals.** From the press of **Pause** or **Shutdown** until the pause is over, no new approval comes up: a step
+that would ask for your permission waits for “continue”. The request tells Claude so, and a call that asks anyway is
+turned away with the same words; Claude notes it in the pause state and repeats it after “continue”, where you are
+asked as usual. An approval that is already on screen when you press the button holds the pause up, and a shutdown
+with it, until someone answers it: a mod cannot cancel it, so the status row says so and asks you to answer it (“An
+approval is open, and the mod cannot cancel it: please answer it so the pause can be set up”). During a shutdown the
+other sessions' row names one that waits for an answer or approval the same way. Calls inside a running subagent are
+left alone: the run you let finish would fail on them.
 
 How the mod tracks the state:
 
@@ -345,6 +354,7 @@ the shutdown button (below). What it hands Claude enters the conversation like a
 | a prompt or a row in your name | another session's pause (where you answered that all pause) or shutdown reaches a session at work | the pause from another session: fixed text from [`hooks/sessions.ts`](hooks/sessions.ts), naming that session's folder and whether the runs end or finish; ask nothing now |
 | a tool Claude can call, `pause_sessions` | Claude passes on your answer about the other sessions | listed with a fixed description; a call writes the answer into the request and changes nothing else |
 | a dialog turned away | a question dialog once the pause's question is answered, or in a session paused from another | refused with fixed text: keep the question for “continue” |
+| an approval turned away | a step of the main conversation that would ask for your approval, from the press of **Pause** or **Shutdown** until the pause is over (or in a session paused from another) | refused with fixed text from [`hooks/sessions.ts`](hooks/sessions.ts): do not run it, note it in the pause state and repeat it after “continue” |
 | a tool Claude can call, `pause_state` | Claude has paused the session, or picks the paused work back up | listed for Claude with a fixed description (in [`hooks/pause.ts`](hooks/pause.ts)); a call changes only the band's pause state and the state file, is answered by the mod and runs nothing else |
 | a question beside the conversation | **Keep-warm** is checked and the cache is about to run out | a model request over the conversation as its last request sent it, through the session's own client: fixed text asking for “OK”, no tools; the answer is discarded and stays out of the conversation |
 
@@ -377,7 +387,9 @@ countdown starts. The mod starts no program for it; the option `notifications` t
 usage windows come from Claude Code itself, as its status line shows them, and no request of the mod's asks for them.
 
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above, and `tool.call` answers the mod's
-own tools and turns a question dialog away during a pause as it says. Every other hook only reads and passes its event
+own tools and turns a question dialog away during a pause as it says, and `tool.check` turns an approval away during
+a pause as it says; it changes no other verdict, never allows anything and leaves subagents' calls alone. Every other
+hook only reads and passes its event
 on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the

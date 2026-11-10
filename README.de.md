@@ -102,7 +102,8 @@ die Leiste folgt und merkt sich die Pause wie beim Knopf. Knopf und die Wörter 
 
 Die Bitte an Claude (der genaue Text steht in [`hooks/pause.ts`](hooks/pause.ts)):
 
-1. Nichts Neues mehr starten; was läuft, läuft zu Ende.
+1. Nichts Neues mehr starten; was läuft, läuft zu Ende. Schritte, die deine Freigabe bräuchten, warten auf
+   „weitermachen“.
 2. Je laufendem Hintergrund-Task (Läufe, Agenten, Monitore, Workflows) die Restlaufzeit schätzen. Länger als die
    Schwelle (Standard **5 Minuten**, Option `askAboveMinutes`) oder ohne absehbares Ende: per Dialog fragen, mit
    Restlaufzeit je Task, ob er jetzt beendet und nach „weitermachen“ neu gestartet (nur, wenn er das zulässt) oder zu
@@ -113,6 +114,16 @@ Die Bitte an Claude (der genaue Text steht in [`hooks/pause.ts`](hooks/pause.ts)
 
 Bei „weitermachen“ bekommt Claude den Hinweis, am gesicherten Stand fortzusetzen und Abgebrochenes neu zu starten. Eine
 andere Nachricht in der Pause wird beantwortet, ohne die pausierte Arbeit wieder aufzunehmen.
+
+**Freigaben.** Vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause kommt keine neue Freigabe mehr: Ein
+Schritt, der dich um Erlaubnis fragen würde, wartet auf „weitermachen“. Die Bitte sagt das Claude, und ein Aufruf, der
+trotzdem fragt, wird mit denselben Worten abgewiesen; Claude notiert ihn im Pausenstand und wiederholt ihn nach
+„weitermachen“, wo du wie gewohnt gefragt wirst. Eine Freigabe, die beim Druck auf den Knopf schon offen ist, hält die
+Pause auf, und einen Shutdown mit ihr, bis jemand sie beantwortet: Ein Mod kann sie nicht abbrechen, deshalb sagt die
+Statuszeile das und bittet dich, sie zu beantworten („Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen:
+Bitte beantworte sie, damit die Pause eingerichtet werden kann“). Beim Shutdown nennt die Zeile mit den anderen
+Sitzungen eine, die auf eine Antwort oder Freigabe wartet, ebenso. Aufrufe in einem laufenden Subagenten bleiben
+unberührt: Der Lauf, den du zu Ende laufen lässt, würde sonst an ihnen scheitern.
 
 Wie der Mod den Zustand verfolgt:
 
@@ -359,6 +370,7 @@ Unterhaltung:
 | ein Prompt oder eine Zeile in deinem Namen | die Pause einer anderen Sitzung (wo du „alle pausieren“ geantwortet hast) oder ihr Shutdown erreicht eine arbeitende Sitzung | die Pause aus einer anderen Sitzung: fester Text aus [`hooks/sessions.ts`](hooks/sessions.ts), mit dem Ordner jener Sitzung und ob die Läufe enden oder zu Ende laufen; jetzt nichts fragen |
 | ein Werkzeug für Claude, `pause_sessions` | Claude gibt deine Antwort zu den anderen Sitzungen weiter | mit fester Beschreibung gelistet; ein Aufruf schreibt die Antwort in die Anforderung und ändert sonst nichts |
 | ein abgewiesener Dialog | ein Fragedialog, sobald die Frage der Pause beantwortet ist, oder in einer Sitzung, die eine andere pausiert hat | abgelehnt mit festem Text: die Frage für „weitermachen“ aufheben |
+| eine abgewiesene Freigabe | ein Schritt der Hauptunterhaltung, der deine Freigabe bräuchte, vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause (oder in einer Sitzung, die eine andere pausiert hat) | abgelehnt mit festem Text aus [`hooks/sessions.ts`](hooks/sessions.ts): nicht ausführen, im Pausenstand notieren und nach „weitermachen“ wiederholen |
 | ein Werkzeug für Claude, `pause_state` | Claude hat die Sitzung pausiert oder nimmt die pausierte Arbeit wieder auf | für Claude mit fester Beschreibung gelistet (in [`hooks/pause.ts`](hooks/pause.ts)); ein Aufruf ändert nur den Pause-Zustand der Leiste und die Zustandsdatei, der Mod beantwortet ihn selbst, sonst läuft nichts |
 | eine Frage neben der Unterhaltung | **Keep-warm** ist gesetzt und der Cache läuft gleich ab | eine Modell-Anfrage über die Unterhaltung, so wie ihre letzte Anfrage sie geschickt hat, über den eigenen Client der Sitzung: fester Text, der um „OK“ bittet, keine Werkzeuge; die Antwort wird verworfen und bleibt außerhalb der Unterhaltung |
 
@@ -393,7 +405,9 @@ und keine Zugangsdaten; die Nutzungsfenster kommen von Claude Code selbst, so wi
 Anfrage des Mods fragt danach.
 
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle, und `tool.call` beantwortet die
-eigenen Werkzeuge des Mods und weist während einer Pause einen Fragedialog ab, wie sie sagt. Jeder andere Hook liest nur
+eigenen Werkzeuge des Mods und weist während einer Pause einen Fragedialog ab, wie sie sagt, und `tool.check` weist
+während einer Pause eine Freigabe ab, wie sie sagt; er ändert kein anderes Urteil, erlaubt nie etwas und lässt Aufrufe
+von Subagenten in Ruhe. Jeder andere Hook liest nur
 und reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),

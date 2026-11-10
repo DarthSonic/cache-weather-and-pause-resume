@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.2 — unreleased
+
+- **Approvals during a pause.** From the press of Pause or Shutdown until the pause is over, no new approval comes up:
+  the request tells Claude that steps needing your approval wait for “continue”, and a call of the main conversation
+  that asks anyway is turned away; Claude notes it and repeats it after “continue”. An approval already on screen at
+  the press cannot be cancelled by a mod: the status row says so and asks you to answer it, so the pause can be set up
+  („Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen: Bitte beantworte sie, damit die Pause eingerichtet
+  werden kann“). A shutdown names another session that waits for an answer or approval in its waiting row. Subagents'
+  calls are left alone.
+
 ## 0.10.1 — 2026-11-09
 
 - **What keep-warm saves, as it stands.** Each refresh's line ends with what going on now would save against
