@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.3 — unreleased
+
+- **After `/compact` or a switch of model the cache shows expired at once.** The conversation, or the new model, has
+  no cache yet; the band no longer counts down the old one's time. The next response starts the countdown afresh.
+- **Keep-warm says why it waits**: „Keep-warm: wartet auf die nächste Anfrage, denn nach dem Compact gibt es noch
+  keinen Cache“ / “… as there is no cache yet after the compaction” (or after the model switch).
+- A rebuild after a compaction or a switch is no lapse: with keep-warm off it no longer says what keep-warm would have
+  saved.
+
 ## 0.10.2 — 2026-11-10
 
 - **Approvals during a pause.** From the press of Pause or Shutdown until the pause is over, no new approval comes up:

@@ -112,7 +112,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.10.2'
+const CODE_VERSION = '0.10.3'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -136,6 +136,7 @@ const activeAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'activeAt
 const keepWarmNote = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmNote' } as const, null)
 const usageWindows = atom({ plugin: 'cache-weather-and-pause-resume', key: 'usageWindows' } as const, [])
 const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmSpent' } as const, 0)
+const cacheGoneAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'cacheGoneAt' } as const, null)
 const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
 const turnGrowths = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnGrowths' } as const, [])
 const lastTurnTokens = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnTokens' } as const, null)
@@ -611,6 +612,8 @@ async function drawMissedSaving(
   sentAt: number,
 ): Promise<void> {
   if ((await read($, keepWarm)) || (await read($, keepWarmRefreshes)) > 0) return
+  // After a compaction or a switch of model the request writes the cache anyway: no lapse keep-warm could have bridged.
+  if ((await read($, cacheGoneAt)) !== null) return
   const life = await read($, ttl)
   const last = await read($, lastResponseAt)
   if (life === null || last === null) return
@@ -1074,11 +1077,12 @@ async function overviewFields($: EngineInterface): Promise<Partial<LiveSession>>
   const limit = await read($, threshold)
   const life = await read($, ttl)
   const used = (await read($, cacheUsedAt)) ?? (await read($, lastResponseAt))
+  const gone = await read($, cacheGoneAt)
   return {
     pausedAt: (await read($, pausePhase)) === 'paused' ? await read($, pausedAt) : null,
     contextPercent: fill?.percent ?? null,
     thresholdPercent: limit === null || limit.isFallback ? null : limit.percent,
-    cacheUntil: used === null || life === null ? null : used + life.minutes * 60_000,
+    cacheUntil: used === null || life === null ? null : gone !== null ? gone : used + life.minutes * 60_000,
     keepWarm: await read($, keepWarm),
     model: await read($, mainModel),
   }
@@ -1592,6 +1596,8 @@ export const register: Register = (on, options) => {
       await update($, lastResponseAt, () => at)
       await update($, lastHitRate, () => rate)
       await update($, now, () => at)
+      // The response wrote the conversation's cache anew, after a compaction or a switch of model too.
+      await update($, cacheGoneAt, () => null)
       // Answered: the idle span starts over from the request, and Claude waits for no one. A request that failed read
       // nothing and counts for nothing.
       if (sentAt !== null) await markActive($, sentAt, true)
@@ -1796,8 +1802,11 @@ export const register: Register = (on, options) => {
   on('classic.PostModelSwitch', async ($, e, next) => {
     const result = await next(e)
     // Another model has no cache of this conversation: the next request writes it, a refresh would only pay for it.
+    // The band shows the cache expired from here on (0.10.3).
     if (e.from_model !== e.to_model) {
-      await update($, keepWarmNote, () => 'cold')
+      await update($, keepWarmNote, () => 'switched')
+      const at = await $.clock.now()
+      await update($, cacheGoneAt, () => at)
       await update($, mainModel, () => e.to_model)
       // What the switch costs where the cache was still warm (0.10.0): the tokens the next request writes again, and
       // Claude Code's own estimate of it. With a cache gone cold the rebuild was due anyway.
@@ -1823,9 +1832,14 @@ export const register: Register = (on, options) => {
     const before = (await read($, context))?.tokens ?? undefined
     const result = await next(e)
     if (result.skip !== undefined) return result
-    // The conversation is a new one now: the next request writes its cache, a refresh would read the old one. (A
-    // precompute installs nothing yet, and a subagent's compaction is its own.)
-    if (e.agentId === undefined && e.trigger !== 'precompute') await update($, keepWarmNote, () => 'cold')
+    // The conversation is a new one now: the next request writes its cache, a refresh would read the old one, and the
+    // band shows the cache expired from here on (0.10.3). (A precompute installs nothing yet, and a subagent's
+    // compaction is its own.)
+    if (e.agentId === undefined && e.trigger !== 'precompute') {
+      await update($, keepWarmNote, () => 'compacted')
+      const at = await $.clock.now()
+      await update($, cacheGoneAt, () => at)
+    }
     if (e.trigger !== 'manual' && e.trigger !== 'plugin') return result
 
     const lang = await currentLang($)
@@ -1852,7 +1866,9 @@ export const register: Register = (on, options) => {
     const lang = await currentLang($)
     const t = strings(lang, shutdownMode)
 
-    const share = remainingShare(last, life?.minutes ?? null, at)
+    // After a compaction or a switch of model the cache is gone, whatever time the old one had left (0.10.3).
+    const lifeShare = remainingShare(last, life?.minutes ?? null, at)
+    const share = lifeShare !== null && (await read($, cacheGoneAt)) !== null ? 0 : lifeShare
     const sky = weather(fill?.percent ?? null, limit.percent)
     const isStorm = sky === '⛈️'
     // A terminal gets narrow signs: an emoji's width differs between terminals and Claude Code (see terminalWeather).
@@ -1886,8 +1902,12 @@ export const register: Register = (on, options) => {
         ? null
         : note === 'ended'
           ? t.keepWarmEnded(keepWarmSpanText(life.minutes, keepWarmHours))
-          : note === 'cold'
-            ? t.keepWarmCold
+          : note === 'compacted'
+            ? t.keepWarmCompacted
+            : note === 'switched'
+              ? t.keepWarmSwitched
+              : note === 'cold'
+                ? t.keepWarmCold
             : note === 'limit'
               ? t.keepWarmLimit(Math.round(usageStopping(await read($, usageWindows))?.percentUsed ?? 90))
               : t.keepWarmMissed

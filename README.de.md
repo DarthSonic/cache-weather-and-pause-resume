@@ -259,8 +259,10 @@ Cache kurz vor Ablauf auf:
   übernimmt Keep-warm wieder.
 - **Findet eine Auffrischung den Cache schon abgelaufen** (etwa weil der Rechner schlief), wartet Keep-warm auf die
   nächste Anfrage, statt ihn neu aufzubauen, und sagt das.
-- **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die nächste Anfrage
-  schreibt den neuen Cache, und Keep-warm wartet auf sie („Keep-warm: wartet auf die nächste Anfrage“). Verfällt bei
+- **Nach `/compact` oder einem Wechsel auf ein anderes Modell** gibt es nichts warmzuhalten: Die Unterhaltung, oder
+  das Modell, hat noch keinen Cache, und die nächste Anfrage schreibt den neuen. Die Leiste zeigt den Cache sofort als
+  abgelaufen, und Keep-warm sagt, warum es wartet („Keep-warm: wartet auf die nächste Anfrage, denn nach dem Compact
+  gibt es noch keinen Cache“, oder „… nach dem Modellwechsel …“). Verfällt bei
   einem Wechsel ein Cache, der noch warm war, sagt eine Zeile, was das neue Schreiben kostet: die Tokens und die eigene
   Schätzung von Claude Code („Modellwechsel auf claude-sonnet-5-5: … schreibt 180.000 Tokens neu in den Cache, ≈ 0,72 $
   (Listenpreis)“).

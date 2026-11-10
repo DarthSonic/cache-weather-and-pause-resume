@@ -78,6 +78,9 @@ export type Strings = {
   keepWarmEnded: (span: string) => string
   keepWarmMissed: string
   keepWarmCold: string
+  /** Why there is no cache to keep warm (0.10.3): a compaction, or a switch of model. */
+  keepWarmCompacted: string
+  keepWarmSwitched: string
   /** Keep-warm stopped for a usage window at or past 90 %. */
   keepWarmLimit: (percent: number) => string
   /** The sessions overview (0.10.0): its button, the pane's title, and the words it describes a session with. */
@@ -158,7 +161,9 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   keepWarm: 'Keep-warm',
   keepWarmEnded: span => `endete nach ${span} ohne Eingabe`,
   keepWarmMissed: 'Cache war schon abgelaufen',
-  keepWarmCold: 'wartet auf die nächste Anfrage',
+  keepWarmCold: 'wartet auf die nächste Anfrage, etwa nach einem Compact oder Modellwechsel',
+  keepWarmCompacted: 'wartet auf die nächste Anfrage, denn nach dem Compact gibt es noch keinen Cache',
+  keepWarmSwitched: 'wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache',
   keepWarmLimit: percent => `hält an, Kontingent bei ${percent} %`,
   compactForecast: n => (n <= 1 ? 'Auto-Compact wohl beim nächsten Zug' : `Auto-Compact in ≈ ${n} Zügen`),
   sessions: 'Sitzungen',
@@ -237,7 +242,9 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   keepWarm: 'Keep-warm',
   keepWarmEnded: span => `stopped after ${span} without input`,
   keepWarmMissed: 'the cache had already expired',
-  keepWarmCold: 'waiting for the next request',
+  keepWarmCold: 'waiting for the next request, as after a compaction or a model switch',
+  keepWarmCompacted: 'waiting for the next request, as there is no cache yet after the compaction',
+  keepWarmSwitched: 'waiting for the next request, as there is no cache yet after the model switch',
   keepWarmLimit: percent => `stopped, usage at ${percent} %`,
   compactForecast: n => (n <= 1 ? 'Auto-compact likely at the next turn' : `Auto-compact in about ${n} turns`),
   sessions: 'Sessions',

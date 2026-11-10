@@ -1549,10 +1549,69 @@ describe('keep-warm', () => {
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await resumed($, 2 * MIN, '1h')
     await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' })
+    // The new model has no cache of the conversation: expired at once, and the status row says why (0.10.3).
+    expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache$/ })).toBeDefined()
 
     await clock.advance(HOUR)
     expect(asked.prompts.length).toBe(0)
-    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  const SUMMARY = [{ role: 'user', text: 'Zusammenfassung der Arbeit bis hier.', toolUses: [] }]
+  const compacted = ($: Engine) => $.session.compact({ trigger: 'manual', messages: SUMMARY } as never)
+  const answered = (on: On, usage: Record<string, number>) =>
+    on('turn.step', async function* ($, e) {
+      return { turnId: e.turnId, index: e.index, answer: 'Weiter.', toolUses: [], stopReason: 'end_turn', usage }
+    } as never)
+  const ask = async ($: Engine, turnId: string) => {
+    await $.turn.start({ text: 'weiter geht es', turnId })
+    const step = $.turn.step({ turnId, index: 0, model: 'claude-opus-5-5' } as never) as unknown as AsyncIterable<unknown>
+    for await (const _ of step) {
+      // drained
+    }
+  }
+
+  test('after /compact the cache shows expired at once, and keep-warm says why it waits', SLOW, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
+    engine(on)
+    const asked = forks(on)
+    on('session.compact', () => ({ messages: SUMMARY, tokensBefore: 150_000, tokensAfter: 30_000 }))
+    answered(on, { input_tokens: 40, output_tokens: 300, cache_read_input_tokens: 0, cache_creation_input_tokens: 30_000 })
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+    expect(await ui.find({ type: 'Text', text: /^Cache noch 58 min/ })).toBeDefined()
+    await compacted($)
+    // The conversation is a new one: no cache yet, whatever the old one had left (0.10.3).
+    expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Compact gibt es noch keinen Cache$/ })).toBeDefined()
+    await clock.advance(HOUR)
+    expect(asked.prompts.length).toBe(0)
+    // The next request writes the new cache: it counts down again, and keep-warm goes on.
+    await ask($, 't5')
+    expect(await ui.find({ type: 'Text', text: /^Cache noch 60 min/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm:/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('a rebuild after /compact is no lapse: keep-warm off says nothing it would have saved', { ...DE_COLD, timeoutMs: 30_000 }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: START })
+    disk(on)
+    engine(on)
+    const asked = forks(on)
+    on('session.compact', () => ({ messages: SUMMARY, tokensBefore: 150_000, tokensAfter: 30_000 }))
+    answered(on, { input_tokens: 40, output_tokens: 300, cache_read_input_tokens: 0, cache_creation_input_tokens: 150_000 })
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await resumed($, 2 * MIN, '1h')
+    await compacted($)
+    await clock.advance(180 * MIN)
+    await ask($, 't6')
+    expect(asked.logs.some(line => line.startsWith('Keep-warm hätte'))).toBe(false)
     await ui.unmount()
   })
 
@@ -1574,13 +1633,13 @@ describe('keep-warm', () => {
     expect(await ui.find({ type: 'Text', text: /^(Pausiert|Keep-warm:|Pause wird)/ })).toBeUndefined()
 
     await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' })
-    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache$/ })).toBeDefined()
     await ui.press({ key: 'pause' })
     expect(await ui.find({ type: 'Text', text: /^❚❚ Pause wird vorbereitet …$/ })).toBeDefined()
     await $.classic.Stop(stop(undefined, 'k1'))
     expect(await ui.find({ key: 'resume' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Pausiert seit < 1 min$/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache$/ })).toBeDefined()
     expect(toasts).toEqual([])
 
     await clock.advance(12 * MIN)

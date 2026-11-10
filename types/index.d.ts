@@ -21,7 +21,8 @@ export type PausePhase = 'running' | 'pausing' | 'paused'
  * Why keep-warm waits for the next request: the idle span ran out, a refresh found the cache gone, or the cache is
  * `cold` after a compaction or a switch to another model (the next request writes the new one).
  */
-export type KeepWarmNote = 'ended' | 'missed' | 'cold' | 'limit'
+// 'compacted' and 'switched' (0.10.3) say why there is no cache to keep warm; 'cold' is what an older version left.
+export type KeepWarmNote = 'ended' | 'missed' | 'cold' | 'compacted' | 'switched' | 'limit'
 
 /** The systems the shutdown button knows. */
 export type ShutdownOs = 'windows' | 'linux' | 'macos'
@@ -128,6 +129,11 @@ declare module 'claude-code' {
       /** The last request that was no refresh, or keep-warm switched on: the idle span counts from here. */
       activeAt: number | null
       keepWarmNote: KeepWarmNote | null
+      /**
+       * When a compaction or a switch of model left the conversation without a cache (0.10.3): the band shows it
+       * expired from then on, until the next response writes the new one. Null otherwise.
+       */
+      cacheGoneAt: number | null
       /** The usage windows the last response reported (0.10.0): empty off a subscription. */
       usageWindows: { kind: string; percentUsed: number; resetsAt?: string }[]
       /** Refreshes since the last request that was none. */

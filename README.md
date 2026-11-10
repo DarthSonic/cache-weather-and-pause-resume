@@ -248,8 +248,10 @@ read costs a tenth of it or less. With **Keep-warm** checked the mod refreshes t
   over again.
 - **When a refresh finds the cache already gone** (the machine slept, say), keep-warm waits for the next request
   rather than build it afresh, and says so.
-- **After `/compact` or a switch to another model** there is nothing to keep warm: the next request writes the new
-  cache, and keep-warm waits for it (“Keep-warm: waiting for the next request”). Where a switch forfeits a cache that
+- **After `/compact` or a switch to another model** there is nothing to keep warm: the conversation, or the model, has
+  no cache yet, and the next request writes the new one. The band shows the cache expired at once, and keep-warm says
+  why it waits (“Keep-warm: waiting for the next request, as there is no cache yet after the compaction”, or “… after
+  the model switch”). Where a switch forfeits a cache that
   was still warm, a line says what writing it again costs: the tokens and Claude Code's own estimate (“Model switched
   to claude-sonnet-5-5: … writes 180,000 tokens to the cache again, ≈ $0.72 (list price)”).
 - **When the usage runs short:** with a subscription, once the 5-hour or the 7-day window stands at 90 % or more,
