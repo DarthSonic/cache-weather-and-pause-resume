@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.3 — unreleased
+## 0.10.3 — 2026-11-10
 
 - **After `/compact` or a switch of model the cache shows expired at once.** The conversation, or the new model, has
   no cache yet; the band no longer counts down the old one's time. The next response starts the countdown afresh.
