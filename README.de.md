@@ -14,11 +14,12 @@
 >
 > [![Auf GitHub unterstützen](https://img.shields.io/badge/Auf%20GitHub%20unterst%C3%BCtzen-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/DarthSonic)
 
-Ein Mod für [Claude Code](https://code.claude.com): eine schmale Leiste direkt über dem Eingabefeld. Sie zeigt, wie
-warm der Prompt-Cache noch ist und wie voll der Kontext, mit einem **Compact**-Knopf, einem Knopf
-**Pause / Weiter**, der Claude Laufendes zu Ende bringen, den Stand sichern und warten lässt, einem Haken
-**Keep-warm**, der den Cache kurz vor Ablauf auffrischt, und einem Knopf **Shutdown**, der die Sitzung pausiert und
-danach den Rechner herunterfährt.
+Ein Mod für [Claude Code](https://code.claude.com), wenn du weg musst. **Pause** lässt Claude Laufendes zu Ende
+bringen, den Stand sichern und warten, in dieser Sitzung oder in allen, bis du **Weiter** drückst. **Shutdown**
+pausiert sie ebenso und fährt danach den Rechner herunter oder schickt ihn in den Standby oder Ruhezustand. Dazu zeigt
+eine schmale Leiste direkt über dem Eingabefeld, wie warm der Prompt-Cache noch ist, mit einem Haken **Keep-warm**, der
+ihn kurz vor Ablauf auffrischt, und wie voll der Kontext, mit einem **Compact**-Knopf und einer Übersicht aller
+Sitzungen.
 
 ## Beispiele
 
@@ -337,6 +338,10 @@ zusammen.
 
 ## Was der Mod auf deinem Rechner tut
 
+Ein unabhängiger Katalog, [awesome-claude-code-mods](https://mods.aidojo.si/mods/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume/), prüft den Mod und hält fest, worauf er zugreifen kann:
+[![reach](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume-reach.svg)](https://mods.aidojo.si/mods/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume/)
+[![validates](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume-validates.svg)](https://mods.aidojo.si/mods/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume/)
+
 cache-weather-and-pause-resume stellt selbst keine Netzwerk-Anfragen, außer den Auffrischungen von Keep-warm, und startet
 Programme nur für den Shutdown-Knopf (unten). Was er Claude übergibt, kommt wie alles, was du schickst, in die
 Unterhaltung:
@@ -397,7 +402,8 @@ Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berec
 Nutzungsfenster eines Abos), `turn.start`,
 `turn.complete`, `session.end` und `session.compact`, nach dem er die Zusammenfassung als Log-Zeilen schreibt, die das
 Modell nicht liest. Der Hook auf
-`ui.render` zeichnet die Leiste und stapelt die Leisten anderer Mods darunter.
+`ui.render` zeichnet die Leiste und die Sitzungsübersicht und stapelt die Leisten anderer Mods darunter; `ui.press`
+öffnet die Übersicht, wenn du **Sitzungen** drückst.
 
 ## Zustandsdatei
 

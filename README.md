@@ -14,10 +14,11 @@
 >
 > [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor%20on%20GitHub-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/DarthSonic)
 
-A [Claude Code](https://code.claude.com) mod: one slim band directly above the prompt that tells you how warm the
-prompt cache still is and how full the context is, with a **Compact** button, a **Pause / Resume** button that has
-Claude finish what is running, save its state and wait, a **Keep-warm** checkbox that refreshes the cache shortly
-before it runs out, and a **Shutdown** button that pauses the session and then shuts the computer down.
+A [Claude Code](https://code.claude.com) mod for stepping away. **Pause** has Claude finish what is running, save its
+state and wait, in this session or in all of them, until you press **Resume**. **Shutdown** pauses them the same way
+and then shuts the computer down, puts it to sleep or hibernates it. Around that, one slim band directly above the
+prompt shows how warm the prompt cache still is, with a **Keep-warm** checkbox that refreshes it shortly before it
+runs out, and how full the context is, with a **Compact** button and an overview of all sessions.
 
 ## Examples
 
@@ -324,6 +325,10 @@ together with it in either order.
 
 ## What the mod does on your machine
 
+An independent catalogue, [awesome-claude-code-mods](https://mods.aidojo.si/mods/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume/), scans the mod and records what it can reach:
+[![reach](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume-reach.svg)](https://mods.aidojo.si/mods/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume/)
+[![validates](https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/badges/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume-validates.svg)](https://mods.aidojo.si/mods/DarthSonic--cache-weather-and-pause-resume--cache-weather-and-pause-resume/)
+
 cache-weather-and-pause-resume makes no network requests of its own but for keep-warm's refreshes, and starts programs only for
 the shutdown button (below). What it hands Claude enters the conversation like anything else you send:
 
@@ -379,7 +384,8 @@ whether the model changed), `classic.Notification` (a permission prompt waits fo
 conversation has run, and when a question to you is answered), `turn.step` (token counts, the model it names, and when a request reads
 the cache) and `session.measure` (token counts, and the usage windows of a subscription), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,
 after which it logs the summary as lines the model does not read. The `ui.render` hook draws the
-band and stacks the bands of other mods beneath it.
+band, the sessions overview and stacks the bands of other mods beneath it; `ui.press` opens the overview when you
+press **Sessions**.
 
 ## State file
 
