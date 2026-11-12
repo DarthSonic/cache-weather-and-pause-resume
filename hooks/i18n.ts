@@ -125,6 +125,11 @@ export type Strings = {
   shutdownNotifyBody: (folder: string | null) => string
   /** Whom the shutdown waits for, by folder. */
   waitingFor: (folders: readonly string[]) => string
+  /** A shutdown at a time (0.11.0): while Claude asks when, once planned, cancelled, and lapsed with nobody to fire it. */
+  shutdownAsking: string
+  shutdownPlanned: (clock: string) => string
+  planCancelled: string
+  planLapsed: (clock: string) => string
   /** Sessions at work that run without the mod: they go down unpaused. */
   withoutMod: (count: number) => string
   /** Behind a pause another session asked for. */
@@ -310,6 +315,10 @@ type ModeTexts = Pick<
   | 'shutdownNotifyTitle'
   | 'shutdownNotifyBody'
   | 'waitingFor'
+  | 'shutdownAsking'
+  | 'shutdownPlanned'
+  | 'planCancelled'
+  | 'planLapsed'
 >
 
 /** The words for what the button does: its label, and what the computer does, for the band and for Claude. */
@@ -396,6 +405,11 @@ function modeTexts(lang: Lang, mode: ShutdownMode): ModeTexts {
         folders.length === 0
           ? `${w.label}: sieht nach den anderen Sitzungen …`
           : `${w.label} wartet auf ${folders.length === 1 ? '1 Sitzung' : `${folders.length} Sitzungen`}: ${folders.join(', ')}`,
+      shutdownAsking: `${w.label}: Claude fragt, wann …`,
+      shutdownPlanned: clock => `${w.label} um ${clock} geplant`,
+      planCancelled: `Geplanter ${w.label} abgebrochen`,
+      planLapsed: clock =>
+        `Der für ${clock} geplante ${w.label} ist verfallen: Zu der Zeit lief keine Sitzung mit dem Mod (der Rechner war aus oder schlief).`,
     }
   }
   const missing = `${w.label} is not available:`
@@ -438,6 +452,11 @@ function modeTexts(lang: Lang, mode: ShutdownMode): ModeTexts {
       folders.length === 0
         ? `${w.label}: looking at the other sessions …`
         : `${w.label} waits for ${folders.length === 1 ? '1 session' : `${folders.length} sessions`}: ${folders.join(', ')}`,
+    shutdownAsking: `${w.label}: Claude asks when …`,
+    shutdownPlanned: clock => `${w.label} planned for ${clock}`,
+    planCancelled: `${w.label} plan cancelled`,
+    planLapsed: clock =>
+      `The ${w.label.toLowerCase()} planned for ${clock} lapsed: no session with the mod ran at that time (the computer was off or asleep).`,
   }
 }
 

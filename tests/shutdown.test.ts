@@ -14,6 +14,9 @@ import {
   standbyAvailable,
   windowsPowerShell,
   windowsSystem32,
+  isPowerCommand,
+  planTime,
+  PLAN_MAX_AHEAD_MS,
 } from '../hooks/shutdown'
 
 // `powercfg /a` on a German Windows with standby (S3) and hibernation turned off, as it answered on 2026-11-09.
@@ -106,5 +109,68 @@ describe('the shutdown command', () => {
     expect(secondsLeft(60_000, 1_000)).toBe(59)
     expect(secondsLeft(60_000, 59_500)).toBe(1)
     expect(secondsLeft(60_000, 61_000)).toBe(0)
+  })
+})
+
+// ── A shutdown planned for a time (0.11.0) ──────────────────────────────────────────────────────────────────────────
+
+describe('a planned shutdown', () => {
+  test('falls at "HH:MM" the next time it comes, or in so many minutes, at most a day ahead', async () => {
+    const now = new Date(2026, 10, 11, 22, 57, 0, 0).getTime()
+    // Later today, and tomorrow for a time already past (local time, so the test holds in any time zone).
+    expect(planTime({ at: '23:30' }, now)).toBe(new Date(2026, 10, 11, 23, 30, 0, 0).getTime())
+    expect(planTime({ at: '02:30' }, now)).toBe(new Date(2026, 10, 12, 2, 30, 0, 0).getTime())
+    expect(planTime({ at: '2.30 Uhr' }, now)).toBe(new Date(2026, 10, 12, 2, 30, 0, 0).getTime())
+    expect(planTime({ inMinutes: 150 }, now)).toBe(now + 150 * 60_000)
+    expect(planTime({ inMinutes: PLAN_MAX_AHEAD_MS / 60_000 + 1 }, now)).toBeNull()
+    expect(planTime({ at: '25:00' }, now)).toBeNull()
+    expect(planTime({ at: 'halb drei' }, now)).toBeNull()
+    expect(planTime({}, now)).toBeNull()
+  })
+
+  test('a power command in command position counts; a word in quotes, a here-document or a restart does not', async () => {
+    // What the Traumfabrik session ran on 2026-11-11 to shut the computer down at 02:30, word for word.
+    expect(
+      isPowerCommand(
+        '$target = Get-Date -Year 2026 -Month 11 -Day 12 -Hour 2 -Minute 30 -Second 0; $secs = [int][math]::Floor(($target - (Get-Date)).TotalSeconds); shutdown /s /t $secs /c "Geplantes Herunterfahren um 02:30 (Wunsch des Nutzers). Abbrechen: shutdown /a"; "exit $LASTEXITCODE"',
+      ),
+    ).toBe(true)
+    for (const command of [
+      'shutdown /s /t 0',
+      'C:\\Windows\\System32\\shutdown.exe /p',
+      'shutdown /h',
+      'Stop-Computer -Force',
+      'sudo shutdown -h now',
+      'sudo -n shutdown -h now',
+      'shutdown now',
+      'shutdown +30',
+      'systemctl suspend',
+      'loginctl hibernate',
+      'pmset sleepnow',
+      'poweroff',
+      'cmd /c shutdown /s /t 60',
+      'Start-Process shutdown -ArgumentList "/s /t 60"',
+      'rundll32.exe powrprof.dll,SetSuspendState 0,1,0',
+      'echo done && shutdown /s /t 5',
+    ]) {
+      expect([command, isPowerCommand(command)]).toEqual([command, true])
+    }
+    for (const command of [
+      'shutdown /a',
+      'shutdown /r /t 0',
+      'sudo shutdown -r now',
+      'shutdown -c',
+      'grep -n "shutdown /s" hooks/register.tsx',
+      "grep -rn 'pmset sleepnow' .",
+      'echo shutdown /s',
+      'git commit -m "Release 0.11.0: shutdown /s at a time; pmset sleepnow"',
+      "cat <<'EOF' > notes.md\nshutdown /s /t 0\npoweroff\nEOF",
+      "$text = @'\nshutdown /s\n'@",
+      'Get-Process | Where-Object Name -eq shutdown',
+      'npm run shutdown-server',
+      'systemctl status sleep.target',
+    ]) {
+      expect([command, isPowerCommand(command)]).toEqual([command, false])
+    }
   })
 })

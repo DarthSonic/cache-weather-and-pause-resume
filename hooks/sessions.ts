@@ -269,3 +269,129 @@ export function readDecisions(
   // A pause stays with its own session unless the answer says otherwise (the person's rule, 2026-11-09).
   return { pauseOthers: value.pauseOthers === true, decisions }
 }
+
+// ── A shutdown planned for a time (0.11.0) ──────────────────────────────────────────────────────────────────────────
+
+export const SCHEDULE_TOOL_NAME = 'schedule_shutdown'
+export const SCHEDULE_TOOL = 'mcp__cache-weather-and-pause-resume__schedule_shutdown'
+
+// After the shutdown: a restart, or waking from standby or hibernation.
+function afterward(mode: ShutdownMode, lang: Lang): string {
+  if (lang === 'de') return mode === 'shutdown' ? 'nach dem Neustart' : 'nach dem Aufwachen'
+  return mode === 'shutdown' ? 'after the restart' : 'after waking'
+}
+
+/** What Claude reads about the tool that shuts the computer down through the band, now or at a time. */
+export function scheduleToolDescription(): string {
+  return [
+    "Shuts the computer down, puts it to sleep or hibernates it through the band above the prompt (what the mod's option shutdownMode says), as soon as possible or at a time, after pausing every Claude session that runs the mod.",
+    '',
+    'Call it when the person asks for it in any words or language ("shut the computer down at 02:30", "turn it off when you are done", "sleep in two hours"), or when the band\'s shutdown button asked you to ask them when. Never run a command for it yourself (shutdown, Stop-Computer, systemctl, pmset): the mod turns those away.',
+    '',
+    'If the person did not say when, ask them first in one dialog: as soon as possible, or at a time or after a while (free text). Then call it with when "now", or with when "later" and either at ("HH:MM", 24 hours, the next time it comes) or inMinutes.',
+    '',
+    'The computer does what the option says. Should the person ask for another of shutdown, sleep and hibernation, tell them the option shutdownMode decides and they can change it, then call again.',
+  ].join('\n')
+}
+
+/** The button's question: when (0.11.0). Claude asks the person, who is at the keyboard, and passes the answer on. */
+export function askWhenPrompt(lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  const sign = mode === 'shutdown' ? '⏻' : '⏾'
+  return lang === 'de'
+    ? `${sign} ${w.label}-Knopf: Der Mensch möchte ${w.doIt}. Frag ihn jetzt in einem Dialog (AskUserQuestion), wann: „Baldmöglichst“ oder „Zu einem Zeitpunkt oder nach einer Dauer“ (als Freitext, etwa „02:30“ oder „in 2 Stunden“). Ruf dann das Werkzeug schedule_shutdown auf: mit when „now“, oder mit when „later“ und at („HH:MM“, 24 Stunden) oder inMinutes. Beginne vorher nichts anderes.`
+    : `${sign} ${w.label} button: the person wants to ${w.doIt}. Ask them now in one dialog (AskUserQuestion) when: "As soon as possible" or "At a time or after a while" (free text, such as "02:30" or "in 2 hours"). Then call the tool schedule_shutdown: with when "now", or with when "later" and at ("HH:MM", 24 hours) or inMinutes. Start nothing else before that.`
+}
+
+/** What the session that planned it reads as the tool's answer (English, as the mod's other tool answers). */
+export function scheduleLaterResult(clock: string, until: string, mode: ShutdownMode): string {
+  const w = modeWords(mode, 'en')
+  const after = afterward(mode, 'en')
+  return [
+    `Recorded: the mod will ${w.doIt} at ${clock} (in ${until}), not earlier.`,
+    '',
+    `Tell the person in a sentence or two: work still running then can delay it by a few minutes, but it happens as close to ${clock} as possible, and they can cancel it in the band.`,
+    '',
+    `From now on until then ask nothing and start nothing that needs the person's approval: both wait for ${after}. Keep working, but start only steps that surely finish before ${clock}, and save the state in time following this project's rules, so everything can be picked up ${after}. At ${clock} you get the pause.`,
+  ].join('\n')
+}
+
+/** What another session at work reads once a shutdown is planned, and every prompt carries until then. */
+export function plannedNote(clock: string, byFolder: string | null, lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  const after = afterward(mode, lang)
+  if (lang === 'de') {
+    const where = byFolder === null ? '' : ` (in der Sitzung ${byFolder})`
+    return `⏻ Geplant${where}: Um ${clock} wird der Mod ${w.doIt}, nicht früher. Arbeite bis dahin weiter, aber beginne nur Schritte, die sicher vor ${clock} fertig sind. Stell ab jetzt keine Fragen und starte nichts, was eine Freigabe des Menschen bräuchte: Heb beides für ${after} auf und notiere es. Sichere rechtzeitig den Stand nach den Regeln dieses Projekts, so dass ${after} alles nachgeholt werden kann. Um ${clock} bekommst du die Pause.`
+  }
+  const where = byFolder === null ? '' : ` (in the session in ${byFolder})`
+  return `⏻ Planned${where}: at ${clock} the mod will ${w.doIt}, not earlier. Keep working until then, but start only steps that surely finish before ${clock}. From now on ask nothing and start nothing that would need the person's approval: keep both for ${after} and note them. Save the state in time following this project's rules, so everything can be picked up ${after}. At ${clock} you get the pause.`
+}
+
+/** The reminder half an hour before, for a session at work. */
+export function planReminder(clock: string, lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  const after = afterward(mode, lang)
+  return lang === 'de'
+    ? `⏻ Erinnerung: In 30 Minuten, um ${clock}, wird der Mod ${w.doIt}. Beginne nichts mehr, was bis dahin nicht fertig wird, und sichere jetzt den Stand (nach den Regeln dieses Projekts, etwa Commit und Notizen), so dass ${after} alles nachgeholt werden kann. Fragen und Freigaben bleiben bis dahin gesperrt.`
+    : `⏻ Reminder: in 30 minutes, at ${clock}, the mod will ${w.doIt}. Start nothing that will not be done by then, and save the state now (following this project's rules, such as a commit and notes), so everything can be picked up ${after}. Questions and approvals stay closed until then.`
+}
+
+/** The pause at the planned time, for the session that fires the plan; the person is away. */
+export function timedPauseRequest(clock: string, lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  const after = afterward(mode, lang)
+  if (lang === 'de') {
+    return [
+      `⏻ Geplant für ${clock}: Es ist so weit. Der Mod wird ${w.doIt}, sobald alle Sitzungen pausiert sind. Der Mensch ist nicht da.`,
+      '',
+      '1. Starte nichts Neues mehr.',
+      '2. Lass laufende Hintergrund-Tasks zu Ende laufen: beende deinen Zug, du wirst bei ihrem Ende geweckt, und sichere dann ihr Ergebnis.',
+      `3. Stell keine Fragen und starte nichts, was eine Freigabe bräuchte; notiere es für ${after}.`,
+      '4. Sichere den Stand nach den Regeln dieses Projekts: was erledigt ist, was lief, was als Nächstes kommt.',
+      '5. Rufe dann das Werkzeug pause_state mit state „paused“ auf, melde kurz „Pausiert“ und beende deinen Zug.',
+    ].join('\n')
+  }
+  return [
+    `⏻ Planned for ${clock}: it is time. The mod will ${w.doIt} once every session is paused. The person is not here.`,
+    '',
+    '1. Start nothing new.',
+    '2. Let running background tasks finish: end your turn, you will be woken when they finish, and then save their results.',
+    `3. Ask nothing and start nothing that would need an approval; note it for ${after}.`,
+    "4. Save the state following this project's rules: what is done, what ran, what comes next.",
+    '5. Then call the tool pause_state with state "paused", report "Paused" briefly and end your turn.',
+  ].join('\n')
+}
+
+/** A session told of the plan hears that it is off. */
+export function planCancelledNote(lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  return lang === 'de'
+    ? `⏻ Der geplante ${w.label} ist abgebrochen: Fragen und Freigaben gehen wieder, arbeite normal weiter.`
+    : `⏻ The planned ${w.label.toLowerCase()} is cancelled: questions and approvals work again; carry on as usual.`
+}
+
+/** What Claude reads when it tries to power the computer off with a command of its own. */
+export function powerRefusal(lang: Lang): string {
+  return lang === 'de'
+    ? 'Schalte den Rechner nicht selbst aus und schick ihn nicht selbst in den Standby oder Ruhezustand: Ruf das Werkzeug schedule_shutdown auf, für jetzt oder für einen Zeitpunkt. Der Mod pausiert vorher die Sitzungen und führt den Befehl dann selbst aus.'
+    : 'Do not power the computer off, put it to sleep or hibernate it with a command of your own: call the tool schedule_shutdown, for now or for a time. The mod pauses the sessions first and then runs the command itself.'
+}
+
+/** A question dialog while a shutdown is planned: it waits for afterwards. */
+export function planQuestionRefusal(clock: string, lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  const after = afterward(mode, lang)
+  return lang === 'de'
+    ? `Für ${clock} ist ein ${w.label} geplant: Stell jetzt keine Frage. Heb sie für ${after} auf und notiere sie im Stand.`
+    : `A ${w.label.toLowerCase()} is planned for ${clock}: ask nothing now. Keep the question for ${after} and note it in the state.`
+}
+
+/** A step that would ask for an approval while a shutdown is planned. */
+export function planApprovalRefusal(clock: string, lang: Lang, mode: ShutdownMode = 'shutdown'): string {
+  const w = modeWords(mode, lang)
+  const after = afterward(mode, lang)
+  return lang === 'de'
+    ? `Für ${clock} ist ein ${w.label} geplant: Dieser Schritt bräuchte eine Freigabe des Menschen, die es bis dahin nicht gibt. Führ ihn nicht aus, notiere ihn im Stand und hol ihn ${after} nach.`
+    : `A ${w.label.toLowerCase()} is planned for ${clock}: this step would need the person's approval, which there is none of until then. Do not run it; note it in the state and do it ${after}.`
+}

@@ -6,6 +6,76 @@ import type { ShutdownMode, ShutdownOs } from '../types'
 /** How long the band counts down once the session is paused, before the command runs. */
 export const SHUTDOWN_COUNTDOWN_MS = 300_000
 
+// ── A shutdown planned for a time (0.11.0) ──────────────────────────────────────────────────────────────────────────
+
+/** Once every session is paused after the planned time, this little is left before the command: the person is away. */
+export const SCHEDULED_COUNTDOWN_MS = 60_000
+/** Sessions at work are reminded this long before the time (the person's choice, 2026-11-12). */
+export const PLAN_REMINDER_MS = 30 * 60_000
+/** A plan whose time passed this long ago with no session to fire it lapses: the computer was off or asleep. */
+export const PLAN_GRACE_MS = 10 * 60_000
+/** At most this far ahead. */
+export const PLAN_MAX_AHEAD_MS = 24 * 60 * 60_000
+
+/**
+ * When a plan falls: in so many minutes, or at "HH:MM" (24 hours, local time) the next time that comes; null where it
+ * reads as neither or lies more than a day ahead.
+ */
+export function planTime(s: { at?: unknown; inMinutes?: unknown }, now: number): number | null {
+  if (typeof s.inMinutes === 'number' && Number.isFinite(s.inMinutes) && s.inMinutes > 0) {
+    const ms = Math.round(s.inMinutes * 60_000)
+    return ms <= PLAN_MAX_AHEAD_MS ? now + ms : null
+  }
+  if (typeof s.at !== 'string') return null
+  const found = /^\s*(\d{1,2})[:.](\d{2})\s*(?:uhr|h)?\s*$/i.exec(s.at)
+  if (found === null) return null
+  const hours = Number(found[1])
+  const minutes = Number(found[2])
+  if (hours > 23 || minutes > 59) return null
+  const day = new Date(now)
+  day.setHours(hours, minutes, 0, 0)
+  // Past already today: tomorrow (setDate keeps the wall-clock time across a change of daylight saving).
+  if (day.getTime() <= now) day.setDate(day.getDate() + 1)
+  return day.getTime()
+}
+
+// Text no shell runs as a command: quoted strings, here-documents and PowerShell here-strings (a commit message, a
+// file written with cat <<EOF, a grep pattern that names `shutdown /s`).
+function withoutData(command: string): string {
+  return command
+    .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, ' ')
+    .replace(/@(['"])\r?\n[\s\S]*?\r?\n\1@/g, ' ')
+    .replace(/"(?:[^"\\`]|\\.|`.)*"/g, '""')
+    .replace(/'[^']*'/g, "''")
+}
+
+/**
+ * Whether a shell command shuts the computer down, puts it to sleep or hibernates it (0.11.0): a power program in the
+ * position of a command (at the start, after `;`, `&&`, `|`, a line break or sudo), never a word inside quotes, a
+ * here-document or the arguments of another program. `shutdown /a`, `-c` and restarts (`/r`, `/g`, `-r`) are none.
+ */
+export function isPowerCommand(command: string): boolean {
+  for (const raw of withoutData(command).split(/[;&|\n(){}]/)) {
+    const part = raw
+      .trim()
+      .replace(/^(?:sudo|doas)\s+(?:-\S+\s+)*/, '')
+      .replace(/^cmd(?:\.exe)?\s+\/[ck]\s+/i, '')
+    if (part === '') continue
+    if (/^Stop-Computer\b/i.test(part)) return true
+    if (/^(?:poweroff|halt)(?:\s|$)/.test(part)) return true
+    if (/^(?:systemctl|loginctl)\s+(?:poweroff|halt|suspend|hibernate|hybrid-sleep|suspend-then-hibernate)\b/.test(part)) return true
+    if (/^pmset\s+sleepnow\b/.test(part)) return true
+    if (/^rundll32(?:\.exe)?\s+powrprof\.dll\s*,\s*SetSuspendState/i.test(part)) return true
+    if (/^\[[^\]]*Application\]::SetSuspendState\s*\(/i.test(part)) return true
+    const program = /^(?:Start-Process\s+)?(?:[A-Za-z]:)?(?:[\w.-]*[\\/])*shutdown(?:\.exe)?(?:\s+-ArgumentList)?(\s.*)?$/i.exec(part)
+    if (program === null) continue
+    const args = ` ${program[1] ?? ''} `
+    if (/\s\/[arg]\b|\s-[arc]\b|\s--(?:reboot|cancel)\b/i.test(args)) continue
+    if (/\s[/-][sSpPhH]\b|\s--(?:poweroff|halt)\b|\snow\b|\s\+\d+\b|\s\d{1,2}:\d{2}\b|""|''/.test(args)) return true
+  }
+  return false
+}
+
 // What the Windows shutdown log records as the reason.
 const SHUTDOWN_COMMENT = 'cache-weather-and-pause-resume: the session is paused, shut down from the band'
 

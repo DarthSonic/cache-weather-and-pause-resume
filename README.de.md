@@ -115,8 +115,10 @@ Die Bitte an Claude (der genaue Text steht in [`hooks/pause.ts`](hooks/pause.ts)
 Bei „weitermachen“ bekommt Claude den Hinweis, am gesicherten Stand fortzusetzen und Abgebrochenes neu zu starten. Eine
 andere Nachricht in der Pause wird beantwortet, ohne die pausierte Arbeit wieder aufzunehmen.
 
-**Freigaben.** Vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause kommt keine neue Freigabe mehr: Ein
-Schritt, der dich um Erlaubnis fragen würde, wartet auf „weitermachen“. Die Bitte sagt das Claude, und ein Aufruf, der
+**Freigaben.** Vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause kommt keine neue Freigabe mehr: In
+einem Berechtigungsmodus, der dich fragt (Berechtigungen abfragen, Plan), wartet ein Schritt, der dich um Erlaubnis
+fragen würde, auf „weitermachen“. Im Berechtigungsmodus **Auto** entscheidet die Prüfung von Claude Code selbst, und
+niemand wird gefragt; dort hält nichts auf. Die Bitte sagt das Claude, und ein Aufruf, der
 trotzdem fragt, wird mit denselben Worten abgewiesen; Claude notiert ihn im Pausenstand und wiederholt ihn nach
 „weitermachen“, wo du wie gewohnt gefragt wirst. Eine Freigabe, die beim Druck auf den Knopf schon offen ist, hält die
 Pause auf, und einen Shutdown mit ihr, bis jemand sie beantwortet: Ein Mod kann sie nicht abbrechen, deshalb sagt die
@@ -140,9 +142,10 @@ Wie der Mod den Zustand verfolgt:
 
 **Shutdown** steht neben **Pause** und beendet den Tag für dich:
 
-1. Ein Klick schickt Claude die Pause-Bitte (oben) mit einem Zusatz: Danach geht der Rechner aus. Claude fragt deshalb
-   sofort nach langen Tasks, solange du noch da bist, und nach den Läufen der anderen arbeitenden Sitzungen (unten),
-   und danach nichts mehr.
+1. Ein Klick fragt zuerst, wann (0.11.0): Claude stellt dir einen Dialog, baldmöglichst oder zu einem Zeitpunkt bzw.
+   nach einer Dauer (Freitext). Bei „baldmöglichst“ bekommt Claude die Pause-Bitte (oben) mit einem Zusatz: Danach
+   geht der Rechner aus. Claude fragt deshalb sofort nach langen Tasks, solange du noch da bist, und nach den Läufen
+   der anderen arbeitenden Sitzungen (unten), und danach nichts mehr.
 2. Die Statuszeile zeigt „Shutdown wird vorbereitet …“ und die noch laufenden Tasks; in der Knopfzeile steht **Abbrechen**.
 3. Sind diese und die anderen Sitzungen pausiert, zählt die Statuszeile 5 Minuten herunter („Shutdown in 4:47“, **Abbrechen** darüber), dann startet der
    Mod den Befehl des Systems und schreibt eine Zeile ins Log. Ist die Sitzung schon pausiert, zählt er sofort herunter.
@@ -150,6 +153,30 @@ Wie der Mod den Zustand verfolgt:
 
 Nimmst du die Arbeit wieder auf (**Weiter**, „weitermachen“ oder Claude über `pause_state`), fällt ein angeforderter
 Shutdown weg; die Pause selbst bleibt wie immer erhalten.
+
+**Zu einem Zeitpunkt (0.11.0).** Beantworte die Frage mit einer Uhrzeit („02:30“) oder Dauer („in 2 Stunden“), oder
+sag es Claude in deinen Worten („fahr den Rechner um 02:30 herunter, der Download braucht so lange“): Claude gibt es an
+das Werkzeug `schedule_shutdown` des Mods, und jede Leiste zeigt „Shutdown um 02:30 geplant“ mit **Abbrechen** an der
+Stelle des Knopfs. Claude sagt dir, dass dann noch laufende Arbeit ihn um einige Minuten verzögern kann; früher kommt
+er nie.
+
+- **Bis dahin** arbeitet jede Sitzung weiter, beginnt aber nur Schritte, die sicher vorher fertig sind. Sie fragt
+  nichts und startet nichts, was deine Freigabe bräuchte: Beides wartet auf die Zeit nach dem Neustart und steht im
+  gesicherten Stand. Im Berechtigungsmodus **Auto** fragt dich ohnehin nichts, die Sitzungen arbeiten ungehindert
+  weiter; mit diesem Modus läuft der Mod am besten.
+- **Eine halbe Stunde vorher** wird eine arbeitende Sitzung erinnert, ihren Stand zu sichern (Commit, Notizen), damit
+  nach dem Neustart alles nachgeholt werden kann.
+- **Zum Zeitpunkt** pausiert jede Sitzung: Laufendes wird fertig, der Stand gesichert, nichts gefragt. Sind alle
+  pausiert, zählt die Leiste eine Minute herunter (niemand ist da, um abzubrechen), dann startet der Befehl. Nach dem
+  Neustart zeigt jede Sitzung **Weiter**.
+- **Der Plan steht in der Zustandsdatei:** Er übersteht einen Neustart der App, und wird die planende Sitzung
+  geschlossen, löst eine andere Sitzung mit dem Mod ihn aus. Läuft zum Zeitpunkt keine (der Rechner war aus oder
+  schlief), verfällt er mit einer Zeile beim nächsten Start.
+- **Claude schaltet den Rechner nie selbst aus:** Ein Shell-Befehl dafür (`shutdown /s`, `Stop-Computer`,
+  `systemctl poweroff`, `pmset sleepnow` und ähnliche) wird mit dem Hinweis auf das Werkzeug abgewiesen, damit die
+  Sitzungen vorher pausieren. `shutdown /a` und Neustarts darf Claude weiter selbst ausführen.
+- **Der Rechner tut, was die Option `shutdownMode` sagt;** wünschst du dir eine andere Art (Herunterfahren, Standby,
+  Ruhezustand), sagt Claude dir, dass du die Option umstellen musst.
 
 **Was es braucht.** Der Knopf ist gedimmt, bis sich der Rechner ohne jemanden an der Tastatur herunterfahren lässt; ein
 Klick sagt dann, was fehlt. Der Mod prüft das bei jedem Sitzungsstart und noch einmal bei einem Klick, der keine
@@ -374,6 +401,11 @@ Unterhaltung:
 | ein abgewiesener Dialog | ein Fragedialog, sobald die Frage der Pause beantwortet ist, oder in einer Sitzung, die eine andere pausiert hat | abgelehnt mit festem Text: die Frage für „weitermachen“ aufheben |
 | eine abgewiesene Freigabe | ein Schritt der Hauptunterhaltung, der deine Freigabe bräuchte, vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause (oder in einer Sitzung, die eine andere pausiert hat) | abgelehnt mit festem Text aus [`hooks/sessions.ts`](hooks/sessions.ts): nicht ausführen, im Pausenstand notieren und nach „weitermachen“ wiederholen |
 | ein Werkzeug für Claude, `pause_state` | Claude hat die Sitzung pausiert oder nimmt die pausierte Arbeit wieder auf | für Claude mit fester Beschreibung gelistet (in [`hooks/pause.ts`](hooks/pause.ts)); ein Aufruf ändert nur den Pause-Zustand der Leiste und die Zustandsdatei, der Mod beantwortet ihn selbst, sonst läuft nichts |
+| ein Prompt in deinem Namen | du drückst **Shutdown** | die Frage, wann: fester Text aus [`hooks/sessions.ts`](hooks/sessions.ts) |
+| ein Werkzeug für Claude, `schedule_shutdown` | du hast gesagt, wann, oder in Worten um Herunterfahren, Standby oder Ruhezustand gebeten | mit fester Beschreibung gelistet (in [`hooks/sessions.ts`](hooks/sessions.ts)); jetzt: Pause und Shutdown wie oben; zu einem Zeitpunkt: ein Plan in der Zustandsdatei, die Antwort fester Text |
+| ein Hinweis an eine arbeitende Sitzung, ein Hinweis an deinem Prompt | ein Shutdown ist geplant | fester Text: die Uhrzeit, nur beginnen, was vorher fertig wird, nichts fragen, Stand sichern; eine halbe Stunde vorher eine Erinnerung; zum Zeitpunkt die Pause |
+| eine abgewiesene Frage oder Freigabe | vom Plan bis zu seiner Zeit, in jeder Sitzung (eine Freigabe nur in einem Berechtigungsmodus, der dich fragt) | abgelehnt mit festem Text: für nach dem Neustart aufheben und notieren |
+| ein abgewiesener Shell-Befehl | Claude startet einen Befehl, der den Rechner ausschaltet, in den Standby oder Ruhezustand schickt | abgelehnt mit festem Text: `schedule_shutdown` nehmen |
 | eine Frage neben der Unterhaltung | **Keep-warm** ist gesetzt und der Cache läuft gleich ab | eine Modell-Anfrage über die Unterhaltung, so wie ihre letzte Anfrage sie geschickt hat, über den eigenen Client der Sitzung: fester Text, der um „OK“ bittet, keine Werkzeuge; die Antwort wird verworfen und bleibt außerhalb der Unterhaltung |
 
 In diese Texte gelangt kein Dateiinhalt, kein Transkript-Text und keine Einstellung; die Liste der anderen Sitzungen nennt ihre Ordner und die Beschreibungen ihrer Hintergrund-Läufe. Die Anfrage von Keep-warm trägt
@@ -407,9 +439,10 @@ und keine Zugangsdaten; die Nutzungsfenster kommen von Claude Code selbst, so wi
 Anfrage des Mods fragt danach.
 
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle, und `tool.call` beantwortet die
-eigenen Werkzeuge des Mods und weist während einer Pause einen Fragedialog ab, wie sie sagt, und `tool.check` weist
-während einer Pause eine Freigabe ab, wie sie sagt; er ändert kein anderes Urteil, erlaubt nie etwas und lässt Aufrufe
-von Subagenten in Ruhe. Jeder andere Hook liest nur
+eigenen Werkzeuge des Mods, weist während einer Pause oder vor einem geplanten Shutdown einen Fragedialog ab und weist
+einen Shell-Befehl ab, der den Rechner ausschaltet; `tool.check` weist während einer Pause oder vor einem geplanten
+Shutdown eine Freigabe ab, nur in einem Berechtigungsmodus, der dich fragt (aus den klassischen Hooks gelesen); er
+ändert kein anderes Urteil, erlaubt nie etwas und lässt Aufrufe von Subagenten in Ruhe. Jeder andere Hook liest nur
 und reicht sein Ereignis unverändert weiter: `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
@@ -439,6 +472,9 @@ Schreiben einer anderen Sitzung die Änderung zurückgenommen hat; eine gerade h
 gelesen, nicht überschrieben.
 
 ## Voraussetzungen
+
+Der Mod läuft am besten mit dem Berechtigungsmodus **Auto**: Während einer Pause und vor einem geplanten Shutdown hält
+er jede Freigabe zurück, die als Abfrage käme, und in Auto kommt keine, die Sitzungen arbeiten also weiter.
 
 Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.317** (Desktop-App) und **2.1.319** (CLI). Die
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.

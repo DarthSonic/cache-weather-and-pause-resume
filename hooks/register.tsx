@@ -9,11 +9,12 @@ import type {
   RunsDecision,
   SessionRequest,
   ShutdownMode,
+  ShutdownPlan,
   ShutdownReadiness,
   Threshold,
   Ttl,
 } from '../types'
-import { langOf, runtimeLocale, strings } from './i18n'
+import { langOf, modeWords, runtimeLocale, strings } from './i18n'
 import type { Lang } from './i18n'
 import {
   BUTTON_ICONS,
@@ -86,6 +87,18 @@ import {
   othersNote,
   questionRefusal,
   approvalRefusal,
+  SCHEDULE_TOOL,
+  SCHEDULE_TOOL_NAME,
+  askWhenPrompt,
+  planApprovalRefusal,
+  planCancelledNote,
+  planQuestionRefusal,
+  planReminder,
+  plannedNote,
+  powerRefusal,
+  scheduleLaterResult,
+  scheduleToolDescription,
+  timedPauseRequest,
   readDecisions,
   sessionsToolDescription,
   shortId,
@@ -94,8 +107,13 @@ import {
   withoutForgotten,
 } from './sessions'
 import {
+  PLAN_GRACE_MS,
+  PLAN_REMINDER_MS,
+  SCHEDULED_COUNTDOWN_MS,
   SHUTDOWN_COUNTDOWN_MS,
   UNIX_PROGRAMS,
+  isPowerCommand,
+  planTime,
   hasShutdownRight,
   hibernateCommand,
   hibernateEnabled,
@@ -112,7 +130,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.10.3'
+const CODE_VERSION = '0.11.0'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -147,6 +165,10 @@ const SESSIONS_PANE = 'sessions'
 const keepWarmRefreshes = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarmRefreshes' } as const, 0)
 const isAwaitingPerson = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingPerson' } as const, false)
 const isAwaitingApproval = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isAwaitingApproval' } as const, false)
+const shutdownPlan = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPlan' } as const, null)
+const planNotedId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planNotedId' } as const, null)
+const planRemindedId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planRemindedId' } as const, null)
+const permissionMode = atom({ plugin: 'cache-weather-and-pause-resume', key: 'permissionMode' } as const, null)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
 const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
 const shutdownPhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPhase' } as const, 'idle')
@@ -186,6 +208,8 @@ type Persisted = {
   codeVersion?: string
   /** Each session's sign of life, written by that session alone (0.9.4). */
   liveSessions?: Record<string, LiveSession>
+  /** A shutdown planned for a time (0.11.0): any session shows it, cancels it, and fires it should its planner be gone. */
+  shutdownPlan?: ShutdownPlan | null
 }
 
 // $.fs.read refuses files over 4 MiB: a longer transcript is not read, and the values remembered stand. (The mod
@@ -506,6 +530,7 @@ let keepWarmStarted = false
 let tickerStarted = false
 let heartbeatStarted = false
 let sessionsToolRegistered = false
+let scheduleToolRegistered = false
 // The other session's request this module has taken up already: it is not taken up twice.
 let handledRequestId: string | null = null
 // When this module first saw its session start: a request decided before is no concern of it.
@@ -887,9 +912,10 @@ async function unixProgram($: EngineInterface, name: keyof typeof UNIX_PROGRAMS)
   return null
 }
 
-// The button: pause as the pause button does, telling Claude to ask its questions now, then count down and shut the
-// computer down. Pressed while paused, it counts down at once; pressed where it cannot, it says what is missing.
-async function requestShutdown($: EngineInterface, askAbove: number): Promise<void> {
+// The button: first when (0.11.0). Claude asks the person, who is at the keyboard (a question gets through even in a
+// pause), and passes the answer to schedule_shutdown: as soon as possible, or at a time. Pressed where it cannot, it
+// says what is missing.
+async function requestShutdown($: EngineInterface): Promise<void> {
   const lang = await currentLang($)
   const t = strings(lang, shutdownMode)
   const readiness = await shutdownReadinessNow($)
@@ -898,52 +924,312 @@ async function requestShutdown($: EngineInterface, askAbove: number): Promise<vo
     $.ui.log(t.shutdownHelp(readiness))
     return
   }
-  if ((await read($, shutdownPhase)) !== 'idle') return
+  if ((await read($, shutdownPhase)) !== 'idle' || (await livePlan($)) !== null) return
+  await update($, shutdownPhase, () => 'asking')
+  await update($, questionsClosed, () => false)
+  await handToModel($, askWhenPrompt(lang, shutdownMode))
+}
+
+// As soon as possible: pause as the pause button does, telling Claude to ask its questions now, then count down and
+// shut the computer down. Paused already, it counts down at once. Answers what Claude reads next.
+async function shutdownNow($: EngineInterface, askAbove: number): Promise<string> {
+  const lang = await currentLang($)
   const phase = await read($, pausePhase)
   await update($, shutdownPhase, () => 'requested')
-  if (phase === 'running') {
-    await requestPause($, askAbove, 'shutdown')
-    return
-  }
   // The other sessions go down with this one: where some have work running, Claude asks the person about it first.
   const others = await prepareRequest($, 'shutdown')
+  if (phase === 'running') {
+    await enterPausing($, true)
+    const parts = [pauseRequest(askAbove, lang), shutdownNote(lang, shutdownMode)]
+    if (others.note !== null) parts.push(others.note)
+    return parts.join('\n\n')
+  }
   if (phase === 'paused') {
-    if (others.busy.length === 0) await beginShutdownWait($)
-    else await handToModel($, shutdownOthersPrompt(others.busy, others.at, lang, shutdownMode))
-    return
+    if (others.busy.length > 0) return shutdownOthersPrompt(others.busy, others.at, lang, shutdownMode)
+    await beginShutdownWait($)
+    return 'The session is paused already: the band counts down and then goes ahead. Report that briefly.'
   }
   // A pause under way: Claude learns that the computer goes off after it.
   const note = shutdownNote(lang, shutdownMode)
-  await handToModel($, others.note === null ? note : `${note}\n\n${others.note}`)
+  return others.note === null ? note : `${note}\n\n${others.note}`
+}
+
+// ── A shutdown planned for a time (0.11.0) ──────────────────────────────────────────────────────────────────────────
+
+async function notePermissionMode($: EngineInterface, mode: unknown): Promise<void> {
+  if (typeof mode === 'string' && mode !== '') await update($, permissionMode, () => mode)
+}
+
+// The modes in which an ask comes up as a prompt to the person. In auto mode Claude Code's own check settles it, and
+// dontAsk and bypassPermissions ask nobody: a session there works on. Unknown before the first classic event: asking.
+const ASKING_MODES = new Set(['default', 'plan', 'acceptEdits'])
+
+async function asksThePerson($: EngineInterface): Promise<boolean> {
+  const mode = await read($, permissionMode)
+  return mode === null || ASKING_MODES.has(mode)
+}
+
+/** The plan as the band knows it, unless it fired: then the shutdown request stands in its place. */
+async function livePlan($: EngineInterface): Promise<ShutdownPlan | null> {
+  const plan = await read($, shutdownPlan)
+  return plan === null || plan.firedAt !== undefined ? null : plan
+}
+
+// A plan's time as "HH:MM": it lies within a day, so the next time that comes is meant, tomorrow's included.
+function clockOf(at: number): string {
+  const time = new Date(at)
+  return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+}
+
+function untilText(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return hours === 0 ? `${minutes} min` : rest === 0 ? `${hours} h` : `${hours} h ${rest} min`
+}
+
+async function isWorkingNow($: EngineInterface): Promise<boolean> {
+  return (await read($, turnRunning)) || (await read($, backgroundRuns)).length > 0
+}
+
+// schedule_shutdown: now goes the way the button always went; later becomes a plan in the state file, which every
+// session shows and follows. Answers what Claude reads.
+async function scheduleShutdown(
+  $: EngineInterface,
+  input: { when?: unknown; at?: unknown; inMinutes?: unknown },
+  askAbove: number,
+): Promise<string> {
+  const lang = await currentLang($)
+  const t = strings(lang, shutdownMode)
+  const w = modeWords(shutdownMode, 'en')
+  const at = await $.clock.now()
+  const planned = (await readPersisted($)).shutdownPlan ?? null
+  if (planned !== null && planned.firedAt === undefined) {
+    return `Nothing changed: the mod will already ${modeWords(planned.mode, 'en').doIt} at ${clockOf(planned.at)}. The person can cancel that in the band.`
+  }
+  const phase = await read($, shutdownPhase)
+  if (phase !== 'idle' && phase !== 'asking') return `Nothing changed: the mod is about to ${w.doIt} already.`
+  const readiness = await shutdownReadinessNow($)
+  if (!readiness.isReady) {
+    await update($, shutdownPhase, () => 'idle')
+    return `Not possible now: ${t.shutdownHelp(readiness)} Tell the person this.`
+  }
+  const time = input.when === 'later' ? planTime(input, at) : null
+  if (input.when === 'later' && time === null) {
+    await update($, shutdownPhase, () => 'idle')
+    return 'Nothing changed: the time did not read as "HH:MM" (24 hours) or a number of minutes within a day. Ask the person again, or call with when "now".'
+  }
+  // A time a minute or two off is as soon as possible.
+  if (time === null || time - at < 2 * 60_000) return `Recorded: the mod will ${w.doIt} as soon as possible.\n\n${await shutdownNow($, askAbove)}`
+  const self = await currentSessionId($)
+  const plan: ShutdownPlan = {
+    id: `${self ?? 'session'}-${at}`,
+    at: time,
+    mode: shutdownMode,
+    by: self ?? '',
+    byFolder: await currentFolder($),
+    createdAt: at,
+  }
+  await writePersisted($, p => ({ ...p, shutdownPlan: plan }))
+  await update($, shutdownPlan, () => plan)
+  await update($, planNotedId, () => plan.id)
+  await update($, shutdownPhase, () => 'idle')
+  return scheduleLaterResult(clockOf(time), untilText(time - at), shutdownMode)
+}
+
+// The cancel button of a plan, in any session.
+async function cancelPlan($: EngineInterface): Promise<void> {
+  const plan = await livePlan($)
+  if (plan === null) return
+  await writePersisted($, p => (p.shutdownPlan?.id === plan.id ? { ...p, shutdownPlan: null } : p))
+  await update($, shutdownPlan, () => null)
+  await update($, planNotedId, () => null)
+  await update($, planRemindedId, () => null)
+  $.ui.toast(strings(await currentLang($), plan.mode).planCancelled)
+}
+
+// Every HEARTBEAT_MS: the plan as the state file holds it. A session at work is told of it once and reminded half an
+// hour before; at its time the planner fires it, or, the planner gone, one other session that took it over. A plan
+// nobody fired within PLAN_GRACE_MS of its time lapses: the computer was off or asleep.
+async function followPlan($: EngineInterface): Promise<void> {
+  const persisted = await readPersisted($)
+  const plan = persisted.shutdownPlan ?? null
+  const before = await read($, shutdownPlan)
+  if (JSON.stringify(before) !== JSON.stringify(plan)) await update($, shutdownPlan, () => plan)
+  const at = await $.clock.now()
+  const lang = await currentLang($)
+  if (plan === null) {
+    const noted = await read($, planNotedId)
+    if (noted === null) return
+    await update($, planNotedId, () => null)
+    await update($, planRemindedId, () => null)
+    // Called off (a plan that fired leads to the pause instead): a session told of it hears so.
+    if (before !== null && before.id === noted && before.firedAt === undefined && (await isWorkingNow($))) {
+      await handToModel($, planCancelledNote(lang, before.mode))
+    }
+    return
+  }
+  if (plan.firedAt !== undefined) {
+    if (at - plan.firedAt > PLAN_GRACE_MS) await writePersisted($, p => (p.shutdownPlan?.id === plan.id ? { ...p, shutdownPlan: null } : p))
+    return
+  }
+  if (at > plan.at + PLAN_GRACE_MS) {
+    await writePersisted($, p => (p.shutdownPlan?.id === plan.id ? { ...p, shutdownPlan: null } : p))
+    $.ui.log(strings(lang, plan.mode).planLapsed(clockOf(plan.at)))
+    return
+  }
+  const self = await currentSessionId($)
+  const clock = clockOf(plan.at)
+  if ((await read($, planNotedId)) !== plan.id) {
+    await update($, planNotedId, () => plan.id)
+    if (plan.by !== self && (await isWorkingNow($))) await handToModel($, plannedNote(clock, plan.byFolder, lang, plan.mode))
+  }
+  if (at < plan.at) {
+    if (at >= plan.at - PLAN_REMINDER_MS && (await read($, planRemindedId)) !== plan.id) {
+      await update($, planRemindedId, () => plan.id)
+      if (await isWorkingNow($)) await handToModel($, planReminder(clock, lang, plan.mode))
+    }
+    return
+  }
+  await firePlan($, plan, persisted, self, at)
+}
+
+async function firePlan(
+  $: EngineInterface,
+  plan: ShutdownPlan,
+  persisted: Persisted,
+  self: string | null,
+  at: number,
+): Promise<void> {
+  if (self === null) return
+  if (plan.by !== self) {
+    const planner = persisted.liveSessions?.[plan.by]
+    if (planner !== undefined && isAlive(planner, at)) return
+    // The planner is gone: one session takes it over, and fires it at the next tick should its claim have held.
+    const claimer = plan.firedBy
+    const claimerGone = claimer !== undefined && claimer !== self && !isAliveId(persisted, claimer, at)
+    if (claimer === undefined || claimerGone) {
+      await writePersisted($, p =>
+        p.shutdownPlan?.id === plan.id && p.shutdownPlan.firedAt === undefined
+          ? { ...p, shutdownPlan: { ...p.shutdownPlan, firedBy: self } }
+          : p,
+      )
+      return
+    }
+    if (claimer !== self) return
+  }
+  const fired: ShutdownPlan = { ...plan, firedBy: self, firedAt: at }
+  await writePersisted($, p => (p.shutdownPlan?.id === plan.id ? { ...p, shutdownPlan: fired } : p))
+  await update($, shutdownPlan, () => fired)
+  await update($, planNotedId, () => null)
+  await update($, planRemindedId, () => null)
+  const lang = await currentLang($)
+  const t = strings(lang, plan.mode)
+  if (plan.mode !== shutdownMode) {
+    $.ui.log(t.shutdownFailed(t.modeChanged))
+    return
+  }
+  const readiness = await shutdownReadinessNow($)
+  if (!readiness.isReady) {
+    $.ui.log(t.shutdownHelp(readiness))
+    return
+  }
+  const phase = await read($, shutdownPhase)
+  if (phase !== 'idle' && phase !== 'asking') return
+  // The shutdown for all sessions, as the button's „as soon as possible“ makes it, without a question: nobody is there.
+  await update($, shutdownPhase, () => 'requested')
+  await update($, requestRole, () => 'own')
+  await update($, listedSessions, () => [])
+  await update($, questionsClosed, () => true)
+  await writeRequest($, {
+    id: `${self}-${at}`,
+    kind: 'shutdown',
+    by: self,
+    byFolder: await currentFolder($),
+    at,
+    state: 'decided',
+    decidedAt: at,
+    decisions: {},
+    countdownUntil: null,
+    mode: plan.mode,
+    scheduledFor: plan.at,
+  })
+  const pause = await read($, pausePhase)
+  if (pause === 'paused') {
+    await beginShutdownWait($)
+    return
+  }
+  // A pause under way ends in the wait (enterPaused).
+  if (pause === 'pausing') return
+  const isIdle = !(await isWorkingNow($)) && !(await read($, isAwaitingPerson))
+  if (isIdle) {
+    await enterPaused($)
+    return
+  }
+  await enterPausing($, true)
+  if ((await handToModel($, timedPauseRequest(clockOf(plan.at), lang, plan.mode))) === 'appended') {
+    await update($, pauseDelivered, () => false)
+  }
+}
+
+function isAliveId(persisted: Persisted, id: string, at: number): boolean {
+  const seen = persisted.liveSessions?.[id]
+  return seen !== undefined && isAlive(seen, at)
+}
+
+// The tool Claude plans the shutdown with, now or at a time (schedule_shutdown).
+async function registerScheduleTool($: EngineInterface): Promise<void> {
+  if (scheduleToolRegistered) return
+  try {
+    await $.tool.register({
+      name: SCHEDULE_TOOL_NAME,
+      description: scheduleToolDescription(),
+      inputSchema: {
+        type: 'object',
+        properties: {
+          when: { type: 'string', enum: ['now', 'later'], description: 'now: as soon as possible; later: at a time or after a while.' },
+          at: { type: 'string', description: 'For later: the time, "HH:MM" in 24 hours, the next time it comes.' },
+          inMinutes: { type: 'number', description: 'For later, instead of at: in so many minutes.' },
+        },
+        required: ['when'],
+      },
+      isDeferred: false,
+    })
+    scheduleToolRegistered = true
+  } catch {
+    // The session is not bound yet: classic.SessionStart tries again.
+  }
 }
 
 async function startShutdownCountdown($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
   stopShutdownTimers()
+  // A planned shutdown counts down a minute: nobody is there to cancel it (0.11.0).
+  const span = (await read($, sessionRequest))?.scheduledFor !== undefined ? SCHEDULED_COUNTDOWN_MS : SHUTDOWN_COUNTDOWN_MS
   await update($, waitingSessions, () => [])
-  await changeOwnRequest($, r => ({ ...r, state: 'countdown', countdownUntil: at + SHUTDOWN_COUNTDOWN_MS }))
-  await update($, shutdownAt, () => at + SHUTDOWN_COUNTDOWN_MS)
+  await changeOwnRequest($, r => ({ ...r, state: 'countdown', countdownUntil: at + span }))
+  await update($, shutdownAt, () => at + span)
   await update($, shutdownPhase, () => 'countdown')
   await update($, now, () => at)
   // The countdown in the band, second by second, and the command at its end.
   shutdownTicker = $.clock.every(1000, () => {
     void tick($)
   })
-  shutdownTimer = $.clock.after(SHUTDOWN_COUNTDOWN_MS, () => {
+  shutdownTimer = $.clock.after(span, () => {
     void runShutdown($).catch(() => undefined)
   })
-  void notifyCountdown($).catch(() => undefined)
+  void notifyCountdown($, span).catch(() => undefined)
 }
 
 // The last chance to cancel, for someone in another window: a notification through Claude Code's own channel, the
 // one the person's `preferredNotifChannel` names (0.9.4). It reaches terminals that show notifications (iTerm2, kitty,
 // Ghostty), elsewhere at most the bell; the desktop app draws no terminal and reports the pause itself. No program of
 // the mod's own runs for it. The option `notifications` turns it off.
-async function notifyCountdown($: EngineInterface): Promise<void> {
+async function notifyCountdown($: EngineInterface, span: number): Promise<void> {
   if (!isNotifying) return
   const t = strings(await currentLang($), shutdownMode)
   const folder = await currentFolder($)
-  await $.ui.notify(t.shutdownNotifyBody(folder), { title: t.shutdownNotifyTitle(SHUTDOWN_COUNTDOWN_MS / 1000) })
+  await $.ui.notify(t.shutdownNotifyBody(folder), { title: t.shutdownNotifyTitle(span / 1000) })
 }
 
 function stopShutdownTimers(): void {
@@ -1122,6 +1408,7 @@ function startHeartbeat($: EngineInterface): void {
 
 async function sessionsTick($: EngineInterface): Promise<void> {
   await writeHeartbeat($)
+  await followPlan($)
   await followRequest($)
   await refreshSessionsView($)
 }
@@ -1493,6 +1780,7 @@ export const register: Register = (on, options) => {
   tickerStarted = false
   heartbeatStarted = false
   sessionsToolRegistered = false
+  scheduleToolRegistered = false
   handledRequestId = null
   moduleStartedAt = null
   isRefreshing = false
@@ -1529,6 +1817,7 @@ export const register: Register = (on, options) => {
     startHeartbeat($)
     await registerPauseTool($, askAbove)
     await registerSessionsTool($)
+    await registerScheduleTool($)
     return started
   })
 
@@ -1536,6 +1825,7 @@ export const register: Register = (on, options) => {
   // it, where it was not called yet), so nothing is refused and nothing runs twice.
   on('classic.SessionStart', async ($, e, next) => {
     await update($, transcriptPath, () => e.transcript_path)
+    await notePermissionMode($, e.permission_mode)
     // A resumed session carries its id here even where `$.session.id()` was not bound yet at session.start; after
     // /clear the id is a new one, whose pause (none) is restored.
     await update($, sessionId, () => e.session_id)
@@ -1559,6 +1849,7 @@ export const register: Register = (on, options) => {
     startHeartbeat($)
     await registerPauseTool($, askAbove)
     await registerSessionsTool($)
+    await registerScheduleTool($)
     // Once per session start, a little later: what is remembered of deleted sessions goes.
     $.clock.after(PRUNE_AFTER_MS, () => {
       void pruneSessions($).catch(() => undefined)
@@ -1625,6 +1916,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.agent_id !== undefined) return result
     await update($, sessionId, () => e.session_id)
+    await notePermissionMode($, e.permission_mode)
     try {
       await update($, transcriptPath, () => e.transcript_path)
       await detectFromTranscript($)
@@ -1673,6 +1965,7 @@ export const register: Register = (on, options) => {
   // classic.PermissionRequest could, and the plugin directory cannot tell that it leaves the answer to the person.
   on('classic.Notification', async ($, e, next) => {
     const result = await next(e)
+    await notePermissionMode($, e.permission_mode)
     if (WAITING_NOTICES.has(e.notification_type)) {
       await update($, isAwaitingPerson, () => true)
       await update($, isAwaitingApproval, () => true)
@@ -1697,6 +1990,21 @@ export const register: Register = (on, options) => {
   })
 
   // Claude passes on the person's answer about the other sessions: the request stands, and the others pause now.
+  // Claude plans the shutdown, now or at a time (0.11.0): the button's question answered, or the person's words.
+  on('tool.call', { tool: SCHEDULE_TOOL }, async ($, e) => {
+    if (e.agentId !== undefined) return { result: 'Only the main conversation plans the shutdown; nothing changed.' }
+    return { result: await scheduleShutdown($, e as { when?: unknown; at?: unknown; inMinutes?: unknown }, askAbove) }
+  })
+
+  // Claude's own shutdown, standby or hibernation goes through the band (0.11.0): a shell command for it is turned away
+  // with the tool to use, so the sessions pause first and the mod runs the command itself. In any loop; every other
+  // command runs as it would without the hook, and should the check fail, the command runs.
+  on('tool.call', { tool: ['Bash', 'PowerShell'] }, async ($, e, next) => {
+    const command = (e as { command?: unknown }).command
+    if (typeof command === 'string' && isPowerCommand(command)) return { deny: powerRefusal(await currentLang($)) }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('tool.call', { tool: 'mcp__cache-weather-and-pause-resume__pause_sessions' }, async ($, e) => {
     if (e.agentId !== undefined) return { result: 'Only the main conversation answers this; nothing changed.' }
     const request = await read($, sessionRequest)
@@ -1725,6 +2033,12 @@ export const register: Register = (on, options) => {
     const isQuestion = e.tool === 'AskUserQuestion'
     // Once the pause's question is asked, or another session paused this one, a dialog waits for the resume.
     if (isQuestion && (await read($, questionsClosed))) return { deny: questionRefusal(await currentLang($)) }
+    // From the plan on, a question waits for afterwards in every session (0.11.0, the person's rule).
+    const planned = isQuestion ? await livePlan($) : null
+    if (planned !== null) {
+      const lang = await currentLang($)
+      return { deny: planQuestionRefusal(clockOf(planned.at), lang, planned.mode) }
+    }
     if (isQuestion) await update($, isAwaitingPerson, () => true)
     const result = await next(e)
     try {
@@ -1749,8 +2063,16 @@ export const register: Register = (on, options) => {
       return verdict
     }
     if (e.tool === 'AskUserQuestion' || e.tool.startsWith('mcp__cache-weather-and-pause-resume__')) return verdict
+    // In auto mode Claude Code's own check settles the ask, and nobody is asked: the session works on (0.11.0).
+    if (!(await asksThePerson($))) return verdict
+    const lang = await currentLang($)
+    // From the plan on, an approval waits for afterwards in every session (0.11.0, the person's rule).
+    const planned = await livePlan($)
+    if (planned !== null) {
+      return { decision: 'deny', reason: planApprovalRefusal(clockOf(planned.at), lang, planned.mode) }
+    }
     if ((await read($, pausePhase)) === 'running' && !(await read($, questionsClosed))) return verdict
-    return { decision: 'deny', reason: approvalRefusal(await currentLang($)) }
+    return { decision: 'deny', reason: approvalRefusal(lang) }
   }).catch(($, e, next) => next(e))
 
   // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.
@@ -1790,6 +2112,9 @@ export const register: Register = (on, options) => {
       return withNote(others.note === null ? pauseRequest(askAbove, lang) : `${pauseRequest(askAbove, lang)}\n\n${others.note}`)
     }
     if (current === 'paused') return withNote(isPerson ? pausedPersonNote(lang) : pausedMachineNote(lang))
+    // A shutdown planned (0.11.0): every prompt of the person's carries what it means for the work.
+    const planned = current === 'running' && isPerson ? await livePlan($) : null
+    if (planned !== null) return withNote(plannedNote(clockOf(planned.at), planned.byFolder, lang, planned.mode))
     if (current === 'pausing') {
       // A turn interrupted before it read the appended request raises no Stop: the next prompt carries it whole.
       if (await read($, pauseDelivered)) return withNote(pausingNote(lang))
@@ -1801,6 +2126,7 @@ export const register: Register = (on, options) => {
 
   on('classic.PostModelSwitch', async ($, e, next) => {
     const result = await next(e)
+    await notePermissionMode($, e.permission_mode)
     // Another model has no cache of this conversation: the next request writes it, a refresh would only pay for it.
     // The band shows the cache expired from here on (0.10.3).
     if (e.from_model !== e.to_model) {
@@ -1948,7 +2274,7 @@ export const register: Register = (on, options) => {
     }
     const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
     const onCancelShutdown = () => cancelShutdown($, false)
-    const onShutdown = () => requestShutdown($, askAbove)
+    const onShutdown = () => requestShutdown($)
     const onPause = () => requestPause($, askAbove)
     const onResume = () => requestResume($)
     const cancelShutdownButton = iconButton({
@@ -1957,13 +2283,26 @@ export const register: Register = (on, options) => {
       icon: BUTTON_ICONS.cancel,
       onPress: onCancelShutdown,
     })
-    const shutdownButton = iconButton({
-      key: 'shutdown',
-      words: t.shutdown,
-      icon: BUTTON_ICONS[shutdownMode],
-      onPress: onShutdown,
-      dimColor: !isShutdownReady,
+    // While Claude asks when, or a shutdown is planned (0.11.0), the shutdown button's place holds its cancel button.
+    const plan = await livePlan($)
+    const planCancelButton = iconButton({
+      key: 'plan-cancel',
+      words: t.shutdownCancel,
+      icon: BUTTON_ICONS.cancel,
+      onPress: () => cancelPlan($),
     })
+    const shutdownButton =
+      plan !== null
+        ? planCancelButton
+        : shutting === 'asking'
+          ? cancelShutdownButton
+          : iconButton({
+              key: 'shutdown',
+              words: t.shutdown,
+              icon: BUTTON_ICONS[shutdownMode],
+              onPress: onShutdown,
+              dimColor: !isShutdownReady,
+            })
     let pause = null
     if (
       shutting === 'countdown' ||
@@ -2013,6 +2352,13 @@ export const register: Register = (on, options) => {
       status.push({ key: 'shutdown', text: t.shutdownRequested, color: 'warning' })
     } else if (role === 'foreign' && request?.state === 'countdown' && request.countdownUntil !== null) {
       status.push({ key: 'shutdown', text: `${tr.shutdownIn(secondsLeft(request.countdownUntil, at))}${from}`, color: 'error' })
+    } else if (shutting === 'asking') {
+      status.push({ key: 'shutdown', text: t.shutdownAsking, color: 'warning' })
+    } else if (plan !== null) {
+      // A plan of another session's says where it came from (0.11.0).
+      const self = await read($, sessionId)
+      const planFrom = self !== null && plan.by !== self ? ` · ${t.fromSession(plan.byFolder)}` : ''
+      status.push({ key: 'shutdown', text: `${strings(lang, plan.mode).shutdownPlanned(clockOf(plan.at))}${planFrom}`, color: 'warning' })
     }
     if (phase === 'pausing') {
       const left = await read($, pauseTasksLeft)
@@ -2202,8 +2548,14 @@ export const register: Register = (on, options) => {
     const usage = await read($, usageWindows)
     const minutesSince = (from: number | null | undefined) =>
       from === null || from === undefined ? null : Math.max(0, Math.floor((at - from) / 60_000))
+    const plan = await livePlan($)
     return (
       <Box flexDirection="column" gap={1}>
+        {plan === null ? null : (
+          <Text color="warning" wrap="truncate-end">
+            {strings(lang, plan.mode).shutdownPlanned(clockOf(plan.at))}
+          </Text>
+        )}
         {usage.length === 0 ? null : (
           <Text dimColor wrap="truncate-end">
             {usage

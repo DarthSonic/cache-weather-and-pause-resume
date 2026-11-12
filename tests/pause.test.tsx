@@ -48,6 +48,22 @@ function engine(on: On): PromptSubmitInput[] {
   return prompts
 }
 
+// The shutdown button asks when first (0.11.0); Claude answers „as soon as possible“ through the tool, whose answer
+// holds what the button used to hand over. The answer joins the recorded prompts, where the checks look for it.
+const SCHEDULE = 'mcp__cache-weather-and-pause-resume__schedule_shutdown'
+async function shutdownSoon(
+  $: Engine,
+  ui: { press(query: { key: string }): Promise<unknown> },
+  prompts?: PromptSubmitInput[],
+): Promise<string> {
+  await ui.press({ key: 'shutdown' })
+  if (prompts !== undefined) expect(prompts.at(-1)?.text).toContain('schedule_shutdown')
+  const answer = (await $.tool.call({ tool: SCHEDULE, when: 'now' } as never)) as { result?: string }
+  const text = answer.result ?? ''
+  prompts?.push({ text } as PromptSubmitInput)
+  return text
+}
+
 const typed = (text: string): PromptSubmitInput => ({ text, wait: false, origin: { kind: 'composer' } })
 const stop = (status?: string, session_id = 'sess-1') => ({
   stop_hook_active: false,
@@ -479,7 +495,7 @@ describe('the shutdown button', () => {
     await clock.settle()
     expect((await ui.find({ key: 'shutdown' }))?.props.dimColor).toBe(false)
 
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui, prompts)
     expect(prompts.at(-1)?.text).toContain('die Sitzung zu pausieren')
     expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
     expect(await ui.find({ type: 'Text', text: /Shutdown wird vorbereitet/ })).toBeDefined()
@@ -529,7 +545,7 @@ describe('the shutdown button', () => {
     await clock.settle()
     expect(host.runs.length).toBe(2)
     lostReads = 1
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui, prompts)
     expect(host.runs.length).toBe(3)
     expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
     await ui.unmount()
@@ -550,7 +566,7 @@ describe('the shutdown button', () => {
     await $.classic.SessionStart({ source: 'startup', session_id: 'x7' })
     await clock.settle()
     expect((await ui.find({ key: 'shutdown' }))?.props.dimColor).toBe(true)
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui, prompts)
     expect(runs).toEqual([[WHOAMI, '/priv'], [WHOAMI, '/priv']])
     expect(prompts.at(-1)?.text).toContain('⏻ Shutdown-Knopf')
     expect(await ui.find({ type: 'Text', text: /Shutdown wird vorbereitet/ })).toBeDefined()
@@ -590,7 +606,7 @@ describe('the shutdown button', () => {
     expect(button?.props.label).toBe('⏾ Standby')
     expect(button?.props.dimColor).toBe(false)
 
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui, prompts)
     expect(prompts.at(-1)?.text).toContain('⏾ Standby-Knopf')
     expect(prompts.at(-1)?.text).toContain('den Rechner in den Standby schicken')
     expect(await ui.find({ type: 'Text', text: /Standby wird vorbereitet/ })).toBeDefined()
@@ -674,7 +690,7 @@ describe('the shutdown button', () => {
       const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
       await $.classic.SessionStart({ source: 'startup', session_id: 'n1' })
       await clock.settle()
-      await ui.press({ key: 'shutdown' })
+      await shutdownSoon($, ui)
       expect(notes).toEqual([])
       await $.classic.Stop(stop(undefined, 'n1'))
       await clock.advance(1_000)
@@ -697,7 +713,7 @@ describe('the shutdown button', () => {
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await $.classic.SessionStart({ source: 'startup', session_id: 'x3' })
     await clock.settle()
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui)
     await $.classic.Stop(stop(undefined, 'x3'))
     await ui.press({ key: 'shutdown-cancel' })
     await clock.advance(120_000)
@@ -715,13 +731,145 @@ describe('the shutdown button', () => {
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await $.classic.SessionStart({ source: 'startup', session_id: 'x4' })
     await clock.settle()
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui)
     await $.prompt.submit(typed('weitermachen'))
     await $.classic.Stop(stop(undefined, 'x4'))
     await clock.advance(120_000)
     expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
     expect(await ui.find({ key: 'pause' })).toBeDefined()
     await ui.unmount()
+  })
+
+  // A shutdown at a time (0.11.0): the button asks when, a plan in the state file holds questions and approvals,
+  // reminds a session at work half an hour before, fires at its time (never earlier) and counts down a minute.
+  const REQUEST = 'C:/Users/test/.claude/cache-weather-and-pause-resume/request.json'
+  const SLOW_DE = { ...DE, timeoutMs: 30_000 }
+  const local = (day: number, hours: number, minutes: number) => new Date(2026, 10, day, hours, minutes, 0, 0).getTime()
+  const check = ($: Engine, extra: Record<string, unknown> = {}) =>
+    $.tool.check({ tool: 'Bash', input: {}, tool_use_id: 'tu1', approver: 'person', ...extra } as never)
+
+  test('the button asks when; a plan holds questions and approvals, reminds, fires at its time and counts down a minute', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(11, 23, 0) })
+    const files = disk(on, {}, { OS: 'Windows_NT' })
+    const prompts = engine(on)
+    const session = mock.session(on)
+    const host = windows(on)
+    on('tool.check', () => ({ decision: 'ask' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p1' })
+    await clock.settle()
+
+    await ui.press({ key: 'shutdown' })
+    expect(prompts.at(-1)?.text).toContain('Frag ihn jetzt in einem Dialog (AskUserQuestion), wann')
+    expect(await ui.find({ type: 'Text', text: /^Shutdown: Claude fragt, wann …$/ })).toBeDefined()
+    // The person answered 01:00: a plan, not a pause.
+    const answer = (await $.tool.call({ tool: SCHEDULE, when: 'later', at: '01:00' } as never)) as { result?: string }
+    expect(answer.result).toContain('the mod will shut the computer down at 01:00 (in 2 h), not earlier')
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan.at).toBe(local(12, 1, 0))
+    expect(await ui.find({ type: 'Text', text: /^Shutdown um 01:00 geplant$/ })).toBeDefined()
+    expect(await ui.find({ key: 'plan-cancel' })).toBeDefined()
+    expect(await ui.find({ key: 'pause' })).toBeDefined()
+
+    // From the plan on: no question, and no approval where it would come up as a prompt; auto mode works on.
+    const question = (await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)) as { deny?: string }
+    expect(question.deny).toContain('Für 01:00 ist ein Shutdown geplant: Stell jetzt keine Frage')
+    const held = await check($)
+    expect(held.decision).toBe('deny')
+    expect(held.reason).toContain('hol ihn nach dem Neustart nach')
+    await $.classic.Stop({ ...stop(undefined, 'p1'), permission_mode: 'auto' } as never)
+    expect((await check($)).decision).toBe('ask')
+    await $.classic.Stop({ ...stop(undefined, 'p1'), permission_mode: 'default' } as never)
+
+    // Half an hour before, a session at work is reminded once; nothing runs before the time.
+    await $.turn.start({ text: 'weiter', turnId: 't1' })
+    await clock.advance(local(12, 0, 30) - local(11, 23, 0) + 15_000)
+    const reminded = session.appended().filter(row => JSON.stringify(row.message.content).includes('Erinnerung: In 30 Minuten, um 01:00'))
+    expect(reminded.length).toBe(1)
+    await $.classic.Stop(stop(undefined, 'p1'))
+    await clock.advance(29 * 60_000)
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
+
+    // At 01:00 the idle session pauses, nothing else is at work: a minute's countdown, then the command.
+    await clock.advance(60_000)
+    // Paused, as the button's pause is: after the restart the session shows „Weiter“.
+    expect(typeof JSON.parse(files[STATE] ?? '{}').pausedSessions?.p1).toBe('number')
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
+    expect(JSON.parse(files[REQUEST] ?? '{}').scheduledFor).toBe(local(12, 1, 0))
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in (1:00|\d\d s)$/ })).toBeDefined()
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
+    await clock.advance(60_000)
+    expect(host.runs.at(-1)?.slice(0, 3)).toEqual([SHUTDOWN, '/s', '/f'])
+    await ui.unmount()
+  })
+
+  test('the cancel button takes the plan off in every session', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(11, 23, 0) })
+    const files = disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    windows(on)
+    on('ui.toast', () => ({ value: undefined }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p2' })
+    await clock.settle()
+    await $.tool.call({ tool: SCHEDULE, when: 'later', inMinutes: 90 } as never)
+    expect(await ui.find({ type: 'Text', text: /^Shutdown um 00:30 geplant$/ })).toBeDefined()
+    await ui.press({ key: 'plan-cancel' })
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan ?? null).toBeNull()
+    expect(await ui.find({ type: 'Text', text: /geplant/ })).toBeUndefined()
+    expect(await ui.find({ key: 'shutdown' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('a plan whose time passed with no session to fire it lapses', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(12, 8, 0) })
+    const plan = { id: 'gone-1', at: local(12, 2, 30), mode: 'shutdown', by: 'gone', byFolder: 'Traumfabrik', createdAt: local(11, 22, 57) }
+    const files = disk(on, { [STATE]: JSON.stringify({ shutdownPlan: plan }) }, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windows(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p3' })
+    await clock.advance(16_000)
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan ?? null).toBeNull()
+    expect(host.logs.some(line => line.includes('Der für 02:30 geplante Shutdown ist verfallen'))).toBe(true)
+    expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
+    await ui.unmount()
+  })
+
+  test('with the planner gone, another session takes the plan over and fires it', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(12, 2, 31) })
+    const plan = { id: 'gone-2', at: local(12, 2, 30), mode: 'shutdown', by: 'gone', byFolder: 'Traumfabrik', createdAt: local(11, 22, 57) }
+    const files = disk(on, { [STATE]: JSON.stringify({ shutdownPlan: plan }) }, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windows(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p4' })
+    await clock.advance(16_000)
+    // Claimed first, fired at the next tick should the claim have held.
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan.firedBy).toBe('p4')
+    await clock.advance(15_000)
+    expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('countdown')
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
+    await clock.advance(60_000)
+    expect(host.runs.at(-1)?.slice(0, 3)).toEqual([SHUTDOWN, '/s', '/f'])
+    await ui.unmount()
+  })
+
+  test('a shell command that powers the computer off is turned away with the tool to use; other commands run', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 9_000_000 })
+    disk(on)
+    engine(on)
+    on('tool.call', { tool: ['Bash', 'PowerShell'] }, () => ({ result: 'ran' }))
+    const tonight =
+      '$target = Get-Date -Year 2026 -Month 11 -Day 12 -Hour 2 -Minute 30 -Second 0; $secs = [int][math]::Floor(($target - (Get-Date)).TotalSeconds); shutdown /s /t $secs /c "Geplantes Herunterfahren um 02:30"'
+    const refused = (await $.tool.call({ tool: 'PowerShell', command: tonight } as never)) as { deny?: string }
+    expect(refused.deny).toContain('Ruf das Werkzeug schedule_shutdown auf')
+    const grep = (await $.tool.call({ tool: 'Bash', command: 'grep -n "shutdown /s" hooks/register.tsx' } as never)) as { result?: string }
+    expect(grep.result).toBe('ran')
   })
 })
 
@@ -986,7 +1134,7 @@ describe('pause and shutdown across sessions', () => {
     await clock.settle()
     signOfLife(files, 'b2b2b2b2-9', live({ seenAt: T0, workingSince: T0 - 18 * 60_000, runs: ['Suite'] }))
 
-    await ui.press({ key: 'shutdown' })
+    await shutdownSoon($, ui, prompts)
     const asked = prompts.at(-1)?.text ?? ''
     expect(asked).toContain('Andere Sitzungen auf diesem Rechner')
     expect(asked).toContain('b2b2b2b2 (repo-b): Claude arbeitet seit 18 min; 1 Lauf im Hintergrund: Suite')

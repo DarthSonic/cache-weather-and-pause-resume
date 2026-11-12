@@ -45,7 +45,27 @@ export type ShutdownReadiness = (
 }
 
 /** Where the shutdown stands: none, asked for (the pause runs), counting down, or the command is running. */
-export type ShutdownPhase = 'idle' | 'requested' | 'waiting' | 'countdown' | 'shutting'
+/** `asking`: the button was pressed and Claude asks the person when (0.11.0). */
+export type ShutdownPhase = 'idle' | 'asking' | 'requested' | 'waiting' | 'countdown' | 'shutting'
+
+/**
+ * A shutdown planned for a time (0.11.0), kept in the state file: any session with the mod shows it, can cancel it,
+ * and fires it at its time should the planning session be gone.
+ */
+export type ShutdownPlan = {
+  id: string
+  /** When: never earlier. */
+  at: number
+  mode: ShutdownMode
+  /** The session that planned it, and its folder. */
+  by: string
+  byFolder: string | null
+  createdAt: number
+  /** The session that fires it: the planner, or one that took it over while the planner was gone. */
+  firedBy?: string
+  /** When it fired: from then on the shutdown request for all sessions stands. */
+  firedAt?: number
+}
 
 /** One session's sign of life in the state file, written by that session alone. */
 export type LiveSession = {
@@ -91,6 +111,8 @@ export type SessionRequest = {
   decisions: Record<string, RunsDecision>
   /** For a shutdown: what the computer does, as the making session's option says (0.9.5; absent before: shut down). */
   mode?: ShutdownMode
+  /** A shutdown made from a plan: the time it was planned for (0.11.0). Its countdown is short: nobody is there. */
+  scheduledFor?: number
   countdownUntil: number | null
 }
 
@@ -142,6 +164,13 @@ declare module 'claude-code' {
       keepWarmSpent: number
       /** A permission prompt (or an MCP server's form) waits for the person (0.10.2): what a pause asks them to answer. */
       isAwaitingApproval: boolean
+      /** The planned shutdown as the state file holds it (0.11.0), for the band to draw. */
+      shutdownPlan: ShutdownPlan | null
+      /** The plan this session was told of, and reminded of (0.11.0). */
+      planNotedId: string | null
+      planRemindedId: string | null
+      /** The session's permission mode, from the classic hooks (0.11.0): whether an ask comes up as a prompt. */
+      permissionMode: string | null
       /** The model the main conversation's last request named: it sets what a cache read costs. */
       mainModel: string | null
       /** How many tokens the context grew by in each of the last turns that grew it (0.10.0, the forecast). */

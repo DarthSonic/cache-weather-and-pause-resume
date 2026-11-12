@@ -53,6 +53,15 @@ The CI matrix came with 0.10.0; the macOS test waits for a report.
 - [x] **Icons in the desktop app**, each with its word; the terminal keeps words.
 - [x] **What a model switch costs**, where it forfeits a warm cache: a line with the tokens and Claude Code's estimate.
 
+## 0.11.0 — Shutdown at a time
+
+- [x] **Shutdown at a time**: the button asks when (as soon as possible, or a time or a while); a plan in the state
+  file, shown in every band with Cancel; until then no questions and no approvals that would ask; a reminder half an
+  hour before; at the time every session pauses, then a minute's countdown. Another session fires it should the
+  planner be closed.
+- [x] **Claude's own power commands go through the band**: a shell command that powers the computer off is turned away
+  with the tool to use.
+
 ## Docs and reach
 
 - [ ] **A short GIF in the README** showing the pause, the countdown and keep-warm at work. After 0.10.0, once the

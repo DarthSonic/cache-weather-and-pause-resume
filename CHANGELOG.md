@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0 — unreleased
+
+- **Shutdown at a time.** The shutdown button (or standby, or hibernation) now asks when: Claude puts a dialog to you,
+  as soon as possible, or at a time or after a while (free text). Asked in your own words (“shut the computer down at
+  02:30”), Claude does the same through the mod's new tool `schedule_shutdown`. A planned shutdown shows in every band
+  with **Cancel**; until its time every session works on, but starts only steps that surely finish before it, and asks
+  nothing and starts nothing that needs your approval. Half an hour before, a session at work is reminded to save its
+  state. At the time, never earlier, every session pauses (running work finishes), and once all are paused the band
+  counts down one minute and runs the command; after the restart the sessions show **Resume**. The plan is kept in the
+  state file: another session fires it should the planner be closed, and with none running at the time it lapses.
+- **Claude no longer powers the computer off itself:** a shell command for it (`shutdown /s`, `Stop-Computer`,
+  `systemctl poweroff`, `pmset sleepnow`, …) is turned away with the tool to use, so the sessions pause first. On
+  2026-11-11 a session had shut the computer down with `shutdown /s /t …` itself, and nothing paused.
+- **Approvals are held only where they would ask you:** in the permission mode Auto, Claude Code's own check decides,
+  and the mod no longer holds anything back there (in 0.10.2 it did, during a pause). The mod works best with Auto.
+
 ## 0.10.3 — 2026-11-10
 
 - **After `/compact` or a switch of model the cache shows expired at once.** The conversation, or the new model, has
