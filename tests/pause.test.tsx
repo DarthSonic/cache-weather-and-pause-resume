@@ -315,6 +315,8 @@ describe('the pause button', () => {
     on('tool.check', () => ({ decision: 'ask' }))
     on('classic.PermissionRequest', () => ({}))
     on('classic.Notification', () => ({}))
+    on('classic.UserPromptSubmit', () => ({}))
+    on('classic.PostToolUse', () => ({}))
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
     const check = () => $.tool.check({ tool: 'Bash', input: {}, tool_use_id: 'tu1', approver: 'person' } as never)
     const prompt = () => $.classic.PermissionRequest({ session_id: 's1', tool_name: 'Bash', tool_input: {} } as never) as Promise<{ decision?: { behavior: string; message?: string } }>
@@ -328,9 +330,14 @@ describe('the pause button', () => {
     const held = await prompt()
     expect(held.decision?.behavior).toBe('deny')
     expect(held.decision?.message).toContain('wiederhole ihn nach „weitermachen“')
-    // A mode that surely asks: turned away early already.
-    await $.classic.Notification({ notification_type: 'idle_prompt', message: '', permission_mode: 'default' } as never)
+    // A mode that surely asks, set for the next prompt or switched within the turn: turned away early already.
+    await $.classic.UserPromptSubmit({ prompt: 'weiter', permission_mode: 'default' } as never)
     expect((await check()).decision).toBe('deny')
+    await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: {}, tool_response: {}, tool_use_id: 'tu0', permission_mode: 'auto' } as never)
+    expect((await check()).decision).toBe('ask')
+    // A subagent's mode is its own: the main conversation's stays.
+    await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: {}, tool_response: {}, tool_use_id: 'tu2', permission_mode: 'default', agent_id: 'a1' } as never)
+    expect((await check()).decision).toBe('ask')
     await ui.unmount()
   })
 

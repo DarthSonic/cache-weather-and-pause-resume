@@ -2001,11 +2001,18 @@ export const register: Register = (on, options) => {
   })
 
   // Claude passes on the person's answer about the other sessions: the request stands, and the others pause now.
-  // The permission mode right before each call of the main conversation (0.11.0): a turn may run for hours, and the
-  // person may switch the mode within it. Only reads; whatever happens, the call goes on as it would.
-  on('classic.PreToolUse', async ($, e, next) => {
-    if ((e as { agent_id?: unknown }).agent_id === undefined) await notePermissionMode($, (e as { permission_mode?: unknown }).permission_mode)
-    return next(e)
+  // The permission mode (0.11.0), as each prompt of the person starts a turn (the mode they set for it) and after each
+  // call of the main conversation (a turn may run for hours, and the mode may be switched within it). classic.PreToolUse
+  // carries only the call, no mode. Only reads; whatever happens, the prompt and the call go on as they would.
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agent_id === undefined) await notePermissionMode($, e.permission_mode)
+    return result
+  }).catch(($, e, next) => next(e))
+  on('classic.PostToolUse', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agent_id === undefined) await notePermissionMode($, e.permission_mode)
+    return result
   }).catch(($, e, next) => next(e))
 
   // Claude plans the shutdown, now or at a time (0.11.0): the button's question answered, or the person's words.

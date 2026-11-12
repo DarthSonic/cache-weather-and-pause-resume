@@ -428,7 +428,7 @@ planned shutdown, and `tool.check` does so early where the permission mode surel
 `acceptEdits`, read from the classic hooks as a hint); neither changes any other verdict, allows anything or touches
 a subagent's calls. Every other
 hook only reads and passes its event
-on unchanged: `classic.PreToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, time since the last response),
+on unchanged: `classic.UserPromptSubmit` and `classic.PostToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
 conversation has run, and when a question to you is answered), `turn.step` (token counts, the model it names, and when a request reads
@@ -462,7 +462,7 @@ Claude Code with mods (function-hook plugins), early access, checked with **2.1.
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,
-`classic.Notification`, `classic.PostModelSwitch`, `classic.PreToolUse`, `classic.PermissionRequest` and `session.compact` run only for plugins the organization lists in
+`classic.Notification`, `classic.PostModelSwitch`, `classic.UserPromptSubmit`, `classic.PostToolUse`, `classic.PermissionRequest` and `session.compact` run only for plugins the organization lists in
 managed settings. A self-installed copy then never sees Claude stop, so the pause stays at “Preparing the pause …”, the cache
 lifetime is not read off the transcript, no summary is logged after `/compact`, keep-warm counts an open
 permission prompt as work and goes on after a compaction or a switch of model until a refresh finds the cache cold,

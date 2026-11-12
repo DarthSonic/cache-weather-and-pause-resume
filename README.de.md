@@ -447,7 +447,7 @@ einen Shell-Befehl ab, der den Rechner ausschaltet; `classic.PermissionRequest` 
 einem geplanten Shutdown eine Berechtigungsabfrage ab, und `tool.check` tut das schon früher, wo der Berechtigungsmodus
 sicher fragt (`default`, `plan`, `acceptEdits`, als Hinweis aus den klassischen Hooks gelesen); keiner der beiden
 ändert ein anderes Urteil, erlaubt etwas oder berührt Aufrufe von Subagenten. Jeder andere Hook liest nur
-und reicht sein Ereignis unverändert weiter: `classic.PreToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
+und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` und `classic.PostToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
 `tool.call` sonst (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
@@ -485,7 +485,7 @@ Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit *
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
 
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,
-`classic.Notification`, `classic.PostModelSwitch`, `classic.PreToolUse`, `classic.PermissionRequest` und `session.compact` nur für Plugins, die die Organisation in den
+`classic.Notification`, `classic.PostModelSwitch`, `classic.UserPromptSubmit`, `classic.PostToolUse`, `classic.PermissionRequest` und `session.compact` nur für Plugins, die die Organisation in den
 verwalteten Einstellungen nennt. Eine selbst installierte Kopie sieht dann nie, dass Claude anhält: die Pause bleibt bei
 „Pause wird vorbereitet …“, die Cache-Laufzeit wird nicht aus dem Transkript gelesen, nach `/compact` erscheint keine
 Zusammenfassung, Keep-warm zählt eine offene Berechtigungsfrage als Arbeit und frischt nach einem Compact oder
