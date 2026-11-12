@@ -119,7 +119,7 @@ andere Nachricht in der Pause wird beantwortet, ohne die pausierte Arbeit wieder
 Schritt, der dich um Erlaubnis fragen würde, wartet auf „weitermachen“, in jedem Berechtigungsmodus. In **Auto**
 entscheidet die Prüfung von Claude Code die meisten Schritte selbst, es warten also weniger; der Mod nimmt den Modus
 nur als Hinweis, denn auch Auto kann fragen (nach Regeln eines Repos oder Hooks in den Einstellungen), und weist jede
-Abfrage ab, die doch kommt. Die Bitte sagt das Claude, und ein Aufruf, der
+Abfrage ab, die doch kommt (in der Desktop-App blitzt sie dann kurz auf). Die Bitte sagt das Claude, und ein Aufruf, der
 trotzdem fragt, wird mit denselben Worten abgewiesen; Claude notiert ihn im Pausenstand und wiederholt ihn nach
 „weitermachen“, wo du wie gewohnt gefragt wirst. Eine Freigabe, die beim Druck auf den Knopf schon offen ist, hält die
 Pause auf, und einen Shutdown mit ihr, bis jemand sie beantwortet: Ein Mod kann sie nicht abbrechen, deshalb sagt die

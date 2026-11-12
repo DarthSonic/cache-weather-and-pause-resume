@@ -114,7 +114,7 @@ written during the pause is answered without picking the paused work back up.
 **Approvals.** From the press of **Pause** or **Shutdown** until the pause is over, no new approval comes up: a step
 that would ask for your permission waits for “continue”, in every permission mode. In **Auto** Claude Code's own
 check settles most steps itself, so fewer of them wait; the mod only takes the mode as a hint, since Auto too may ask
-(after a repository's rules or settings hooks), and turns away every prompt that does come up. The request tells Claude so, and a call that asks anyway is
+(after a repository's rules or settings hooks), and turns away every prompt that does come up (in the desktop app it may flash for an instant). The request tells Claude so, and a call that asks anyway is
 turned away with the same words; Claude notes it in the pause state and repeats it after “continue”, where you are
 asked as usual. An approval that is already on screen when you press the button holds the pause up, and a shutdown
 with it, until someone answers it: a mod cannot cancel it, so the status row says so and asks you to answer it (“An

@@ -2098,15 +2098,15 @@ export const register: Register = (on, options) => {
   // A permission prompt about to come up, in any mode (0.11.0): during a pause and before a planned shutdown it is
   // turned away with what to do instead, so no prompt waits for someone who is not there. It never allows anything,
   // and a subagent's prompt is left alone: the run the person let finish would fail on it.
+  // Decided before the chain beneath: in the desktop app the dialog shows while the hooks run, and the chain beneath
+  // answered only once the person had (seen live), so a deny after it came too late. A held approval is turned away
+  // at once (the dialog flashes for an instant); anything else goes on untouched.
   on('classic.PermissionRequest', async ($, e, next) => {
-    const result = await next(e)
-    if ((e as { agent_id?: unknown }).agent_id !== undefined) return result
     const tool = (e as { tool_name?: unknown }).tool_name
-    if (tool === 'AskUserQuestion' || (typeof tool === 'string' && tool.startsWith('mcp__cache-weather-and-pause-resume__'))) {
-      return result
-    }
-    const reason = await heldApproval($)
-    return reason === null ? result : { ...result, decision: { behavior: 'deny', message: reason } }
+    const isOwn = tool === 'AskUserQuestion' || (typeof tool === 'string' && tool.startsWith('mcp__cache-weather-and-pause-resume__'))
+    const reason = (e as { agent_id?: unknown }).agent_id !== undefined || isOwn ? null : await heldApproval($)
+    if (reason !== null) return { decision: { behavior: 'deny', message: reason } }
+    return next(e)
   }).catch(($, e, next) => next(e))
 
   // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.

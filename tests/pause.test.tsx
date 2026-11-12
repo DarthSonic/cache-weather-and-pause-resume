@@ -313,7 +313,9 @@ describe('the pause button', () => {
     mock.session(on)
     engine(on)
     on('tool.check', () => ({ decision: 'ask' }))
-    on('classic.PermissionRequest', () => ({}))
+    // What beneath answers only once the person has, in the desktop app: a held prompt must not wait for it.
+    let asksBeneath = 0
+    on('classic.PermissionRequest', () => { asksBeneath++; return {} })
     on('classic.Notification', () => ({}))
     on('classic.UserPromptSubmit', () => ({}))
     on('classic.PostToolUse', () => ({}))
@@ -330,6 +332,7 @@ describe('the pause button', () => {
     const held = await prompt()
     expect(held.decision?.behavior).toBe('deny')
     expect(held.decision?.message).toContain('wiederhole ihn nach „weitermachen“')
+    expect(asksBeneath).toBe(1)
     // A mode that surely asks, set for the next prompt or switched within the turn: turned away early already.
     await $.classic.UserPromptSubmit({ prompt: 'weiter', permission_mode: 'default' } as never)
     expect((await check()).decision).toBe('deny')
