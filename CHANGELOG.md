@@ -19,7 +19,8 @@
   instant), in any permission mode; where the mode surely asks (Manual, Plan, Accept edits), already before, so none
   shows. The mod reads the mode as each of your prompts starts a turn and after each call. In Auto, Claude Code's own check settles most steps itself, so sessions work on with far fewer
   interruptions (in 0.10.2 the mod held them back before that check). The mode is only a hint: the mod works without
-  Auto too.
+  Auto too. A subagent's approval is turned away as well now (in 0.10.2 it was left alone): it notes the step and can
+  end its run, so its prompt keeps no turn from ending while nobody is there.
 
 ## 0.10.3 — 2026-11-10
 

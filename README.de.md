@@ -125,8 +125,8 @@ trotzdem fragt, wird mit denselben Worten abgewiesen; Claude notiert ihn im Paus
 Pause auf, und einen Shutdown mit ihr, bis jemand sie beantwortet: Ein Mod kann sie nicht abbrechen, deshalb sagt die
 Statuszeile das und bittet dich, sie zu beantworten („Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen:
 Bitte beantworte sie, damit die Pause eingerichtet werden kann“). Beim Shutdown nennt die Zeile mit den anderen
-Sitzungen eine, die auf eine Antwort oder Freigabe wartet, ebenso. Aufrufe in einem laufenden Subagenten bleiben
-unberührt: Der Lauf, den du zu Ende laufen lässt, würde sonst an ihnen scheitern.
+Sitzungen eine, die auf eine Antwort oder Freigabe wartet, ebenso. Auch die Freigabe eines Subagenten wird abgewiesen
+(seit 0.11.0): Er notiert den Schritt für danach und kann seinen Lauf beenden, so hält seine Abfrage keinen Zug auf.
 
 Wie der Mod den Zustand verfolgt:
 
@@ -445,8 +445,8 @@ Anfrage des Mods fragt danach.
 eigenen Werkzeuge des Mods, weist während einer Pause oder vor einem geplanten Shutdown einen Fragedialog ab und weist
 einen Shell-Befehl ab, der den Rechner ausschaltet; `classic.PermissionRequest` weist während einer Pause oder vor
 einem geplanten Shutdown eine Berechtigungsabfrage ab, und `tool.check` tut das schon früher, wo der Berechtigungsmodus
-sicher fragt (`default`, `plan`, `acceptEdits`, als Hinweis aus den klassischen Hooks gelesen); keiner der beiden
-ändert ein anderes Urteil, erlaubt etwas oder berührt Aufrufe von Subagenten. Jeder andere Hook liest nur
+sicher fragt (`default`, `plan`, `acceptEdits`, als Hinweis aus den klassischen Hooks gelesen); beide erfassen auch
+Abfragen von Subagenten, und keiner ändert ein anderes Urteil oder erlaubt etwas. Jeder andere Hook liest nur
 und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` und `classic.PostToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),

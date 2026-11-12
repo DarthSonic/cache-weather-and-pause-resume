@@ -292,10 +292,11 @@ describe('the pause button', () => {
     const held = await check('Bash')
     expect(held.decision).toBe('deny')
     expect(held.reason).toContain('wiederhole ihn nach „weitermachen“')
-    // The mod's own tools, questions to the person and a subagent's calls go their own ways.
+    // The mod's own tools and questions to the person go their own ways; a subagent's approval waits too (0.11.0), so
+    // its prompt keeps no turn from ending.
     expect((await check('AskUserQuestion')).decision).toBe('ask')
     expect((await check('mcp__cache-weather-and-pause-resume__pause_state')).decision).toBe('ask')
-    expect((await check('Bash', { agentId: 'a1' })).decision).toBe('ask')
+    expect((await check('Bash', { agentId: 'a1' })).decision).toBe('deny')
     // Paused: the hint goes with the turn, and approvals still wait.
     await $.classic.Stop(stop())
     expect(await ui.find({ key: 'resume' })).toBeDefined()

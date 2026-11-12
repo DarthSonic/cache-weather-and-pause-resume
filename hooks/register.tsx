@@ -2106,15 +2106,15 @@ export const register: Register = (on, options) => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // From the press of Pause or Shutdown on, a call of the main conversation that would ask the person for approval
-  // waits for the resume (0.10.2, the person's rule): the pause request already tells Claude so, and a call that asks
+  // From the press of Pause or Shutdown on, a call that would ask the person for approval waits for the resume (0.10.2,
+  // the person's rule; a subagent's too since 0.11.0, so its prompt keeps no turn from ending while nobody is there): the pause request already tells Claude so, and a call that asks
   // anyway is turned away; Claude notes it in the pause state and repeats it after "continue". Only an ask the person
   // would answer is turned away: the engine's verdict stands for everything else, and the mod's own tools and questions
   // to the person go their own ways. An approval already on screen stays: a mod cannot take it back, and the status
   // row asks the person to answer it.
   on('tool.check', async ($, e, next) => {
     const verdict = await next(e)
-    if (verdict.decision !== 'ask' || e.approver !== 'person' || e.agentId !== undefined || e.tool_use_id === undefined) {
+    if (verdict.decision !== 'ask' || e.approver !== 'person' || e.tool_use_id === undefined) {
       return verdict
     }
     if (e.tool === 'AskUserQuestion' || e.tool.startsWith('mcp__cache-weather-and-pause-resume__')) return verdict
@@ -2126,15 +2126,15 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   // A permission prompt about to come up, in any mode (0.11.0): during a pause and before a planned shutdown it is
-  // turned away with what to do instead, so no prompt waits for someone who is not there. It never allows anything,
-  // and a subagent's prompt is left alone: the run the person let finish would fail on it.
+  // turned away with what to do instead, so no prompt waits for someone who is not there, a subagent's included: the
+  // subagent notes the step and can end its run. It never allows anything.
   // Decided before the chain beneath: in the desktop app the dialog shows while the hooks run, and the chain beneath
   // answered only once the person had (seen live), so a deny after it came too late. A held approval is turned away
   // at once (the dialog flashes for an instant); anything else goes on untouched.
   on('classic.PermissionRequest', async ($, e, next) => {
     const tool = (e as { tool_name?: unknown }).tool_name
     const isOwn = tool === 'AskUserQuestion' || (typeof tool === 'string' && tool.startsWith('mcp__cache-weather-and-pause-resume__'))
-    const reason = (e as { agent_id?: unknown }).agent_id !== undefined || isOwn ? null : await heldApproval($)
+    const reason = isOwn ? null : await heldApproval($)
     if (reason !== null) return { decision: { behavior: 'deny', message: reason } }
     return next(e)
   }).catch(($, e, next) => next(e))

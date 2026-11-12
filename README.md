@@ -119,8 +119,8 @@ turned away with the same words; Claude notes it in the pause state and repeats 
 asked as usual. An approval that is already on screen when you press the button holds the pause up, and a shutdown
 with it, until someone answers it: a mod cannot cancel it, so the status row says so and asks you to answer it (“An
 approval is open, and the mod cannot cancel it: please answer it so the pause can be set up”). During a shutdown the
-other sessions' row names one that waits for an answer or approval the same way. Calls inside a running subagent are
-left alone: the run you let finish would fail on them.
+other sessions' row names one that waits for an answer or approval the same way. A subagent's approval is turned away
+too (since 0.11.0): it notes the step for afterwards and can end its run, so its prompt keeps no turn from ending.
 
 How the mod tracks the state:
 
@@ -425,8 +425,8 @@ usage windows come from Claude Code itself, as its status line shows them, and n
 own tools, turns a question dialog away during a pause or before a planned shutdown, and turns away a shell command
 that powers the computer off; `classic.PermissionRequest` turns away a permission prompt during a pause or before a
 planned shutdown, and `tool.check` does so early where the permission mode surely asks (`default`, `plan`,
-`acceptEdits`, read from the classic hooks as a hint); neither changes any other verdict, allows anything or touches
-a subagent's calls. Every other
+`acceptEdits`, read from the classic hooks as a hint); both take in a subagent's prompts too, and neither changes any
+other verdict or allows anything. Every other
 hook only reads and passes its event
 on unchanged: `classic.UserPromptSubmit` and `classic.PostToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
