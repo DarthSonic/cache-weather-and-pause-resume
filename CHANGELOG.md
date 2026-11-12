@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.11.0 — unreleased
+## 0.11.0 — 2026-11-12
 
 - **Shutdown at a time.** The shutdown button (or standby, or hibernation) now asks when: Claude puts a dialog to you,
   as soon as possible, or at a time or after a while (free text). Asked in your own words (“shut the computer down at
@@ -10,12 +10,14 @@
   state. At the time, never earlier, every session pauses (running work finishes), and once all are paused the band
   counts down one minute and runs the command; after the restart the sessions show **Resume**. The plan is kept in the
   state file: another session fires it should the planner be closed, and with none running at the time it lapses.
-- **Claude no longer powers the computer off itself:** a shell command for it (`shutdown /s`, `Stop-Computer`,
-  `systemctl poweroff`, `pmset sleepnow`, …) is turned away with the tool to use, so the sessions pause first. On
-  2026-11-11 a session had shut the computer down with `shutdown /s /t …` itself, and nothing paused.
+- **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
+  `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow`, …, also inside `powershell -Command` or `bash -c`) gets the
+  tool to use instead, so the sessions pause first; a shutdown inside a script file it runs is not seen. In the night
+  to 2026-11-12 a session had shut the computer down with `shutdown /s /t …` itself, and nothing paused.
 - **Approvals are held where they would really ask you:** a permission prompt that comes up during a pause or before
-  a planned shutdown is turned away (`classic.PermissionRequest`), in any permission mode; where the mode surely asks,
-  already before. In Auto, Claude Code's own check settles most steps itself, so sessions work on with far fewer
+  a planned shutdown is turned away at once (`classic.PermissionRequest`; in the desktop app it may flash for an
+  instant), in any permission mode; where the mode surely asks (Manual, Plan, Accept edits), already before, so none
+  shows. The mod reads the mode as each of your prompts starts a turn and after each call. In Auto, Claude Code's own check settles most steps itself, so sessions work on with far fewer
   interruptions (in 0.10.2 the mod held them back before that check). The mode is only a hint: the mod works without
   Auto too.
 
