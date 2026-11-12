@@ -276,6 +276,8 @@ describe('the pause button', () => {
     on('tool.check', () => ({ decision: 'ask' }))
     on('classic.Notification', () => ({}))
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    // A mode that surely asks (0.11.0: the mode is a hint; an unknown one is turned away at the prompt itself).
+    await $.classic.Notification({ notification_type: 'idle_prompt', message: '', permission_mode: 'default' } as never)
     const check = (tool: string, extra: Record<string, unknown> = {}) =>
       $.tool.check({ tool, input: {}, tool_use_id: 'tu1', approver: 'person', ...extra } as never)
     // Running: an ask goes to the person.
@@ -302,6 +304,33 @@ describe('the pause button', () => {
     // Resumed: the person answers again.
     await ui.press({ key: 'resume' })
     expect((await check('Bash')).decision).toBe('ask')
+    await ui.unmount()
+  })
+
+  test('the mode is a hint: in auto mode Claude Code decides, and a prompt that still comes up waits for the resume', DE, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 1_000_000 })
+    mock.session(on)
+    engine(on)
+    on('tool.check', () => ({ decision: 'ask' }))
+    on('classic.PermissionRequest', () => ({}))
+    on('classic.Notification', () => ({}))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    const check = () => $.tool.check({ tool: 'Bash', input: {}, tool_use_id: 'tu1', approver: 'person' } as never)
+    const prompt = () => $.classic.PermissionRequest({ session_id: 's1', tool_name: 'Bash', tool_input: {} } as never) as Promise<{ decision?: { behavior: string; message?: string } }>
+    // Auto mode, as the classic hooks report it.
+    await $.classic.Notification({ notification_type: 'idle_prompt', message: '', permission_mode: 'auto' } as never)
+    expect((await prompt()).decision).toBeUndefined()
+    await ui.press({ key: 'pause' })
+    // Claude Code's own check may settle it: the ask goes on.
+    expect((await check()).decision).toBe('ask')
+    // Should it still come up as a prompt, it is turned away with what to do instead.
+    const held = await prompt()
+    expect(held.decision?.behavior).toBe('deny')
+    expect(held.decision?.message).toContain('wiederhole ihn nach „weitermachen“')
+    // A mode that surely asks: turned away early already.
+    await $.classic.Notification({ notification_type: 'idle_prompt', message: '', permission_mode: 'default' } as never)
+    expect((await check()).decision).toBe('deny')
     await ui.unmount()
   })
 
@@ -757,7 +786,7 @@ describe('the shutdown button', () => {
     const host = windows(on)
     on('tool.check', () => ({ decision: 'ask' }))
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    await $.classic.SessionStart({ source: 'startup', session_id: 'p1' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p1', permission_mode: 'default' } as never)
     await clock.settle()
 
     await ui.press({ key: 'shutdown' })

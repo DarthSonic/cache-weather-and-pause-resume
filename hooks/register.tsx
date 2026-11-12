@@ -960,13 +960,24 @@ async function notePermissionMode($: EngineInterface, mode: unknown): Promise<vo
   if (typeof mode === 'string' && mode !== '') await update($, permissionMode, () => mode)
 }
 
-// The modes in which an ask comes up as a prompt to the person. In auto mode Claude Code's own check settles it, and
-// dontAsk and bypassPermissions ask nobody: a session there works on. Unknown before the first classic event: asking.
+// The modes in which an ask surely comes up as a prompt to the person: there tool.check turns it away early. The mode
+// is a hint only (the person may switch it for the next prompt, and auto mode may still ask, after repository rules or
+// settings hooks): every prompt that does come up is turned away at classic.PermissionRequest, in any mode.
 const ASKING_MODES = new Set(['default', 'plan', 'acceptEdits'])
 
-async function asksThePerson($: EngineInterface): Promise<boolean> {
+async function surelyAsks($: EngineInterface): Promise<boolean> {
   const mode = await read($, permissionMode)
-  return mode === null || ASKING_MODES.has(mode)
+  return mode !== null && ASKING_MODES.has(mode)
+}
+
+// Why an approval waits, should it now: a shutdown planned (from the plan on, in every session), or a pause asked for
+// or on (from the press on). Null while the session works as usual.
+async function heldApproval($: EngineInterface): Promise<string | null> {
+  const lang = await currentLang($)
+  const planned = await livePlan($)
+  if (planned !== null) return planApprovalRefusal(clockOf(planned.at), lang, planned.mode)
+  if ((await read($, pausePhase)) === 'running' && !(await read($, questionsClosed))) return null
+  return approvalRefusal(lang)
 }
 
 /** The plan as the band knows it, unless it fired: then the shutdown request stands in its place. */
@@ -1033,6 +1044,8 @@ async function scheduleShutdown(
   await writePersisted($, p => ({ ...p, shutdownPlan: plan }))
   await update($, shutdownPlan, () => plan)
   await update($, planNotedId, () => plan.id)
+  // Planned closer than the reminder's half hour: the plan itself said what to do.
+  if (time - at <= PLAN_REMINDER_MS) await update($, planRemindedId, () => plan.id)
   await update($, shutdownPhase, () => 'idle')
   return scheduleLaterResult(clockOf(time), untilText(time - at), shutdownMode)
 }
@@ -1085,7 +1098,8 @@ async function followPlan($: EngineInterface): Promise<void> {
     if (plan.by !== self && (await isWorkingNow($))) await handToModel($, plannedNote(clock, plan.byFolder, lang, plan.mode))
   }
   if (at < plan.at) {
-    if (at >= plan.at - PLAN_REMINDER_MS && (await read($, planRemindedId)) !== plan.id) {
+    const isReminderDue = at >= plan.at - PLAN_REMINDER_MS && plan.at - plan.createdAt > PLAN_REMINDER_MS
+    if (isReminderDue && (await read($, planRemindedId)) !== plan.id) {
       await update($, planRemindedId, () => plan.id)
       if (await isWorkingNow($)) await handToModel($, planReminder(clock, lang, plan.mode))
     }
@@ -1124,11 +1138,8 @@ async function firePlan(
   await update($, planNotedId, () => null)
   await update($, planRemindedId, () => null)
   const lang = await currentLang($)
-  const t = strings(lang, plan.mode)
-  if (plan.mode !== shutdownMode) {
-    $.ui.log(t.shutdownFailed(t.modeChanged))
-    return
-  }
+  // The option as it stands now decides what the computer does: changed since the plan, the person's latest word counts.
+  const t = strings(lang, shutdownMode)
   const readiness = await shutdownReadinessNow($)
   if (!readiness.isReady) {
     $.ui.log(t.shutdownHelp(readiness))
@@ -1151,7 +1162,7 @@ async function firePlan(
     decidedAt: at,
     decisions: {},
     countdownUntil: null,
-    mode: plan.mode,
+    mode: shutdownMode,
     scheduledFor: plan.at,
   })
   const pause = await read($, pausePhase)
@@ -1167,7 +1178,7 @@ async function firePlan(
     return
   }
   await enterPausing($, true)
-  if ((await handToModel($, timedPauseRequest(clockOf(plan.at), lang, plan.mode))) === 'appended') {
+  if ((await handToModel($, timedPauseRequest(clockOf(plan.at), lang, shutdownMode))) === 'appended') {
     await update($, pauseDelivered, () => false)
   }
 }
@@ -1961,8 +1972,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   // Claude Code's notice that a permission prompt (or an MCP server's form) waits for the person, about six seconds
-  // after it appeared: Claude waits until the call has run (or was refused). A notification decides nothing; a hook on
-  // classic.PermissionRequest could, and the plugin directory cannot tell that it leaves the answer to the person.
+  // after it appeared: Claude waits until the call has run (or was refused). A notification decides nothing.
   on('classic.Notification', async ($, e, next) => {
     const result = await next(e)
     await notePermissionMode($, e.permission_mode)
@@ -1990,6 +2000,13 @@ export const register: Register = (on, options) => {
   })
 
   // Claude passes on the person's answer about the other sessions: the request stands, and the others pause now.
+  // The permission mode right before each call of the main conversation (0.11.0): a turn may run for hours, and the
+  // person may switch the mode within it. Only reads; whatever happens, the call goes on as it would.
+  on('classic.PreToolUse', async ($, e, next) => {
+    if ((e as { agent_id?: unknown }).agent_id === undefined) await notePermissionMode($, (e as { permission_mode?: unknown }).permission_mode)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   // Claude plans the shutdown, now or at a time (0.11.0): the button's question answered, or the person's words.
   on('tool.call', { tool: SCHEDULE_TOOL }, async ($, e) => {
     if (e.agentId !== undefined) return { result: 'Only the main conversation plans the shutdown; nothing changed.' }
@@ -2063,16 +2080,25 @@ export const register: Register = (on, options) => {
       return verdict
     }
     if (e.tool === 'AskUserQuestion' || e.tool.startsWith('mcp__cache-weather-and-pause-resume__')) return verdict
-    // In auto mode Claude Code's own check settles the ask, and nobody is asked: the session works on (0.11.0).
-    if (!(await asksThePerson($))) return verdict
-    const lang = await currentLang($)
-    // From the plan on, an approval waits for afterwards in every session (0.11.0, the person's rule).
-    const planned = await livePlan($)
-    if (planned !== null) {
-      return { decision: 'deny', reason: planApprovalRefusal(clockOf(planned.at), lang, planned.mode) }
+    // Early only where the mode surely asks (0.11.0): elsewhere Claude Code's own check may settle it without anyone,
+    // and a prompt that still comes up is turned away below.
+    if (!(await surelyAsks($))) return verdict
+    const reason = await heldApproval($)
+    return reason === null ? verdict : { decision: 'deny', reason }
+  }).catch(($, e, next) => next(e))
+
+  // A permission prompt about to come up, in any mode (0.11.0): during a pause and before a planned shutdown it is
+  // turned away with what to do instead, so no prompt waits for someone who is not there. It never allows anything,
+  // and a subagent's prompt is left alone: the run the person let finish would fail on it.
+  on('classic.PermissionRequest', async ($, e, next) => {
+    const result = await next(e)
+    if ((e as { agent_id?: unknown }).agent_id !== undefined) return result
+    const tool = (e as { tool_name?: unknown }).tool_name
+    if (tool === 'AskUserQuestion' || (typeof tool === 'string' && tool.startsWith('mcp__cache-weather-and-pause-resume__'))) {
+      return result
     }
-    if ((await read($, pausePhase)) === 'running' && !(await read($, questionsClosed))) return verdict
-    return { decision: 'deny', reason: approvalRefusal(lang) }
+    const reason = await heldApproval($)
+    return reason === null ? result : { ...result, decision: { behavior: 'deny', message: reason } }
   }).catch(($, e, next) => next(e))
 
   // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.

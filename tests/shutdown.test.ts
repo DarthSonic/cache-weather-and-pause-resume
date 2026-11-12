@@ -152,6 +152,9 @@ describe('a planned shutdown', () => {
       'Start-Process shutdown -ArgumentList "/s /t 60"',
       'rundll32.exe powrprof.dll,SetSuspendState 0,1,0',
       'echo done && shutdown /s /t 5',
+      '& "C:\\Windows\\System32\\shutdown.exe" /s /t 0',
+      'powershell -NoProfile -Command "shutdown /s /t 0"',
+      "bash -c 'sudo shutdown -h now'",
     ]) {
       expect([command, isPowerCommand(command)]).toEqual([command, true])
     }
@@ -169,6 +172,10 @@ describe('a planned shutdown', () => {
       'Get-Process | Where-Object Name -eq shutdown',
       'npm run shutdown-server',
       'systemctl status sleep.target',
+      'shutdown "x"',
+      'npm run "shutdown"',
+      'powershell -Command "Get-Date"',
+      "bash -c 'echo shutdown /s'",
     ]) {
       expect([command, isPowerCommand(command)]).toEqual([command, false])
     }

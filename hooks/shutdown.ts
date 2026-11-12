@@ -39,15 +39,24 @@ export function planTime(s: { at?: unknown; inMinutes?: unknown }, now: number):
   return day.getTime()
 }
 
-// Text no shell runs as a command: quoted strings, here-documents and PowerShell here-strings (a commit message, a
-// file written with cat <<EOF, a grep pattern that names `shutdown /s`).
-function withoutData(command: string): string {
+// Text no shell runs as a command: here-documents and PowerShell here-strings (a file written with cat <<EOF)...
+function withoutDocs(command: string): string {
   return command
     .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, ' ')
     .replace(/@(['"])\r?\n[\s\S]*?\r?\n\1@/g, ' ')
+}
+
+// ... and quoted strings (a commit message, a grep pattern that names `shutdown /s`).
+function withoutData(command: string): string {
+  return withoutDocs(command)
     .replace(/"(?:[^"\\`]|\\.|`.)*"/g, '""')
     .replace(/'[^']*'/g, "''")
 }
+
+// A shell started with a command of its own (`powershell -Command "..."`, `bash -c '...'`): that command counts too.
+const NESTED = /(?:^|[;&|\n(]\s*)(?:powershell|pwsh)(?:\.exe)?\b[^"'\n]*?\s-(?:Command|c)\s+(["'])([\s\S]*?)\1|(?:^|[;&|\n(]\s*)(?:bash|sh|zsh)\s+-c\s+(["'])([\s\S]*?)\3/gi
+// A program named by its quoted full path, called (`& "C:\Windows\System32\shutdown.exe" /s`).
+const QUOTED_SHUTDOWN = /(?:^|[;|\n(]\s*|&\s*)["'][^"'\n]*[\\/]shutdown(?:\.exe)?["']\s+(?:[^;&|\n]*\s)?[/-][sSpPhH]\b/i
 
 /**
  * Whether a shell command shuts the computer down, puts it to sleep or hibernates it (0.11.0): a power program in the
@@ -55,6 +64,12 @@ function withoutData(command: string): string {
  * here-document or the arguments of another program. `shutdown /a`, `-c` and restarts (`/r`, `/g`, `-r`) are none.
  */
 export function isPowerCommand(command: string): boolean {
+  const docless = withoutDocs(command)
+  if (QUOTED_SHUTDOWN.test(docless)) return true
+  for (const nested of docless.matchAll(NESTED)) {
+    const inner = nested[2] ?? nested[4]
+    if (inner !== undefined && isPowerCommand(inner)) return true
+  }
   for (const raw of withoutData(command).split(/[;&|\n(){}]/)) {
     const part = raw
       .trim()
@@ -67,11 +82,13 @@ export function isPowerCommand(command: string): boolean {
     if (/^pmset\s+sleepnow\b/.test(part)) return true
     if (/^rundll32(?:\.exe)?\s+powrprof\.dll\s*,\s*SetSuspendState/i.test(part)) return true
     if (/^\[[^\]]*Application\]::SetSuspendState\s*\(/i.test(part)) return true
-    const program = /^(?:Start-Process\s+)?(?:[A-Za-z]:)?(?:[\w.-]*[\\/])*shutdown(?:\.exe)?(?:\s+-ArgumentList)?(\s.*)?$/i.exec(part)
+    const program = /^(Start-Process\s+)?(?:[A-Za-z]:)?(?:[\w.-]*[\\/])*shutdown(?:\.exe)?(?:\s+-ArgumentList)?(\s.*)?$/i.exec(part)
     if (program === null) continue
-    const args = ` ${program[1] ?? ''} `
+    const args = ` ${program[2] ?? ''} `
     if (/\s\/[arg]\b|\s-[arc]\b|\s--(?:reboot|cancel)\b/i.test(args)) continue
-    if (/\s[/-][sSpPhH]\b|\s--(?:poweroff|halt)\b|\snow\b|\s\+\d+\b|\s\d{1,2}:\d{2}\b|""|''/.test(args)) return true
+    if (/\s[/-][sSpPhH]\b|\s--(?:poweroff|halt)\b|\snow\b|\s\+\d+\b|\s\d{1,2}:\d{2}\b/.test(args)) return true
+    // Start-Process with its arguments in quotes, which are gone here: its own quoted arguments decide.
+    if (program[1] !== undefined && /Start-Process\s+["']?shutdown(?:\.exe)?["']?\s+-ArgumentList\s+["'][^"']*[/-][sSpPhH]\b/i.test(docless)) return true
   }
   return false
 }

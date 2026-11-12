@@ -13,8 +13,11 @@
 - **Claude no longer powers the computer off itself:** a shell command for it (`shutdown /s`, `Stop-Computer`,
   `systemctl poweroff`, `pmset sleepnow`, …) is turned away with the tool to use, so the sessions pause first. On
   2026-11-11 a session had shut the computer down with `shutdown /s /t …` itself, and nothing paused.
-- **Approvals are held only where they would ask you:** in the permission mode Auto, Claude Code's own check decides,
-  and the mod no longer holds anything back there (in 0.10.2 it did, during a pause). The mod works best with Auto.
+- **Approvals are held where they would really ask you:** a permission prompt that comes up during a pause or before
+  a planned shutdown is turned away (`classic.PermissionRequest`), in any permission mode; where the mode surely asks,
+  already before. In Auto, Claude Code's own check settles most steps itself, so sessions work on with far fewer
+  interruptions (in 0.10.2 the mod held them back before that check). The mode is only a hint: the mod works without
+  Auto too.
 
 ## 0.10.3 — 2026-11-10
 

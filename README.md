@@ -111,9 +111,10 @@ The request Claude gets (full text in [`hooks/pause.ts`](hooks/pause.ts)):
 On “continue” Claude is told to carry on from the saved state and restart what was stopped for the pause. A message
 written during the pause is answered without picking the paused work back up.
 
-**Approvals.** From the press of **Pause** or **Shutdown** until the pause is over, no new approval comes up: in a
-permission mode that asks you (Ask permissions, Plan), a step that would ask for your permission waits for “continue”.
-In the permission mode **Auto** Claude Code's own check decides and nobody is asked, so nothing is held up there. The request tells Claude so, and a call that asks anyway is
+**Approvals.** From the press of **Pause** or **Shutdown** until the pause is over, no new approval comes up: a step
+that would ask for your permission waits for “continue”, in every permission mode. In **Auto** Claude Code's own
+check settles most steps itself, so fewer of them wait; the mod only takes the mode as a hint, since Auto too may ask
+(after a repository's rules or settings hooks), and turns away every prompt that does come up. The request tells Claude so, and a call that asks anyway is
 turned away with the same words; Claude notes it in the pause state and repeats it after “continue”, where you are
 asked as usual. An approval that is already on screen when you press the button holds the pause up, and a shutdown
 with it, until someone answers it: a mod cannot cancel it, so the status row says so and asks you to answer it (“An
@@ -151,12 +152,13 @@ for; the pause itself is kept as always.
 **At a time (0.11.0).** Answer the question with a time (“02:30”) or a while (“in 2 hours”), or tell Claude in your own
 words (“shut the computer down at 02:30, the download needs until then”): Claude passes it to the mod's tool
 `schedule_shutdown`, and every band shows “Shutdown planned for 02:30” with **Cancel** in the button's place. Claude
-tells you that work still running then can delay it by a few minutes; it never comes earlier.
+tells you that work still running then can delay it by a few minutes; it never comes earlier. Should the option
+`shutdownMode` change before then, the computer does what it says at the time.
 
 - **Until then** every session works on, but starts only steps that surely finish before that time. It asks nothing
   and starts nothing that would need your approval: both wait for after the restart, noted in the saved state. In the
-  permission mode **Auto** nothing asks you anyway, so the sessions work on unhindered; that is the mode the mod works
-  best with.
+  permission mode **Auto** Claude Code's own check settles most steps itself, so the sessions work on with far fewer
+  interruptions; the mod works without it too.
 - **Half an hour before,** a session at work is reminded to save its state (a commit, notes), so everything can be
   picked up after the restart.
 - **At the time,** every session pauses: running work finishes, the state is saved, nothing is asked. Once all are
@@ -165,9 +167,10 @@ tells you that work still running then can delay it by a few minutes; it never c
 - **The plan is kept in the state file:** it outlives a restart of the app, and should the session that planned it be
   closed, another session with the mod fires it. With none running at the time (the computer was off or asleep), it
   lapses with a line at the next start.
-- **Claude never powers the computer off itself:** a shell command for it (`shutdown /s`, `Stop-Computer`,
-  `systemctl poweroff`, `pmset sleepnow` and the like) is turned away with the tool to use instead, so the sessions
-  pause first. `shutdown /a` and restarts stay Claude's to run.
+- **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
+  `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow` and the like, also inside `powershell -Command` or
+  `bash -c`) gets the tool to use instead, so the sessions pause first. The check reads the command as written; a
+  shutdown inside a script file it runs is not seen. `shutdown /a` and restarts stay Claude's to run.
 - **The computer does what the option `shutdownMode` says;** should you ask for another of shutdown, standby and
   hibernation, Claude tells you to change the option.
 
@@ -386,7 +389,7 @@ the shutdown button (below). What it hands Claude enters the conversation like a
 | a prompt in your name | you press **Shutdown** | the question when: fixed text from [`hooks/sessions.ts`](hooks/sessions.ts) |
 | a tool Claude can call, `schedule_shutdown` | you answered when, or asked in words to shut down, sleep or hibernate | listed with a fixed description (in [`hooks/sessions.ts`](hooks/sessions.ts)); now: the pause and shutdown as above; at a time: a plan in the state file, the answer fixed text |
 | a note to a session at work, a note added to your prompt | a shutdown is planned | fixed text: the time, start only what finishes before it, ask nothing, save the state; half an hour before, a reminder; at the time, the pause |
-| a question or an approval turned away | from the plan until its time, in every session (an approval only in a permission mode that asks you) | refused with fixed text: keep it for after the restart and note it |
+| a question or an approval turned away | from the plan until its time, in every session | refused with fixed text: keep it for after the restart and note it |
 | a shell command turned away | Claude runs a command that powers the computer off, sends it to sleep or hibernates it | refused with fixed text: use `schedule_shutdown` |
 | a question beside the conversation | **Keep-warm** is checked and the cache is about to run out | a model request over the conversation as its last request sent it, through the session's own client: fixed text asking for “OK”, no tools; the answer is discarded and stays out of the conversation |
 
@@ -420,11 +423,12 @@ usage windows come from Claude Code itself, as its status line shows them, and n
 
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above, and `tool.call` answers the mod's
 own tools, turns a question dialog away during a pause or before a planned shutdown, and turns away a shell command
-that powers the computer off; `tool.check` turns an approval away during a pause or before a planned shutdown, only
-in a permission mode that asks you (read from the classic hooks); it changes no other verdict, never allows anything
-and leaves subagents' calls alone. Every other
+that powers the computer off; `classic.PermissionRequest` turns away a permission prompt during a pause or before a
+planned shutdown, and `tool.check` does so early where the permission mode surely asks (`default`, `plan`,
+`acceptEdits`, read from the classic hooks as a hint); neither changes any other verdict, allows anything or touches
+a subagent's calls. Every other
 hook only reads and passes its event
-on unchanged: `classic.SessionStart` (transcript path, session id, time since the last response),
+on unchanged: `classic.PreToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
 conversation has run, and when a question to you is answered), `turn.step` (token counts, the model it names, and when a request reads
@@ -450,17 +454,19 @@ write took its change back; a file caught half-written is read again, not writte
 
 ## Requirements
 
-The mod works best with the permission mode **Auto**: during a pause and before a planned shutdown it holds back
-every approval that would come up as a prompt, and in Auto nothing comes up, so sessions keep working.
+The mod works without it, but with far fewer interruptions in the permission mode **Auto**: during a pause and before
+a planned shutdown it turns away every permission prompt, and in Auto Claude Code's own check settles most steps
+itself, so fewer of them wait.
 
 Claude Code with mods (function-hook plugins), early access, checked with **2.1.317** (desktop app) and **2.1.319** (CLI). The mod API
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,
-`classic.Notification`, `classic.PostModelSwitch` and `session.compact` run only for plugins the organization lists in
+`classic.Notification`, `classic.PostModelSwitch`, `classic.PreToolUse`, `classic.PermissionRequest` and `session.compact` run only for plugins the organization lists in
 managed settings. A self-installed copy then never sees Claude stop, so the pause stays at “Preparing the pause …”, the cache
-lifetime is not read off the transcript, no summary is logged after `/compact`, and keep-warm counts an open
-permission prompt as work and goes on after a compaction or a switch of model until a refresh finds the cache cold.
+lifetime is not read off the transcript, no summary is logged after `/compact`, keep-warm counts an open
+permission prompt as work and goes on after a compaction or a switch of model until a refresh finds the cache cold,
+and a permission prompt during a pause or before a planned shutdown is not turned away.
 
 ## Development
 
