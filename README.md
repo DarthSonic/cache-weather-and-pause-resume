@@ -163,7 +163,9 @@ tells you that work still running then can delay it by a few minutes; it never c
   interruptions; the mod works without it too.
 - **Half an hour before,** a session at work is reminded to save its state (a commit, notes), so everything can be
   picked up after the restart.
-- **At the time,** every session pauses: running work finishes, the state is saved, nothing is asked. Once all are
+- **At the time,** every session pauses: running work finishes, the state is saved, nothing is asked. From a minute
+  before until a few minutes after, every session looks every second instead of every 15, so the plan fires on the
+  second and every band counts the countdown down with it. Once all are
   paused, the band counts down one minute (nobody is there to cancel), then runs the command. After the restart each
   session shows **Resume**.
 - **The plan is kept in the state file:** it outlives a restart of the app, and should the session that planned it be

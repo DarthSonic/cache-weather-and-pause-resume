@@ -107,7 +107,9 @@ import {
   withoutForgotten,
 } from './sessions'
 import {
+  PLAN_FOLLOW_MS,
   PLAN_GRACE_MS,
+  PLAN_NEAR_MS,
   PLAN_REMINDER_MS,
   SCHEDULED_COUNTDOWN_MS,
   SHUTDOWN_COUNTDOWN_MS,
@@ -537,6 +539,12 @@ let tickerStarted = false
 let heartbeatStarted = false
 let sessionsToolRegistered = false
 let scheduleToolRegistered = false
+// Another session's shutdown under way, read every second (0.11.0).
+let foreignWatch: Timer | null = null
+// A plan's time near or just past: plan and request looked at every second (0.11.0).
+let nearPlanWatch: Timer | null = null
+// One look at plan and request at a time: the 15-second look and the second-by-second one never overlap.
+let isLooking = false
 // The other session's request this module has taken up already: it is not taken up twice.
 let handledRequestId: string | null = null
 // When this module first saw its session start: a request decided before is no concern of it.
@@ -1159,6 +1167,7 @@ async function followPlan($: EngineInterface): Promise<void> {
       await handToModel($, plannedNote(clock, plan.byFolder, lang, plan.mode))
     }
   }
+  if (plan.at - at <= PLAN_NEAR_MS) watchNearPlan($)
   if (at < plan.at) {
     const isReminderDue = at >= plan.at - PLAN_REMINDER_MS && plan.at - plan.createdAt > PLAN_REMINDER_MS
     if (isReminderDue && (await read($, planRemindedId)) !== plan.id) {
@@ -1489,9 +1498,42 @@ function startHeartbeat($: EngineInterface): void {
 
 async function sessionsTick($: EngineInterface): Promise<void> {
   await writeHeartbeat($)
-  await followPlan($)
-  await followRequest($)
+  await lookAtPlanAndRequest($)
   await refreshSessionsView($)
+}
+
+async function lookAtPlanAndRequest($: EngineInterface): Promise<void> {
+  if (isLooking) return
+  isLooking = true
+  try {
+    await followPlan($)
+    await followRequest($)
+  } finally {
+    isLooking = false
+  }
+}
+
+// From PLAN_NEAR_MS before a plan's time until PLAN_FOLLOW_MS after it fired: a look every second, so the plan fires on
+// the second, the others take it up at once and a cancel in any band counts within a second. Hours ahead the
+// 15-second look is enough (the person's word).
+function watchNearPlan($: EngineInterface): void {
+  if (nearPlanWatch !== null) return
+  nearPlanWatch = $.clock.every(1000, () => {
+    void followNearPlan($).catch(() => undefined)
+  })
+}
+
+async function followNearPlan($: EngineInterface): Promise<void> {
+  await lookAtPlanAndRequest($)
+  const plan = await read($, shutdownPlan)
+  const at = await $.clock.now()
+  const isNear =
+    plan !== null &&
+    (plan.firedAt === undefined ? plan.at - at <= PLAN_NEAR_MS : at - plan.firedAt <= PLAN_FOLLOW_MS)
+  if (!isNear) {
+    nearPlanWatch?.cancel()
+    nearPlanWatch = null
+  }
 }
 
 // The request for all sessions lives in a file of its own, which only the session that made it writes.
@@ -1650,6 +1692,7 @@ async function followRequest($: EngineInterface): Promise<void> {
   const pausedBy = await read($, pausedByRequest)
   if (request.id === handledRequestId || request.id === pausedBy) {
     await update($, sessionRequest, () => request)
+    watchForeignShutdown($, request)
     if (request.state === 'resumed' && pausedBy === request.id && (await read($, pausePhase)) !== 'running') {
       if (await read($, isIdlePause)) await enterRunning($)
       else await requestResume($)
@@ -1660,6 +1703,7 @@ async function followRequest($: EngineInterface): Promise<void> {
   handledRequestId = request.id
   await update($, sessionRequest, () => request)
   await update($, requestRole, () => 'foreign')
+  watchForeignShutdown($, request)
   await update($, questionsClosed, () => true)
   if ((await read($, pausePhase)) === 'running') {
     await update($, pausedByRequest, () => request.id)
@@ -1676,6 +1720,33 @@ async function followRequest($: EngineInterface): Promise<void> {
     }
   }
   await writeHeartbeat($)
+}
+
+// Another session's shutdown under way: this band reads its state every second, so it counts down by itself, second by
+// second, and a cancel or the end shows within a second; the 15-second look only finds it (0.11.0, the person's ask).
+function watchForeignShutdown($: EngineInterface, request: SessionRequest): void {
+  if (foreignWatch !== null || request.kind !== 'shutdown' || !isUnderWay(request)) return
+  foreignWatch = $.clock.every(1000, () => {
+    void followForeignShutdown($).catch(() => undefined)
+  })
+}
+
+function stopForeignWatch(): void {
+  foreignWatch?.cancel()
+  foreignWatch = null
+}
+
+async function followForeignShutdown($: EngineInterface): Promise<void> {
+  const known = await read($, sessionRequest)
+  const request = await readRequest($)
+  const at = await $.clock.now()
+  await update($, now, () => at)
+  if (known === null || request === null || request.id !== known.id || (await read($, requestRole)) !== 'foreign') {
+    stopForeignWatch()
+    return
+  }
+  if (JSON.stringify(known) !== JSON.stringify(request)) await update($, sessionRequest, () => request)
+  if (!isUnderWay(request)) stopForeignWatch()
 }
 
 // The tool Claude passes the person's answer about the other sessions with (pause_sessions).
@@ -1866,6 +1937,9 @@ export const register: Register = (on, options) => {
   heartbeatStarted = false
   sessionsToolRegistered = false
   scheduleToolRegistered = false
+  foreignWatch = null
+  nearPlanWatch = null
+  isLooking = false
   handledRequestId = null
   moduleStartedAt = null
   isRefreshing = false

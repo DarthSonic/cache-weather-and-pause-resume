@@ -14,6 +14,9 @@ export const SCHEDULED_COUNTDOWN_MS = 60_000
 export const PLAN_REMINDER_MS = 30 * 60_000
 /** A plan whose time passed this long ago with no session to fire it lapses: the computer was off or asleep. */
 export const PLAN_GRACE_MS = 10 * 60_000
+/** From this long before a plan's time until a while after it fired, every session looks every second (0.11.0). */
+export const PLAN_NEAR_MS = 60_000
+export const PLAN_FOLLOW_MS = 3 * 60_000
 /** At most this far ahead. */
 export const PLAN_MAX_AHEAD_MS = 24 * 60 * 60_000
 

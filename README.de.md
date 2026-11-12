@@ -168,7 +168,9 @@ er nie. Ändert sich die Option `shutdownMode` bis dahin, tut der Rechner, was s
   selbst, die Sitzungen arbeiten also deutlich störungsfreier weiter; der Mod funktioniert aber auch ohne.
 - **Eine halbe Stunde vorher** wird eine arbeitende Sitzung erinnert, ihren Stand zu sichern (Commit, Notizen), damit
   nach dem Neustart alles nachgeholt werden kann.
-- **Zum Zeitpunkt** pausiert jede Sitzung: Laufendes wird fertig, der Stand gesichert, nichts gefragt. Sind alle
+- **Zum Zeitpunkt** pausiert jede Sitzung: Laufendes wird fertig, der Stand gesichert, nichts gefragt. Ab einer Minute
+  vorher bis einige Minuten danach schaut jede Sitzung jede Sekunde statt alle 15 nach, so löst der Plan auf die
+  Sekunde aus, und jede Leiste zählt den Countdown mit. Sind alle
   pausiert, zählt die Leiste eine Minute herunter (niemand ist da, um abzubrechen), dann startet der Befehl. Nach dem
   Neustart zeigt jede Sitzung **Weiter**.
 - **Der Plan steht in der Zustandsdatei:** Er übersteht einen Neustart der App, und wird die planende Sitzung

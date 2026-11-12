@@ -10,8 +10,8 @@
   state. At the time, never earlier, every session pauses (running work finishes), and once all are paused the band
   counts down one minute and runs the command; after the restart the sessions show **Resume**. The plan is kept in the
   state file: another session fires it should the planner be closed, and with none running at the time it lapses.
-- **Cancel in every band:** while a shutdown is under way, every session's band offers **Cancel**, not only the one
-  that runs it (after a takeover, often one you do not look at). That session calls it off at its next look and in any
+- **Cancel in every band:** while a shutdown is under way, every session's band offers **Cancel** and counts the
+  countdown down second by second, not only the one that runs it (after a takeover, often one you do not look at). That session calls it off at its next look and in any
   case right before the command. Once a plan has fired, its **Cancel** calls off the shutdown under way.
 - **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
   `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow`, …, also inside `powershell -Command` or `bash -c`) gets the
