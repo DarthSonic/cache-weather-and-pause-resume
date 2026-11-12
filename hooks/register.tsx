@@ -1382,6 +1382,7 @@ async function overviewFields($: EngineInterface): Promise<Partial<LiveSession>>
     cacheUntil: used === null || life === null ? null : gone !== null ? gone : used + life.minutes * 60_000,
     keepWarm: await read($, keepWarm),
     model: await read($, mainModel),
+    permissionMode: await read($, permissionMode),
   }
 }
 

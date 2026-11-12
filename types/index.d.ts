@@ -90,6 +90,8 @@ export type LiveSession = {
   cacheUntil?: number | null
   keepWarm?: boolean
   model?: string | null
+  /** The permission mode the classic hooks last reported (0.11.0): a hint, readable from outside. */
+  permissionMode?: string | null
 }
 
 /** A request for all sessions, written by the session where Pause or Shutdown was pressed, and by no other. */
