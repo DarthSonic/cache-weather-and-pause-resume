@@ -171,6 +171,10 @@ declare module 'claude-code' {
       /** The plan this session was told of, and reminded of (0.11.0). */
       planNotedId: string | null
       planRemindedId: string | null
+      /** The plan the model was told of (0.11.0): it hears when that one is cancelled. */
+      planTold: { id: string; mode: ShutdownMode } | null
+      /** A cancelled plan's note not yet handed to the model: it goes with the next turn. */
+      planCancelPending: ShutdownMode | null
       /** The session's permission mode, from the classic hooks (0.11.0): whether an ask comes up as a prompt. */
       permissionMode: string | null
       /** The model the main conversation's last request named: it sets what a cache read costs. */

@@ -861,6 +861,39 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  // Live, 0.11.0: a session told of the plan waited for its background run as the cancel was pressed in its own band,
+  // heard nothing, and ended its work for a restart that never came.
+  test('a session told of a plan hears its cancel with its next turn, also when pressed in its own band', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(11, 23, 0) })
+    const plan = { id: 'other-1', at: local(12, 2, 30), mode: 'shutdown', by: 'other', byFolder: 'Werkstatt', createdAt: local(11, 22, 57) }
+    disk(on, { [STATE]: JSON.stringify({ shutdownPlan: plan }) }, { OS: 'Windows_NT' })
+    const session = mock.session(on)
+    const prompts = engine(on)
+    windows(on)
+    on('ui.toast', () => ({ value: undefined }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p6' })
+    const said = (text: string) =>
+      [...session.appended().map(row => JSON.stringify(row.message.content)), ...prompts.map(p => JSON.stringify(p))].filter(t => t.includes(text)).length
+    // At work: told of the plan once.
+    await $.turn.start({ text: 'weiter', turnId: 't1' })
+    await clock.advance(16_000)
+    expect(said('Geplant (in der Sitzung Werkstatt): Um 02:30')).toBe(1)
+    // Its turn ended; the cancel is pressed in its own band: nothing wakes it now.
+    await $.classic.Stop(stop(undefined, 'p6'))
+    await ui.press({ key: 'plan-cancel' })
+    await clock.advance(16_000)
+    expect(said('Der geplante Shutdown ist abgebrochen')).toBe(0)
+    // Its next turn (a task's notice) hears it, once.
+    await $.turn.start({ text: '', turnId: 't2' })
+    expect(said('Der geplante Shutdown ist abgebrochen')).toBe(1)
+    await clock.advance(16_000)
+    await $.turn.start({ text: '', turnId: 't3' })
+    expect(said('Der geplante Shutdown ist abgebrochen')).toBe(1)
+    await ui.unmount()
+  })
+
   test('a plan whose time passed with no session to fire it lapses', SLOW_DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: local(12, 8, 0) })

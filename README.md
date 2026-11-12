@@ -445,8 +445,10 @@ latest of each, and ten seconds after a session starts it drops what it holds of
 under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads the file — it never reaches the model and costs no tokens.
 
 It also holds each session's sign of life (`liveSessions`, see [Other sessions](#other-sessions)): written every 15
-seconds, taken out when the session ends, forgotten an hour after its last one. `request.json` beside it holds the
-last pause or shutdown across sessions; only the session that made it writes it.
+seconds, taken out when the session ends, forgotten an hour after its last one; with its folder, pause, running work,
+context, cache, model and permission mode (for the overview and the other sessions). A planned shutdown
+(`shutdownPlan`: time, mode, the planning session and its folder) stays in it until it fires, is cancelled or lapses.
+`request.json` beside it holds the last pause or shutdown across sessions; only the session that made it writes it.
 
 Every session writes the file, each by reading it, changing it and writing it whole. So that two writing at the same
 moment lose nothing, a write is looked at again a quarter of a second later and made again where another session's

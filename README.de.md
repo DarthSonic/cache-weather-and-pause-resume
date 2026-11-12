@@ -467,8 +467,11 @@ gelöschten Sitzungen hält (kein Transkript mehr unter `~/.claude/projects/`); 
 kostet keine Token.
 
 Sie hält auch das Lebenszeichen jeder Sitzung (`liveSessions`, siehe [Andere Sitzungen](#andere-sitzungen)): alle 15
-Sekunden geschrieben, beim Ende der Sitzung entfernt, eine Stunde nach dem letzten vergessen. `request.json` daneben
-hält die letzte Pause oder den letzten Shutdown über Sitzungen; schreiben darf sie nur die Sitzung, die sie angelegt hat.
+Sekunden geschrieben, beim Ende der Sitzung entfernt, eine Stunde nach dem letzten vergessen; mit Ordner, Pause,
+laufender Arbeit, Kontext, Cache, Modell und Berechtigungsmodus (für die Übersicht und die anderen Sitzungen). Ein
+geplanter Shutdown (`shutdownPlan`: Zeit, Modus, die planende Sitzung und ihr Ordner) steht darin, bis er ausgelöst,
+abgebrochen oder verfallen ist. `request.json` daneben hält die letzte Pause oder den letzten Shutdown über Sitzungen;
+schreiben darf sie nur die Sitzung, die sie angelegt hat.
 
 Jede Sitzung schreibt die Datei, indem sie sie liest, ändert und ganz neu schreibt. Damit zwei, die im selben Moment
 schreiben, nichts verlieren, wird ein Schreiben eine Viertelsekunde später noch einmal angesehen und wiederholt, wo das

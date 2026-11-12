@@ -168,6 +168,8 @@ const isAwaitingApproval = atom({ plugin: 'cache-weather-and-pause-resume', key:
 const shutdownPlan = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPlan' } as const, null)
 const planNotedId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planNotedId' } as const, null)
 const planRemindedId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planRemindedId' } as const, null)
+const planTold = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planTold' } as const, null)
+const planCancelPending = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planCancelPending' } as const, null)
 const permissionMode = atom({ plugin: 'cache-weather-and-pause-resume', key: 'permissionMode' } as const, null)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
 const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
@@ -1044,6 +1046,7 @@ async function scheduleShutdown(
   await writePersisted($, p => ({ ...p, shutdownPlan: plan }))
   await update($, shutdownPlan, () => plan)
   await update($, planNotedId, () => plan.id)
+  await told($, plan)
   // Planned closer than the reminder's half hour: the plan itself said what to do.
   if (time - at <= PLAN_REMINDER_MS) await update($, planRemindedId, () => plan.id)
   await update($, shutdownPhase, () => 'idle')
@@ -1059,6 +1062,29 @@ async function cancelPlan($: EngineInterface): Promise<void> {
   await update($, planNotedId, () => null)
   await update($, planRemindedId, () => null)
   $.ui.toast(strings(await currentLang($), plan.mode).planCancelled)
+  await noteCancelled($, plan)
+}
+
+// The model was told of this plan (by the tool's result, a note or a prompt's context): an older cancel is moot.
+async function told($: EngineInterface, plan: ShutdownPlan): Promise<void> {
+  await update($, planTold, () => ({ id: plan.id, mode: plan.mode }))
+  await update($, planCancelPending, () => null)
+}
+
+// A plan called off, here or in another session: a model that was told of it hears so, now if the session works,
+// else with its next turn, so it does not end its work for a shutdown that will not come (live, 0.11.0).
+async function noteCancelled($: EngineInterface, plan: ShutdownPlan): Promise<void> {
+  if ((await read($, planTold))?.id !== plan.id) return
+  await update($, planTold, () => null)
+  await update($, planCancelPending, () => plan.mode)
+  await deliverCancel($)
+}
+
+async function deliverCancel($: EngineInterface): Promise<void> {
+  const mode = await read($, planCancelPending)
+  if (mode === null || (await livePlan($)) !== null || !(await isWorkingNow($))) return
+  await update($, planCancelPending, () => null)
+  await handToModel($, planCancelledNote(await currentLang($), mode))
 }
 
 // Every HEARTBEAT_MS: the plan as the state file holds it. A session at work is told of it once and reminded half an
@@ -1072,14 +1098,12 @@ async function followPlan($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
   const lang = await currentLang($)
   if (plan === null) {
-    const noted = await read($, planNotedId)
-    if (noted === null) return
+    // Called off (a plan that fired leads to the pause instead): a session told of it hears so.
+    if (before !== null && before.firedAt === undefined) await noteCancelled($, before)
+    await deliverCancel($)
+    if ((await read($, planNotedId)) === null) return
     await update($, planNotedId, () => null)
     await update($, planRemindedId, () => null)
-    // Called off (a plan that fired leads to the pause instead): a session told of it hears so.
-    if (before !== null && before.id === noted && before.firedAt === undefined && (await isWorkingNow($))) {
-      await handToModel($, planCancelledNote(lang, before.mode))
-    }
     return
   }
   if (plan.firedAt !== undefined) {
@@ -1095,7 +1119,10 @@ async function followPlan($: EngineInterface): Promise<void> {
   const clock = clockOf(plan.at)
   if ((await read($, planNotedId)) !== plan.id) {
     await update($, planNotedId, () => plan.id)
-    if (plan.by !== self && (await isWorkingNow($))) await handToModel($, plannedNote(clock, plan.byFolder, lang, plan.mode))
+    if (plan.by !== self && (await isWorkingNow($))) {
+      await told($, plan)
+      await handToModel($, plannedNote(clock, plan.byFolder, lang, plan.mode))
+    }
   }
   if (at < plan.at) {
     const isReminderDue = at >= plan.at - PLAN_REMINDER_MS && plan.at - plan.createdAt > PLAN_REMINDER_MS
@@ -1137,6 +1164,8 @@ async function firePlan(
   await update($, shutdownPlan, () => fired)
   await update($, planNotedId, () => null)
   await update($, planRemindedId, () => null)
+  await update($, planTold, () => null)
+  await update($, planCancelPending, () => null)
   const lang = await currentLang($)
   // The option as it stands now decides what the computer does: changed since the plan, the person's latest word counts.
   const t = strings(lang, shutdownMode)
@@ -1950,6 +1979,7 @@ export const register: Register = (on, options) => {
       await update($, turnRunning, () => true)
       const at = await $.clock.now()
       await update($, workingSince, prev => prev ?? at)
+      await deliverCancel($)
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -2148,7 +2178,15 @@ export const register: Register = (on, options) => {
     if (current === 'paused') return withNote(isPerson ? pausedPersonNote(lang) : pausedMachineNote(lang))
     // A shutdown planned (0.11.0): every prompt of the person's carries what it means for the work.
     const planned = current === 'running' && isPerson ? await livePlan($) : null
-    if (planned !== null) return withNote(plannedNote(clockOf(planned.at), planned.byFolder, lang, planned.mode))
+    if (planned !== null) {
+      await told($, planned)
+      return withNote(plannedNote(clockOf(planned.at), planned.byFolder, lang, planned.mode))
+    }
+    const cancelled = current === 'running' && isPerson ? await read($, planCancelPending) : null
+    if (cancelled !== null) {
+      await update($, planCancelPending, () => null)
+      return withNote(planCancelledNote(lang, cancelled))
+    }
     if (current === 'pausing') {
       // A turn interrupted before it read the appended request raises no Stop: the next prompt carries it whole.
       if (await read($, pauseDelivered)) return withNote(pausingNote(lang))
