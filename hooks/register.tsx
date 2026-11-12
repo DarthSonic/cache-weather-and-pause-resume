@@ -170,6 +170,7 @@ const planNotedId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planN
 const planRemindedId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planRemindedId' } as const, null)
 const planTold = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planTold' } as const, null)
 const planCancelPending = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planCancelPending' } as const, null)
+const shutdownCancelAsked = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownCancelAsked' } as const, null)
 const permissionMode = atom({ plugin: 'cache-weather-and-pause-resume', key: 'permissionMode' } as const, null)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
 const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
@@ -212,6 +213,9 @@ type Persisted = {
   liveSessions?: Record<string, LiveSession>
   /** A shutdown planned for a time (0.11.0): any session shows it, cancels it, and fires it should its planner be gone. */
   shutdownPlan?: ShutdownPlan | null
+  /** A shutdown under way that a band other than its own asked to cancel (0.11.0): the session that runs it cancels it
+   * at its next look, and in any case right before the command. */
+  shutdownCancel?: { requestId: string; at: number } | null
 }
 
 // $.fs.read refuses files over 4 MiB: a longer transcript is not read, and the values remembered stand. (The mod
@@ -1053,16 +1057,47 @@ async function scheduleShutdown(
   return scheduleLaterResult(clockOf(time), untilText(time - at), shutdownMode)
 }
 
-// The cancel button of a plan, in any session.
+// The cancel button of a plan, in any session. The plan as the state file holds it: fired meanwhile (here or in the
+// session that took it over), the button cancels the shutdown under way instead (live, 0.11.0).
 async function cancelPlan($: EngineInterface): Promise<void> {
-  const plan = await livePlan($)
+  const plan = (await readPersisted($)).shutdownPlan ?? null
   if (plan === null) return
+  if (plan.firedAt !== undefined) {
+    await cancelShutdownAnywhere($)
+    return
+  }
   await writePersisted($, p => (p.shutdownPlan?.id === plan.id ? { ...p, shutdownPlan: null } : p))
   await update($, shutdownPlan, () => null)
   await update($, planNotedId, () => null)
   await update($, planRemindedId, () => null)
   $.ui.toast(strings(await currentLang($), plan.mode).planCancelled)
   await noteCancelled($, plan)
+}
+
+// A cancel button for a shutdown under way, in any band: this session's own is cancelled at once; another session's
+// is marked in the state file, which that session reads at its next look and right before the command (0.11.0).
+async function cancelShutdownAnywhere($: EngineInterface): Promise<void> {
+  if ((await read($, requestRole)) === 'own' && (await read($, shutdownPhase)) !== 'idle') {
+    await cancelShutdown($, false)
+    return
+  }
+  const request = await readRequest($)
+  if (request === null || request.kind !== 'shutdown' || !isUnderWay(request)) return
+  const at = await $.clock.now()
+  await writePersisted($, p => ({ ...p, shutdownCancel: { requestId: request.id, at } }))
+  await update($, shutdownCancelAsked, () => request.id)
+  $.ui.toast(strings(await currentLang($), request.mode ?? 'shutdown').shutdownCancelled)
+}
+
+function isUnderWay(request: SessionRequest): boolean {
+  return request.state === 'open' || request.state === 'decided' || request.state === 'countdown'
+}
+
+// Whether a band asked to cancel this session's own shutdown.
+async function isCancelAsked($: EngineInterface): Promise<boolean> {
+  const own = await read($, sessionRequest)
+  if (own === null || own.kind !== 'shutdown' || !isUnderWay(own)) return false
+  return (await readPersisted($)).shutdownCancel?.requestId === own.id
 }
 
 // The model was told of this plan (by the tool's result, a note or a prompt's context): an older cancel is moot.
@@ -1298,6 +1333,11 @@ async function cancelShutdown($: EngineInterface, isQuiet: boolean): Promise<voi
 async function runShutdown($: EngineInterface): Promise<void> {
   stopShutdownTimers()
   if ((await read($, shutdownPhase)) !== 'countdown') return
+  // Cancelled in another band since this session's last look: nothing runs (0.11.0).
+  if (await isCancelAsked($)) {
+    await cancelShutdown($, false)
+    return
+  }
   const readiness = await read($, shutdownReadiness)
   // Once more right before it runs: an answer for another mode (the option changed meanwhile) runs nothing.
   if (readiness === null || !readiness.isReady || !readinessFits(readiness, shutdownMode)) {
@@ -1585,6 +1625,10 @@ async function followRequest($: EngineInterface): Promise<void> {
   if (self === null) return
   const at = await $.clock.now()
   if ((await read($, requestRole)) === 'own') {
+    if (await isCancelAsked($)) {
+      await cancelShutdown($, false)
+      return
+    }
     const own = await read($, sessionRequest)
     if (own !== null && (own.state === 'decided' || own.state === 'countdown')) {
       const count = await countWithoutMod($, (await readPersisted($)).liveSessions, self, at)
@@ -2345,6 +2389,13 @@ export const register: Register = (on, options) => {
       return <Button key={spec.key} label={`${spec.icon} ${spec.words}`} onPress={press} {...look} />
     }
     const isShutdownReady = readiness?.isReady === true && readinessFits(readiness, shutdownMode)
+    // Another session's shutdown under way, not yet asked to cancel here: this band cancels it too (0.11.0).
+    const otherRequest = (await read($, requestRole)) === 'foreign' ? await read($, sessionRequest) : null
+    const otherShutdown =
+      otherRequest !== null && otherRequest.kind === 'shutdown' && isUnderWay(otherRequest) &&
+      (await read($, shutdownCancelAsked)) !== otherRequest.id
+        ? otherRequest
+        : null
     const onCancelShutdown = () => cancelShutdown($, false)
     const onShutdown = () => requestShutdown($)
     const onPause = () => requestPause($, askAbove)
@@ -2363,8 +2414,16 @@ export const register: Register = (on, options) => {
       icon: BUTTON_ICONS.cancel,
       onPress: () => cancelPlan($),
     })
+    const otherCancelButton = iconButton({
+      key: 'shutdown-cancel',
+      words: t.shutdownCancel,
+      icon: BUTTON_ICONS.cancel,
+      onPress: () => cancelShutdownAnywhere($),
+    })
     const shutdownButton =
-      plan !== null
+      otherShutdown !== null
+        ? otherCancelButton
+        : plan !== null
         ? planCancelButton
         : shutting === 'asking'
           ? cancelShutdownButton
@@ -2392,7 +2451,14 @@ export const register: Register = (on, options) => {
         </Box>
       )
     } else if (phase === 'pausing') {
-      pause = iconButton({ key: 'pause-cancel', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume })
+      const resumeButton = iconButton({ key: 'pause-cancel', words: t.resume, icon: BUTTON_ICONS.resume, onPress: onResume })
+      pause =
+        otherShutdown === null ? resumeButton : (
+          <Box flexDirection="row" gap={1}>
+            {resumeButton}
+            {otherCancelButton}
+          </Box>
+        )
     } else {
       pause = (
         <Box flexDirection="row" gap={1}>
@@ -2422,7 +2488,10 @@ export const register: Register = (on, options) => {
       status.push({ key: 'shutdown', text: t.waitingFor(await read($, waitingSessions)), color: 'warning' })
     } else if (shutting === 'requested' && phase === 'paused') {
       status.push({ key: 'shutdown', text: t.shutdownRequested, color: 'warning' })
-    } else if (role === 'foreign' && request?.state === 'countdown' && request.countdownUntil !== null) {
+    } else if (
+      role === 'foreign' && request?.state === 'countdown' && request.countdownUntil !== null &&
+      (await read($, shutdownCancelAsked)) !== request.id
+    ) {
       status.push({ key: 'shutdown', text: `${tr.shutdownIn(secondsLeft(request.countdownUntil, at))}${from}`, color: 'error' })
     } else if (shutting === 'asking') {
       status.push({ key: 'shutdown', text: t.shutdownAsking, color: 'warning' })

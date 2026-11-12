@@ -175,6 +175,8 @@ declare module 'claude-code' {
       planTold: { id: string; mode: ShutdownMode } | null
       /** A cancelled plan's note not yet handed to the model: it goes with the next turn. */
       planCancelPending: ShutdownMode | null
+      /** The other session's shutdown this band asked to cancel (0.11.0): its countdown no longer shows here. */
+      shutdownCancelAsked: string | null
       /** The session's permission mode, from the classic hooks (0.11.0): whether an ask comes up as a prompt. */
       permissionMode: string | null
       /** The model the main conversation's last request named: it sets what a cache read costs. */

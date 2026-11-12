@@ -5,11 +5,14 @@
 - **Shutdown at a time.** The shutdown button (or standby, or hibernation) now asks when: Claude puts a dialog to you,
   as soon as possible, or at a time or after a while (free text). Asked in your own words (“shut the computer down at
   02:30”), Claude does the same through the mod's new tool `schedule_shutdown`. A planned shutdown shows in every band
-  with **Cancel**; until its time every session works on, but starts only steps that surely finish before it, and asks
+  with **Cancel** (a while falls on the next full minute); until its time every session works on, but starts only steps that surely finish before it, and asks
   nothing and starts nothing that needs your approval. Half an hour before, a session at work is reminded to save its
   state. At the time, never earlier, every session pauses (running work finishes), and once all are paused the band
   counts down one minute and runs the command; after the restart the sessions show **Resume**. The plan is kept in the
   state file: another session fires it should the planner be closed, and with none running at the time it lapses.
+- **Cancel in every band:** while a shutdown is under way, every session's band offers **Cancel**, not only the one
+  that runs it (after a takeover, often one you do not look at). That session calls it off at its next look and in any
+  case right before the command. Once a plan has fired, its **Cancel** calls off the shutdown under way.
 - **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
   `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow`, …, also inside `powershell -Command` or `bash -c`) gets the
   tool to use instead, so the sessions pause first; a shutdown inside a script file it runs is not seen. In the night

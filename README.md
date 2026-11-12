@@ -151,7 +151,9 @@ for; the pause itself is kept as always.
 
 **At a time (0.11.0).** Answer the question with a time (“02:30”) or a while (“in 2 hours”), or tell Claude in your own
 words (“shut the computer down at 02:30, the download needs until then”): Claude passes it to the mod's tool
-`schedule_shutdown`, and every band shows “Shutdown planned for 02:30” with **Cancel** in the button's place. Claude
+`schedule_shutdown`, and every band shows “Shutdown planned for 02:30” with **Cancel** in the button's place (a while
+falls on the next full minute: “in 4 minutes” at 00:23:50 is 00:28). Once the plan has fired, that **Cancel** calls off
+the shutdown under way. Claude
 tells you that work still running then can delay it by a few minutes; it never comes earlier. Should the option
 `shutdownMode` change before then, the computer does what it says at the time.
 
@@ -237,7 +239,9 @@ shows; pausing and shutting down across sessions go through the band, as below.
 - The shutdown waits for the sessions still at work (`Shutdown waits for 1 session: repo-b`): for runs you chose to
   wait for without limit, for a session that never took the request up 15 minutes at most, and not at all for one whose
   sign of life stopped. Then it counts down 5 minutes.
-- **Cancel** calls the shutdown off everywhere; the pauses stay. **Resume** where you pressed Pause or Shutdown picks
+- **Cancel** calls the shutdown off everywhere; the pauses stay. It stands in every band while a shutdown is under
+  way, also in a session other than the one that runs it (since 0.11.0): that one calls it off at its next look, within
+  15 seconds, and in any case right before the command. **Resume** where you pressed Pause or Shutdown picks
   the other sessions back up too; **Resume** in one of them picks up that one alone.
 - Sessions without the mod, or with a version before 0.9.4, are not paused: the status row counts the ones at work
   (`1 more session is at work without the mod and is not paused`). A session opened after the request was decided is
@@ -447,7 +451,8 @@ under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads
 It also holds each session's sign of life (`liveSessions`, see [Other sessions](#other-sessions)): written every 15
 seconds, taken out when the session ends, forgotten an hour after its last one; with its folder, pause, running work,
 context, cache, model and permission mode (for the overview and the other sessions). A planned shutdown
-(`shutdownPlan`: time, mode, the planning session and its folder) stays in it until it fires, is cancelled or lapses.
+(`shutdownPlan`: time, mode, the planning session and its folder) stays in it until it fires, is cancelled or lapses,
+and a **Cancel** pressed in another session's band marks the shutdown it calls off (`shutdownCancel`).
 `request.json` beside it holds the last pause or shutdown across sessions; only the session that made it writes it.
 
 Every session writes the file, each by reading it, changing it and writing it whole. So that two writing at the same

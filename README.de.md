@@ -158,7 +158,8 @@ Shutdown weg; die Pause selbst bleibt wie immer erhalten.
 **Zu einem Zeitpunkt (0.11.0).** Beantworte die Frage mit einer Uhrzeit („02:30“) oder Dauer („in 2 Stunden“), oder
 sag es Claude in deinen Worten („fahr den Rechner um 02:30 herunter, der Download braucht so lange“): Claude gibt es an
 das Werkzeug `schedule_shutdown` des Mods, und jede Leiste zeigt „Shutdown um 02:30 geplant“ mit **Abbrechen** an der
-Stelle des Knopfs. Claude sagt dir, dass dann noch laufende Arbeit ihn um einige Minuten verzögern kann; früher kommt
+Stelle des Knopfs (eine Dauer fällt auf die nächste volle Minute: „in 4 Minuten“ um 00:23:50 ergibt 00:28). Ist der Plan
+ausgelöst, sagt dieses **Abbrechen** den laufenden Shutdown ab. Claude sagt dir, dass dann noch laufende Arbeit ihn um einige Minuten verzögern kann; früher kommt
 er nie. Ändert sich die Option `shutdownMode` bis dahin, tut der Rechner, was sie zum Zeitpunkt sagt.
 
 - **Bis dahin** arbeitet jede Sitzung weiter, beginnt aber nur Schritte, die sicher vorher fertig sind. Sie fragt
@@ -248,7 +249,9 @@ Nutzungsfenster eines Abos. Sie zeigt nur an; Pause und Shutdown über Sitzungen
 - Der Shutdown wartet auf die Sitzungen, die noch arbeiten (`Shutdown wartet auf 1 Sitzung: repo-b`): auf Läufe, die
   du abwarten wolltest, ohne Grenze, auf eine Sitzung, die die Anforderung nie übernommen hat, höchstens 15 Minuten,
   und gar nicht auf eine, deren Lebenszeichen ausbleibt. Danach zählt er 5 Minuten herunter.
-- **Abbrechen** sagt den Shutdown überall ab; die Pausen bleiben. **Weiter** dort, wo du Pause oder Shutdown gedrückt
+- **Abbrechen** sagt den Shutdown überall ab; die Pausen bleiben. Es steht in jeder Leiste, solange ein Shutdown
+  läuft, auch in einer anderen Sitzung als der, die ihn führt (seit 0.11.0): Diese sagt ihn bei ihrem nächsten Blick
+  ab, binnen 15 Sekunden, und in jedem Fall unmittelbar vor dem Befehl. **Weiter** dort, wo du Pause oder Shutdown gedrückt
   hast, setzt die anderen Sitzungen mit fort; **Weiter** in einer von ihnen nur diese.
 - Sitzungen ohne den Mod, oder mit einer Fassung vor 0.9.4, werden nicht pausiert: Die Statuszeile zählt die
   arbeitenden (`1 weitere Sitzung arbeitet ohne den Mod und wird nicht pausiert`). Eine Sitzung, die nach der
@@ -470,7 +473,8 @@ Sie hält auch das Lebenszeichen jeder Sitzung (`liveSessions`, siehe [Andere Si
 Sekunden geschrieben, beim Ende der Sitzung entfernt, eine Stunde nach dem letzten vergessen; mit Ordner, Pause,
 laufender Arbeit, Kontext, Cache, Modell und Berechtigungsmodus (für die Übersicht und die anderen Sitzungen). Ein
 geplanter Shutdown (`shutdownPlan`: Zeit, Modus, die planende Sitzung und ihr Ordner) steht darin, bis er ausgelöst,
-abgebrochen oder verfallen ist. `request.json` daneben hält die letzte Pause oder den letzten Shutdown über Sitzungen;
+abgebrochen oder verfallen ist, und ein **Abbrechen** in der Leiste einer anderen Sitzung vermerkt den Shutdown, den es
+absagt (`shutdownCancel`). `request.json` daneben hält die letzte Pause oder den letzten Shutdown über Sitzungen;
 schreiben darf sie nur die Sitzung, die sie angelegt hat.
 
 Jede Sitzung schreibt die Datei, indem sie sie liest, ändert und ganz neu schreibt. Damit zwei, die im selben Moment

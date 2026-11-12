@@ -122,6 +122,8 @@ describe('a planned shutdown', () => {
     expect(planTime({ at: '02:30' }, now)).toBe(new Date(2026, 10, 12, 2, 30, 0, 0).getTime())
     expect(planTime({ at: '2.30 Uhr' }, now)).toBe(new Date(2026, 10, 12, 2, 30, 0, 0).getTime())
     expect(planTime({ inMinutes: 150 }, now)).toBe(now + 150 * 60_000)
+    // On the next full minute: "in 4 minutes" at 00:23:50 is 00:28:00 (live, 0.11.0).
+    expect(planTime({ inMinutes: 4 }, new Date(2026, 10, 13, 0, 23, 50, 0).getTime())).toBe(new Date(2026, 10, 13, 0, 28, 0, 0).getTime())
     expect(planTime({ inMinutes: PLAN_MAX_AHEAD_MS / 60_000 + 1 }, now)).toBeNull()
     expect(planTime({ at: '25:00' }, now)).toBeNull()
     expect(planTime({ at: 'halb drei' }, now)).toBeNull()

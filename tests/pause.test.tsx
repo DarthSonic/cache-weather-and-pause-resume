@@ -931,6 +931,56 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  for (const askedAfter of [20_000, 59_000]) {
+    test(`a shutdown cancelled in another band never runs, also when asked ${askedAfter / 1000} s into the countdown`, SLOW_DE, async ($, on) => {
+      mock.store(on)
+      const clock = mock.clock(on, { now: local(12, 2, 31) })
+      const plan = { id: `gone-${askedAfter}`, at: local(12, 2, 30), mode: 'shutdown', by: 'gone', byFolder: 'Traumfabrik', createdAt: local(11, 22, 57) }
+      const files = disk(on, { [STATE]: JSON.stringify({ shutdownPlan: plan }) }, { OS: 'Windows_NT' })
+      engine(on)
+      const host = windows(on)
+      on('ui.toast', () => ({ value: undefined }))
+      const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+      await $.classic.SessionStart({ source: 'startup', session_id: 'p5' })
+      await clock.advance(31_000)
+      const request = JSON.parse(files[REQUEST] ?? '{}')
+      expect(request.state).toBe('countdown')
+      // The person presses Cancel in another session's band: it marks the request in the state file.
+      await clock.advance(askedAfter - 16_000)
+      const now = JSON.parse(files[STATE] ?? '{}')
+      files[STATE] = JSON.stringify({ ...now, shutdownCancel: { requestId: request.id, at: local(12, 2, 31) + askedAfter } })
+      await clock.advance(90_000)
+      expect(JSON.parse(files[REQUEST] ?? '{}').state).toBe('cancelled')
+      expect(host.runs.some(argv => argv[0] === SHUTDOWN)).toBe(false)
+      expect(await ui.find({ key: 'resume' })).toBeDefined()
+      await ui.unmount()
+    })
+  }
+
+  test('the plan’s cancel button leaves a plan that fired meanwhile to the shutdown under way', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(11, 23, 0) })
+    const files = disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    const host = windows(on)
+    on('ui.toast', () => ({ value: undefined }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p6' })
+    await clock.settle()
+    await $.tool.call({ tool: SCHEDULE, when: 'later', inMinutes: 5 } as never)
+    // Past the write's second look (a quarter second), which would write the plan again over a change made meanwhile.
+    await clock.advance(1_000)
+    // Fired in the state file (as another session that took it over writes it) before this band looked again.
+    const now = JSON.parse(files[STATE] ?? '{}')
+    files[STATE] = JSON.stringify({ ...now, shutdownPlan: { ...now.shutdownPlan, firedBy: 'p6', firedAt: local(11, 28, 0) } })
+    await ui.press({ key: 'plan-cancel' })
+    // The fired plan stays (it is no longer the plan's to cancel), and no note says a plan was called off.
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan.firedAt).toBe(local(11, 28, 0))
+    await clock.advance(10 * 60_000)
+    expect(host.runs.filter(argv => argv[0] === SHUTDOWN)).toEqual([])
+    await ui.unmount()
+  })
+
   test('a shell command that powers the computer off is turned away with the tool to use; other commands run', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 9_000_000 })
@@ -1165,6 +1215,26 @@ describe('pause and shutdown across sessions', () => {
     await clock.advance(15_000)
     expect(await ui.find({ key: 'pause' })).toBeDefined()
     expect(prompts).toEqual([])
+    await ui.unmount()
+  })
+
+  // Live, 0.11.0: a session took a plan over and counted down unseen; the band the person looked at could not stop it.
+  test('another session’s shutdown under way is cancelled from this band too', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    on('ui.toast', () => ({ value: undefined }))
+    const files = disk(on, { [REQUEST]: JSON.stringify(foreign({ state: 'countdown', countdownUntil: T0 + 60_000 })) })
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+    await clock.advance(15_000)
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in \d+ s · aus repo-b$/ })).toBeDefined()
+    await ui.press({ key: 'shutdown-cancel' })
+    expect(state(files).shutdownCancel).toMatchObject({ requestId: 'b2-1' })
+    // Asked: the countdown and the button leave this band; the session that runs it cancels at its next look.
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in/ })).toBeUndefined()
     await ui.unmount()
   })
 

@@ -24,7 +24,8 @@ export const PLAN_MAX_AHEAD_MS = 24 * 60 * 60_000
 export function planTime(s: { at?: unknown; inMinutes?: unknown }, now: number): number | null {
   if (typeof s.inMinutes === 'number' && Number.isFinite(s.inMinutes) && s.inMinutes > 0) {
     const ms = Math.round(s.inMinutes * 60_000)
-    return ms <= PLAN_MAX_AHEAD_MS ? now + ms : null
+    // On the next full minute: "in 4 minutes" at 00:23:50 is 00:28:00, a time the person reads at a glance.
+    return ms <= PLAN_MAX_AHEAD_MS ? Math.ceil((now + ms) / 60_000) * 60_000 : null
   }
   if (typeof s.at !== 'string') return null
   const found = /^\s*(\d{1,2})[:.](\d{2})\s*(?:uhr|h)?\s*$/i.exec(s.at)
