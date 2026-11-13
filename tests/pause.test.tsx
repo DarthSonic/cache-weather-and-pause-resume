@@ -1309,6 +1309,8 @@ describe('pause and shutdown across sessions', () => {
     files[REQUEST] = JSON.stringify(foreign({ state: 'countdown', countdownUntil: T0 + 75_000 }))
     await clock.advance(1_000)
     expect(await ui.find({ type: 'Text', text: /^Shutdown in 59 s · aus repo-b$/ })).toBeDefined()
+    // Where it came from is said once, on the shutdown's row.
+    expect(await ui.find({ type: 'Text', text: /^Pausiert seit < 1 min$/ })).toBeDefined()
     await clock.advance(1_000)
     expect(await ui.find({ type: 'Text', text: /^Shutdown in 58 s · aus repo-b$/ })).toBeDefined()
     await clock.advance(1_000)

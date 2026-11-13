@@ -2611,17 +2611,19 @@ export const register: Register = (on, options) => {
       const planFrom = self !== null && plan.by !== self ? ` · ${t.fromSession(plan.byTitle ?? plan.byFolder)}` : ''
       status.push({ key: 'shutdown', text: `${strings(lang, plan.mode).shutdownPlanned(clockOf(plan.at))}${planFrom}`, color: 'warning' })
     }
+    // Where it came from is said once: on the shutdown's row when there is one, else on the pause's (0.11.0).
+    const pauseFrom = status.some(line => line.key === 'shutdown') ? '' : from
     if (phase === 'pausing') {
       const left = await read($, pauseTasksLeft)
       // Paused for another session's shutdown, it says so too.
       const isForShutdown = shutting === 'requested' || (role === 'foreign' && request?.kind === 'shutdown')
       const asked = shutting === 'requested' ? t.shutdownRequested : isForShutdown ? tr.shutdownRequested : t.pauseRequested
-      status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}${from}`, color: 'warning' })
+      status.push({ key: 'pause', text: `${signs.requested} ${asked}${t.tasksLeft(left)}${pauseFrom}`, color: 'warning' })
       // An approval on screen holds the pause up, and a shutdown with it, until someone answers: a mod cannot take it
       // back, so the band asks the person to (0.10.2). Claude's own question about long tasks is no approval.
       if (await read($, isAwaitingApproval)) status.push({ key: 'pause-approval', text: t.approvalOpen, color: 'warning' })
     } else if (phase === 'paused' && shutting !== 'countdown' && shutting !== 'shutting') {
-      status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${from}` })
+      status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${pauseFrom}` })
     }
     // Usage windows from 80 % on, fullest first: yellow, red from 95 % (0.10.0).
     for (const { reading, tone } of usageToShow(await read($, usageWindows))) {
