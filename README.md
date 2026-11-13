@@ -152,7 +152,7 @@ for; the pause itself is kept as always.
 **At a time (0.11.0).** Answer the question with a time (“02:30”) or a while (“in 2 hours”), or tell Claude in your own
 words (“shut the computer down at 02:30, the download needs until then”): Claude passes it to the mod's tool
 `schedule_shutdown`, and every band shows “Shutdown planned for 02:30” with **Cancel** in the button's place (a while
-falls on the next full minute: “in 4 minutes” at 00:23:50 is 00:28). Once the plan has fired, that **Cancel** calls off
+falls on the next full minute: “in 4 minutes” at 00:23:50 is 00:28; under a minute it is as soon as possible). Once the plan has fired, that **Cancel** calls off
 the shutdown under way. Claude
 tells you that work still running then can delay it by a few minutes; it never comes earlier. Should the option
 `shutdownMode` change before then, the computer does what it says at the time.

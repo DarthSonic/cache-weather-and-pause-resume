@@ -914,6 +914,22 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  test('"in a minute" stays a plan, on the full minute after next', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(11, 23, 23) + 30_000 })
+    const files = disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    windows(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p9' })
+    await clock.settle()
+    const answer = await $.tool.call({ tool: SCHEDULE, when: 'later', inMinutes: 1 } as never)
+    expect(JSON.stringify(answer)).toContain('at 23:25')
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan.at).toBe(local(11, 23, 25))
+    expect(files[REQUEST]).toBeUndefined()
+    await ui.unmount()
+  })
+
   test('a plan whose time passed with no session to fire it lapses', SLOW_DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: local(12, 8, 0) })
@@ -1258,6 +1274,25 @@ describe('pause and shutdown across sessions', () => {
     // Asked: the countdown and the button leave this band; the session that runs it cancels at its next look.
     expect(await ui.find({ key: 'shutdown-cancel' })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /^Shutdown in/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  // Live, 0.11.0: a session whose own shutdown had ended kept its role and showed only its pause at the next one.
+  test('a session whose own request ended takes up the next one of another session’s, named by its title', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: T0 })
+    const files = disk(on, { [REQUEST]: JSON.stringify(foreign({ id: 'a1-1', by: 'a1', byFolder: 'Traumfabrik', state: 'cancelled' })) })
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'a1', session_title: 'Traumfabrik: Gate 2' } as never)
+    await clock.advance(15_000)
+    expect(state(files).liveSessions.a1.title).toBe('Traumfabrik: Gate 2')
+    files[REQUEST] = JSON.stringify(
+      foreign({ state: 'countdown', at: T0 + 15_000, decidedAt: T0 + 15_000, countdownUntil: T0 + 75_000, byTitle: 'Pause-Mod 0.11.0' }),
+    )
+    await clock.advance(15_000)
+    expect(await ui.find({ type: 'Text', text: /^Shutdown in \d+ s · aus Pause-Mod 0\.11\.0$/ })).toBeDefined()
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
     await ui.unmount()
   })
 

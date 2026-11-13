@@ -158,7 +158,8 @@ Shutdown weg; die Pause selbst bleibt wie immer erhalten.
 **Zu einem Zeitpunkt (0.11.0).** Beantworte die Frage mit einer Uhrzeit („02:30“) oder Dauer („in 2 Stunden“), oder
 sag es Claude in deinen Worten („fahr den Rechner um 02:30 herunter, der Download braucht so lange“): Claude gibt es an
 das Werkzeug `schedule_shutdown` des Mods, und jede Leiste zeigt „Shutdown um 02:30 geplant“ mit **Abbrechen** an der
-Stelle des Knopfs (eine Dauer fällt auf die nächste volle Minute: „in 4 Minuten“ um 00:23:50 ergibt 00:28). Ist der Plan
+Stelle des Knopfs (eine Dauer fällt auf die nächste volle Minute: „in 4 Minuten“ um 00:23:50 ergibt 00:28; unter einer Minute heißt es
+so bald wie möglich). Ist der Plan
 ausgelöst, sagt dieses **Abbrechen** den laufenden Shutdown ab. Claude sagt dir, dass dann noch laufende Arbeit ihn um einige Minuten verzögern kann; früher kommt
 er nie. Ändert sich die Option `shutdownMode` bis dahin, tut der Rechner, was sie zum Zeitpunkt sagt.
 

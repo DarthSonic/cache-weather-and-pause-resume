@@ -15,6 +15,9 @@
   case right before the command. Once a plan has fired, its **Cancel** calls off the shutdown under way.
 - **A shutdown that did not happen** (cancelled with `shutdown /a`, or held up) no longer leaves the band at
   “shutting down”: two minutes after the command, with the computer still on, the band shows **Resume** again.
+- **The band names the other session by its title** (“Shutdown in 42 s · from Pause mod 0.11.0”) where Claude Code
+  reports one, else by its folder as before; the title is only read, never set.
+- **Fixed:** a session whose own pause or shutdown had ended no longer misses the next one another session asks for.
 - **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
   `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow`, …, also inside `powershell -Command` or `bash -c`) gets the
   tool to use instead, so the sessions pause first; a shutdown inside a script file it runs is not seen. In the night

@@ -60,6 +60,8 @@ export type ShutdownPlan = {
   /** The session that planned it, and its folder. */
   by: string
   byFolder: string | null
+  /** Its title, where Claude Code reported one (0.11.0): what the bands name it by. */
+  byTitle?: string | null
   createdAt: number
   /** The session that fires it: the planner, or one that took it over while the planner was gone. */
   firedBy?: string
@@ -92,6 +94,8 @@ export type LiveSession = {
   model?: string | null
   /** The permission mode the classic hooks last reported (0.11.0): a hint, readable from outside. */
   permissionMode?: string | null
+  /** The session's title, where Claude Code reported one (0.11.0). */
+  title?: string | null
 }
 
 /** A request for all sessions, written by the session where Pause or Shutdown was pressed, and by no other. */
@@ -101,6 +105,8 @@ export type SessionRequest = {
   /** The session that made it, and its folder. */
   by: string
   byFolder: string | null
+  /** Its title, where Claude Code reported one (0.11.0): what the bands name it by. */
+  byTitle?: string | null
   at: number
   /**
    * `open`: its Claude asks the person; `decided`: the others pause now; `countdown`: the shutdown counts down;
@@ -177,6 +183,8 @@ declare module 'claude-code' {
       planCancelPending: ShutdownMode | null
       /** The other session's shutdown this band asked to cancel (0.11.0): its countdown no longer shows here. */
       shutdownCancelAsked: string | null
+      /** The session's title as Claude Code last reported it (session start, each prompt); null where it reports none. */
+      sessionTitle: string | null
       /** The session's permission mode, from the classic hooks (0.11.0): whether an ask comes up as a prompt. */
       permissionMode: string | null
       /** The model the main conversation's last request named: it sets what a cache read costs. */
