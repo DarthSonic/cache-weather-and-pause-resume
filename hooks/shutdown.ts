@@ -10,6 +10,9 @@ export const SHUTDOWN_COUNTDOWN_MS = 300_000
 
 /** Once every session is paused after the planned time, this little is left before the command: the person is away. */
 export const SCHEDULED_COUNTDOWN_MS = 60_000
+/** A computer still running this long after the shutdown command did not shut down: cancelled (shutdown /a) or held
+ * up. The band leaves "shutting down" then; the pause stays (0.11.0, live). */
+export const SHUTDOWN_STUCK_MS = 120_000
 /** Sessions at work are reminded this long before the time (the person's choice, 2026-11-12). */
 export const PLAN_REMINDER_MS = 30 * 60_000
 /** A plan whose time passed this long ago with no session to fire it lapses: the computer was off or asleep. */

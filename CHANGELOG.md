@@ -13,6 +13,8 @@
 - **Cancel in every band:** while a shutdown is under way, every session's band offers **Cancel** and counts the
   countdown down second by second, not only the one that runs it (after a takeover, often one you do not look at). That session calls it off at its next look and in any
   case right before the command. Once a plan has fired, its **Cancel** calls off the shutdown under way.
+- **A shutdown that did not happen** (cancelled with `shutdown /a`, or held up) no longer leaves the band at
+  “shutting down”: two minutes after the command, with the computer still on, the band shows **Resume** again.
 - **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
   `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow`, …, also inside `powershell -Command` or `bash -c`) gets the
   tool to use instead, so the sessions pause first; a shutdown inside a script file it runs is not seen. In the night

@@ -112,6 +112,7 @@ import {
   PLAN_NEAR_MS,
   PLAN_REMINDER_MS,
   SCHEDULED_COUNTDOWN_MS,
+  SHUTDOWN_STUCK_MS,
   SHUTDOWN_COUNTDOWN_MS,
   UNIX_PROGRAMS,
   isPowerCommand,
@@ -1498,8 +1499,22 @@ function startHeartbeat($: EngineInterface): void {
 
 async function sessionsTick($: EngineInterface): Promise<void> {
   await writeHeartbeat($)
+  await settleShutdownThatDidNotHappen($)
   await lookAtPlanAndRequest($)
   await refreshSessionsView($)
+}
+
+// The command ran, and the computer is still on two minutes later: someone cancelled it (shutdown /a) or something held
+// it up. The band leaves "shutting down"; the pause stays as it is. At each look, so a reload or a restart of the
+// module, which drops its timers, ends it too (0.11.0, live).
+async function settleShutdownThatDidNotHappen($: EngineInterface): Promise<void> {
+  if ((await read($, shutdownPhase)) !== 'shutting') return
+  const ranAt = (await read($, shutdownAt)) ?? 0
+  if ((await $.clock.now()) - ranAt < SHUTDOWN_STUCK_MS) return
+  await update($, shutdownPhase, () => 'idle')
+  await update($, shutdownAt, () => null)
+  await update($, waitingSessions, () => [])
+  $.ui.toast(strings(await currentLang($), shutdownMode).shutdownCancelled)
 }
 
 async function lookAtPlanAndRequest($: EngineInterface): Promise<void> {

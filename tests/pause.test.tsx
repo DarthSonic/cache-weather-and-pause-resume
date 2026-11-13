@@ -947,6 +947,10 @@ describe('the shutdown button', () => {
     expect(await ui.find({ key: 'shutdown-cancel' })).toBeDefined()
     await clock.advance(60_000)
     expect(host.runs.at(-1)?.slice(0, 3)).toEqual([SHUTDOWN, '/s', '/f'])
+    // Still running two minutes later (someone ran shutdown /a): the band leaves "shutting down", the pause stays.
+    await clock.advance(135_000)
+    expect(await ui.find({ key: 'resume' })).toBeDefined()
+    expect(await ui.find({ key: 'shutdown-cancel' })).toBeUndefined()
     await ui.unmount()
   })
 
