@@ -453,7 +453,7 @@ einen Shell-Befehl ab, der den Rechner ausschaltet; `classic.PermissionRequest` 
 einem geplanten Shutdown eine Berechtigungsabfrage ab, und `tool.check` tut das schon früher, wo der Berechtigungsmodus
 sicher fragt (`default`, `plan`, `acceptEdits`, als Hinweis aus den klassischen Hooks gelesen); beide erfassen auch
 Abfragen von Subagenten, und keiner ändert ein anderes Urteil oder erlaubt etwas. Jeder andere Hook liest nur
-und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` und `classic.PostToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, Zeit seit der letzten
+und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` (der Berechtigungsmodus und der Titel der Sitzung), `classic.PostToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, ihr Titel, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
 `tool.call` sonst (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
@@ -474,8 +474,8 @@ kostet keine Token.
 
 Sie hält auch das Lebenszeichen jeder Sitzung (`liveSessions`, siehe [Andere Sitzungen](#andere-sitzungen)): alle 15
 Sekunden geschrieben, beim Ende der Sitzung entfernt, eine Stunde nach dem letzten vergessen; mit Ordner, Pause,
-laufender Arbeit, Kontext, Cache, Modell und Berechtigungsmodus (für die Übersicht und die anderen Sitzungen). Ein
-geplanter Shutdown (`shutdownPlan`: Zeit, Modus, die planende Sitzung und ihr Ordner) steht darin, bis er ausgelöst,
+laufender Arbeit, Kontext, Cache, Modell, Berechtigungsmodus und Titel (für die Übersicht und die anderen Sitzungen). Ein
+geplanter Shutdown (`shutdownPlan`: Zeit, Modus, die planende Sitzung, ihr Ordner und Titel) steht darin, bis er ausgelöst,
 abgebrochen oder verfallen ist, und ein **Abbrechen** in der Leiste einer anderen Sitzung vermerkt den Shutdown, den es
 absagt (`shutdownCancel`). `request.json` daneben hält die letzte Pause oder den letzten Shutdown über Sitzungen;
 schreiben darf sie nur die Sitzung, die sie angelegt hat.

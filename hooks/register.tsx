@@ -547,6 +547,8 @@ let foreignWatch: Timer | null = null
 let nearPlanWatch: Timer | null = null
 // One look at plan and request at a time: the 15-second look and the second-by-second one never overlap.
 let isLooking = false
+// When the sessions without the mod were last counted (the project folders listed).
+let lastCountedAt = 0
 // The other session's request this module has taken up already: it is not taken up twice.
 let handledRequestId: string | null = null
 // When this module first saw its session start: a request decided before is no concern of it.
@@ -1518,7 +1520,8 @@ async function sessionsTick($: EngineInterface): Promise<void> {
 // it up. The band leaves "shutting down"; the pause stays as it is. At each look, so a reload or a restart of the
 // module, which drops its timers, ends it too (0.11.0, live).
 async function settleShutdownThatDidNotHappen($: EngineInterface): Promise<void> {
-  if ((await read($, shutdownPhase)) !== 'shutting') return
+  // Standby and hibernation: the command returns once the computer is awake again, and that ends "shutting" itself.
+  if (shutdownMode !== 'shutdown' || (await read($, shutdownPhase)) !== 'shutting') return
   const ranAt = (await read($, shutdownAt)) ?? 0
   if ((await $.clock.now()) - ranAt < SHUTDOWN_STUCK_MS) return
   await update($, shutdownPhase, () => 'idle')
@@ -1702,7 +1705,9 @@ async function followRequest($: EngineInterface): Promise<void> {
         await cancelShutdown($, false)
         return
       }
-      if (own !== null && (own.state === 'decided' || own.state === 'countdown')) {
+      // The project folders are listed at most every 15 seconds, also while the look comes every second.
+      if (own !== null && (own.state === 'decided' || own.state === 'countdown') && at - lastCountedAt >= HEARTBEAT_MS) {
+        lastCountedAt = at
         const count = await countWithoutMod($, (await readPersisted($)).liveSessions, self, at)
         await update($, sessionsWithoutMod, () => count)
       }
@@ -1972,6 +1977,7 @@ export const register: Register = (on, options) => {
   foreignWatch = null
   nearPlanWatch = null
   isLooking = false
+  lastCountedAt = 0
   handledRequestId = null
   moduleStartedAt = null
   isRefreshing = false

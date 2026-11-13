@@ -434,7 +434,7 @@ planned shutdown, and `tool.check` does so early where the permission mode surel
 `acceptEdits`, read from the classic hooks as a hint); both take in a subagent's prompts too, and neither changes any
 other verdict or allows anything. Every other
 hook only reads and passes its event
-on unchanged: `classic.UserPromptSubmit` and `classic.PostToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, time since the last response),
+on unchanged: `classic.UserPromptSubmit` (the permission mode and the session's title), `classic.PostToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, its title, time since the last response),
 `classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
 conversation has run, and when a question to you is answered), `turn.step` (token counts, the model it names, and when a request reads
@@ -452,8 +452,8 @@ under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads
 
 It also holds each session's sign of life (`liveSessions`, see [Other sessions](#other-sessions)): written every 15
 seconds, taken out when the session ends, forgotten an hour after its last one; with its folder, pause, running work,
-context, cache, model and permission mode (for the overview and the other sessions). A planned shutdown
-(`shutdownPlan`: time, mode, the planning session and its folder) stays in it until it fires, is cancelled or lapses,
+context, cache, model, permission mode and title (for the overview and the other sessions). A planned shutdown
+(`shutdownPlan`: time, mode, the planning session, its folder and title) stays in it until it fires, is cancelled or lapses,
 and a **Cancel** pressed in another session's band marks the shutdown it calls off (`shutdownCancel`).
 `request.json` beside it holds the last pause or shutdown across sessions; only the session that made it writes it.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.11.0 — 2026-11-12
+## 0.11.0 — 2026-11-13
 
 - **Shutdown at a time.** The shutdown button (or standby, or hibernation) now asks when: Claude puts a dialog to you,
   as soon as possible, or at a time or after a while (free text). Asked in your own words (“shut the computer down at
