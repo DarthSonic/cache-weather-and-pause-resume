@@ -252,7 +252,9 @@ Nutzungsfenster eines Abos. Sie zeigt nur an; Pause und Shutdown über Sitzungen
 - Der Shutdown wartet auf die Sitzungen, die noch arbeiten (`Shutdown wartet auf 1 Sitzung: repo-b`): auf Läufe, die
   du abwarten wolltest, ohne Grenze, auf eine Sitzung, die die Anforderung nie übernommen hat, höchstens 15 Minuten,
   und gar nicht auf eine, deren Lebenszeichen ausbleibt. Danach zählt er 5 Minuten herunter.
-- **Abbrechen** sagt den Shutdown überall ab; die Pausen bleiben. Es steht in jeder Leiste, solange ein Shutdown
+- **Abbrechen** sagt den Shutdown überall ab. Die Sitzungen, die er pausiert hat, machen von selbst weiter (seit
+  0.11.0), auch eine, die gerade erst pausiert; die Sitzung, in der du Shutdown gedrückt hast, bleibt pausiert bis
+  **Weiter**, und eine, die schon vorher pausiert war, bleibt pausiert. Es steht in jeder Leiste, solange ein Shutdown
   läuft, auch in einer anderen Sitzung als der, die ihn führt (seit 0.11.0): Diese sagt ihn bei ihrem nächsten Blick
   ab, binnen 15 Sekunden, und in jedem Fall unmittelbar vor dem Befehl. **Weiter** dort, wo du Pause oder Shutdown gedrückt
   hast, setzt die anderen Sitzungen mit fort; **Weiter** in einer von ihnen nur diese.

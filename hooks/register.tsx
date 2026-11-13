@@ -1367,7 +1367,7 @@ async function cancelShutdown($: EngineInterface, isQuiet: boolean): Promise<voi
   // The other sessions keep their pauses; the shutdown is off for all of them.
   await changeOwnRequest($, r =>
     r.kind === 'shutdown' && (r.state === 'open' || r.state === 'decided' || r.state === 'countdown')
-      ? { ...r, state: 'cancelled' }
+      ? { ...r, state: 'cancelled', ...(isQuiet ? {} : { isCalledOff: true }) }
       : null,
   )
   if (!isQuiet) $.ui.toast(strings(await currentLang($), shutdownMode).shutdownCancelled)
@@ -1752,7 +1752,10 @@ async function followRequest($: EngineInterface): Promise<void> {
   if (request.id === handledRequestId || request.id === pausedBy) {
     await update($, sessionRequest, () => request)
     watchForeignShutdown($, request)
-    if (request.state === 'resumed' && pausedBy === request.id && (await read($, pausePhase)) !== 'running') {
+    // Picked back up there, or the shutdown called off by the person (0.11.0, the person's choice): a session the
+    // request paused carries on; one paused before stays paused.
+    const isOver = request.state === 'resumed' || (request.state === 'cancelled' && request.isCalledOff === true)
+    if (isOver && pausedBy === request.id && (await read($, pausePhase)) !== 'running') {
       if (await read($, isIdlePause)) await enterRunning($)
       else await requestResume($)
     }

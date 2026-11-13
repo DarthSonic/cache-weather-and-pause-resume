@@ -241,7 +241,9 @@ shows; pausing and shutting down across sessions go through the band, as below.
 - The shutdown waits for the sessions still at work (`Shutdown waits for 1 session: repo-b`): for runs you chose to
   wait for without limit, for a session that never took the request up 15 minutes at most, and not at all for one whose
   sign of life stopped. Then it counts down 5 minutes.
-- **Cancel** calls the shutdown off everywhere; the pauses stay. It stands in every band while a shutdown is under
+- **Cancel** calls the shutdown off everywhere. The sessions it paused carry on by themselves (since 0.11.0), also
+  one still pausing; the session where you pressed Shutdown stays paused until **Resume**, and one paused before stays
+  paused. It stands in every band while a shutdown is under
   way, also in a session other than the one that runs it (since 0.11.0): that one calls it off at its next look, within
   15 seconds, and in any case right before the command. **Resume** where you pressed Pause or Shutdown picks
   the other sessions back up too; **Resume** in one of them picks up that one alone.

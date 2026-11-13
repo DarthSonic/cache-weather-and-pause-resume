@@ -121,6 +121,8 @@ export type SessionRequest = {
   mode?: ShutdownMode
   /** A shutdown made from a plan: the time it was planned for (0.11.0). Its countdown is short: nobody is there. */
   scheduledFor?: number
+  /** Cancelled by the person (0.11.0): the sessions it paused carry on by themselves. Not so after waking from standby. */
+  isCalledOff?: boolean
   countdownUntil: number | null
 }
 

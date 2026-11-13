@@ -1258,6 +1258,26 @@ describe('pause and shutdown across sessions', () => {
     await ui.unmount()
   })
 
+  // The person's choice, 0.11.0: a shutdown called off lets the sessions it paused carry on; after waking from standby
+  // (cancelled by the mod, not the person) they stay paused.
+  for (const [isCalledOff, carriesOn] of [[true, true], [undefined, false]] as const) {
+    test(`a shutdown cancelled ${isCalledOff ? 'by the person' : 'after waking'}: the session it paused ${carriesOn ? 'carries on' : 'stays paused'}`, DE, async ($, on) => {
+      mock.store(on)
+      const clock = mock.clock(on, { now: T0 })
+      const files = disk(on, { [REQUEST]: JSON.stringify(foreign()) })
+      const prompts = engine(on)
+      const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+      await $.classic.SessionStart({ source: 'startup', session_id: 'a1' })
+      await clock.advance(15_000)
+      expect(await ui.find({ key: 'resume' })).toBeDefined()
+      files[REQUEST] = JSON.stringify(foreign({ state: 'cancelled', ...(isCalledOff ? { isCalledOff } : {}) }))
+      await clock.advance(15_000)
+      expect(await ui.find({ key: carriesOn ? 'pause' : 'resume' })).toBeDefined()
+      expect(prompts).toEqual([])
+      await ui.unmount()
+    })
+  }
+
   test('an idle session paused from elsewhere counts as paused at once, and picks up with it without a prompt', DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: T0 })

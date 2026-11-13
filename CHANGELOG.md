@@ -20,6 +20,8 @@
 - **Fixed:** a session whose own pause or shutdown had ended no longer misses the next one another session asks for.
 - **Cancel in words:** “cancel the shutdown” in any session does what **Cancel** in a band does, for a plan or a
   shutdown under way (`schedule_shutdown` with `when: "cancel"`).
+- **After Cancel the other sessions carry on:** the sessions a shutdown paused (or was pausing) pick up by themselves
+  once it is called off; the session where Shutdown was pressed stays paused until Resume (before, every pause stayed).
 - **Claude's own command to power the computer off is turned away:** a shell command for it (`shutdown /s`,
   `Stop-Computer`, `systemctl poweroff`, `pmset sleepnow`, …, also inside `powershell -Command` or `bash -c`) gets the
   tool to use instead, so the sessions pause first; a shutdown inside a script file it runs is not seen. In the night
