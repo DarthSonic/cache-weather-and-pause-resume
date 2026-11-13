@@ -914,6 +914,27 @@ describe('the shutdown button', () => {
     await ui.unmount()
   })
 
+  // Live, 0.11.0: the person typed "Shutdown abbrechen" into a session, whose Claude had no way to do it.
+  test('Claude cancels a plan on the person’s word, as Cancel in the band does', SLOW_DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: local(11, 23, 0) })
+    const files = disk(on, {}, { OS: 'Windows_NT' })
+    engine(on)
+    windows(on)
+    on('ui.toast', () => ({ value: undefined }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p10' })
+    await clock.settle()
+    await $.tool.call({ tool: SCHEDULE, when: 'later', inMinutes: 30 } as never)
+    await clock.advance(1_000)
+    const answer = await $.tool.call({ tool: SCHEDULE, when: 'cancel' } as never)
+    expect(JSON.stringify(answer)).toContain('Cancelled: nothing happens at 23:30')
+    expect(JSON.parse(files[STATE] ?? '{}').shutdownPlan ?? null).toBeNull()
+    expect(await ui.find({ key: 'plan-cancel' })).toBeUndefined()
+    expect(JSON.stringify(await $.tool.call({ tool: SCHEDULE, when: 'cancel' } as never))).toContain('Nothing to cancel')
+    await ui.unmount()
+  })
+
   test('"in a minute" stays a plan, on the full minute after next', SLOW_DE, async ($, on) => {
     mock.store(on)
     const clock = mock.clock(on, { now: local(11, 23, 23) + 30_000 })
@@ -1269,7 +1290,9 @@ describe('pause and shutdown across sessions', () => {
     await clock.advance(15_000)
     expect(await ui.find({ key: 'resume' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Shutdown in \d+ s · aus repo-b$/ })).toBeDefined()
-    await ui.press({ key: 'shutdown-cancel' })
+    // On the person's word Claude does the same (0.11.0).
+    const SCHEDULE_TOOL = 'mcp__cache-weather-and-pause-resume__schedule_shutdown'
+    expect(JSON.stringify(await $.tool.call({ tool: SCHEDULE_TOOL, when: 'cancel' } as never))).toContain('Cancelled: the shutdown under way is off')
     expect(state(files).shutdownCancel).toMatchObject({ requestId: 'b2-1' })
     // Asked: the countdown and the button leave this band; the session that runs it cancels at its next look.
     expect(await ui.find({ key: 'shutdown-cancel' })).toBeUndefined()

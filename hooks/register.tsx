@@ -1038,6 +1038,24 @@ async function scheduleShutdown(
   const w = modeWords(shutdownMode, 'en')
   const at = await $.clock.now()
   const planned = (await readPersisted($)).shutdownPlan ?? null
+  // On the person's word, in any session (0.11.0): what Cancel in a band does.
+  if (input.when === 'cancel') {
+    if (planned !== null && planned.firedAt === undefined) {
+      await cancelPlan($)
+      return `Cancelled: nothing happens at ${clockOf(planned.at)} any more. Questions and approvals work again. Tell the person.`
+    }
+    if ((await read($, shutdownPhase)) === 'asking') {
+      await update($, shutdownPhase, () => 'idle')
+      return 'Cancelled: nothing is shut down. Tell the person.'
+    }
+    const request = await readRequest($)
+    const isOwnUnderWay = (await read($, requestRole)) === 'own' && (await read($, shutdownPhase)) !== 'idle'
+    if (isOwnUnderWay || (request !== null && request.kind === 'shutdown' && isUnderWay(request))) {
+      await cancelShutdownAnywhere($)
+      return 'Cancelled: the shutdown under way is off (the session that runs it stops it within seconds). The sessions stay paused until the person says "continue" or presses Resume. Tell the person.'
+    }
+    return 'Nothing to cancel: no shutdown is planned or under way. Tell the person.'
+  }
   if (planned !== null && planned.firedAt === undefined) {
     return `Nothing changed: the mod will already ${modeWords(planned.mode, 'en').doIt} at ${clockOf(planned.at)}. The person can cancel that in the band.`
   }
@@ -1283,7 +1301,11 @@ async function registerScheduleTool($: EngineInterface): Promise<void> {
       inputSchema: {
         type: 'object',
         properties: {
-          when: { type: 'string', enum: ['now', 'later'], description: 'now: as soon as possible; later: at a time or after a while.' },
+          when: {
+            type: 'string',
+            enum: ['now', 'later', 'cancel'],
+            description: 'now: as soon as possible; later: at a time or after a while; cancel: call a planned or running one off.',
+          },
           at: { type: 'string', description: 'For later: the time, "HH:MM" in 24 hours, the next time it comes.' },
           inMinutes: { type: 'number', description: 'For later, instead of at: in so many minutes.' },
         },

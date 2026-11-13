@@ -291,6 +291,8 @@ export function scheduleToolDescription(): string {
     'If the person did not say when, ask them first in one dialog: as soon as possible, or at a time or after a while (free text). Then call it with when "now", or with when "later" and either at ("HH:MM", 24 hours, the next time it comes) or inMinutes.',
     '',
     'The computer does what the option says. Should the person ask for another of shutdown, sleep and hibernation, tell them the option shutdownMode decides and they can change it, then call again.',
+    '',
+    'When the person asks to call a planned or running shutdown off, in any words, call it with when "cancel": it does what Cancel in the band does, from any session.',
   ].join('\n')
 }
 
