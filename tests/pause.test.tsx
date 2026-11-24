@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import type { Engine, On, PromptSubmitInput } from 'claude-code'
+import type { Engine } from 'claude-code/testing'
+import type { On, PromptSubmitInput } from 'claude-code'
 
 import { langOf, strings } from '../hooks/i18n'
 import {
@@ -30,7 +31,7 @@ const PAUSING_NOTE = pausingNote('de')
 const BAND = {
   plugin: 'cache-weather-and-pause-resume',
   component: 'AbovePrompt',
-  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+  props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10, bodyColumns: 160, scroll: { offset: 0, bodyRows: 10 }, view: {} },
 } as const
 
 const OWN = { kind: 'plugin', name: 'cache-weather-and-pause-resume', asUser: true }
@@ -343,6 +344,36 @@ describe('the pause button', () => {
     await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: {}, tool_response: {}, tool_use_id: 'tu2', permission_mode: 'default', agent_id: 'a1' } as never)
     expect((await check()).decision).toBe('ask')
     await ui.unmount()
+  })
+
+  // Claude Code 2.1.330: the person can collapse the band, and then nothing of it is on screen. The person's choice:
+  // the pause (and a shutdown under way or planned) shows in the status line meanwhile, and leaves it once expanded.
+  test('a collapsed band says the pause in the status line, and takes it back once expanded', DE, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: 9_000_000 })
+    disk(on)
+    engine(on)
+    const statuses: (string | undefined)[] = []
+    on('ui.status', ($, e) => {
+      statuses.push(e.text)
+      return { value: undefined }
+    })
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'c1' })
+    await $.tool.call({ tool: PAUSE_TOOL, state: 'paused' } as never)
+    await clock.advance(60_000)
+    expect(statuses).toEqual([])
+    await ui.unmount()
+    const collapsed = await $.ui.mount({ ...BAND, props: { ...BAND.props, isCollapsed: true }, surface: 'terminal' })
+    expect(await collapsed.find({ key: 'resume' })).toBeUndefined()
+    await clock.advance(60_000)
+    expect(statuses.at(-1)).toBe('Pausiert seit 2 min · Leiste aufklappen für Weiter')
+    await collapsed.unmount()
+    const expanded = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await expanded.find({ key: 'resume' })).toBeDefined()
+    await clock.advance(60_000)
+    expect(statuses.at(-1)).toBeUndefined()
+    await expanded.unmount()
   })
 
   test('in a terminal the pause signs are narrow (❚❚, ►), in the desktop app emoji (⏸, ⏳, ▶)', DE, async ($, on) => {

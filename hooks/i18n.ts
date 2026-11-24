@@ -68,6 +68,9 @@ export type Strings = {
   waitsForYou: string
   /** How long the session has been paused, in whole minutes. */
   pausedFor: (minutes: number) => string
+  /** In the status line while the band is collapsed (Claude Code 2.1.330): how to get Cancel and Resume back. */
+  expandToCancel: string
+  expandToResume: string
   tasksLeft: (n: number | null) => string
   compactQueued: string
   compactQueueFailed: (error: string) => string
@@ -157,6 +160,8 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   approvalOpen: 'Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen: Bitte beantworte sie, damit die Pause eingerichtet werden kann',
   waitsForYou: '(wartet auf eine Antwort oder Freigabe)',
   pausedFor: m => `Pausiert seit ${duration(m)}`,
+  expandToCancel: 'Leiste aufklappen zum Abbrechen',
+  expandToResume: 'Leiste aufklappen für Weiter',
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 Task läuft noch' : ` · ${n} Tasks laufen noch`),
   compactQueued: '/compact eingereiht: startet, sobald Claude fertig ist',
   compactQueueFailed: error => `/compact ließ sich nicht einreihen: ${error}`,
@@ -238,6 +243,8 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   approvalOpen: 'An approval is open, and the mod cannot cancel it: please answer it so the pause can be set up',
   waitsForYou: '(waits for an answer or approval)',
   pausedFor: m => `Paused for ${duration(m)}`,
+  expandToCancel: 'expand the band to cancel',
+  expandToResume: 'expand the band to resume',
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 task still running' : ` · ${n} tasks still running`),
   compactQueued: '/compact queued: it starts once Claude is done',
   compactQueueFailed: error => `/compact could not be queued: ${error}`,

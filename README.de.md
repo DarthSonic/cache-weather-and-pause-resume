@@ -64,6 +64,11 @@ und die zeigt **Weiter**.
 | **Cache-Balken** | Eine eigene Zeile unter der Leiste, über ihre ganze Breite, gefärbt wie die Cache-Restzeit: im Terminal eine Linie in der Mitte der Zeile, in der Desktop-App ein Balken von wenigen Pixeln Höhe. |
 | **Statuszeile** | Unter dem Balken, je Meldung eine Zeile und nur, solange es eine gibt, die dringendste zuerst: der Countdown des Shutdowns, die Pause in Vorbereitung mit den noch laufenden Tasks, wie lange die Sitzung pausiert ist (`Pausiert seit 12 min`), ein Nutzungsfenster ab 80 % (`5-h-Limit 84 % · neu um 15:00`, ab 95 % rot), wie viele Züge es ungefähr noch bis zum Auto-Compact sind, ab zehn (`Auto-Compact in ≈ 6 Zügen`, ab drei gelb; aus dem Median des Wachstums der letzten fünf Züge, sobald es drei gibt, und nur, wo die Sitzung ihre eigene Schwelle meldet), warum Keep-warm wartet, die Prüfung, auf die ein Klick auf Shutdown wartet. |
 
+**Eingeklappte Leiste** (ab Claude Code 2.1.330, ctrl+x ctrl+a oder `[-]`): Dann ist nichts von ihr zu sehen, also
+nennt die Statuszeile von Claude Code solange, was nicht untergehen darf: einen Shutdown im Countdown, im Warten oder
+geplant („Shutdown in 42 s · Leiste aufklappen zum Abbrechen“), oder die Pause („Pausiert seit 12 min · Leiste
+aufklappen für Weiter“). Aufgeklappt verschwindet die Zeile.
+
 In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⇲ Compact, ⧉ Sitzungen, ⏸ Pause, ▶ Weiter,
 ⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, in einer eigenen Zeile über den Werten. Ein Terminal zeigt nur die
 Worte, in der Zeile der Werte.

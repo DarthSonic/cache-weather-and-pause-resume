@@ -234,6 +234,55 @@ const CONFIRMED_FOR_MS = 24 * 60 * 60 * 1000
 async function tick($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
   await update($, now, () => at)
+  await syncCollapsedStatus($)
+}
+
+// The band collapsed by the person (Claude Code 2.1.330): a tree still returns, and nothing of it is on screen. What
+// must not go unseen goes to the status line meanwhile (the person's choice): a shutdown counting down, waited for or
+// planned, or the pause, with how to get Cancel or Resume back. Cleared once the band is expanded. The drawing notes
+// the state (a module variable, no write); the looks of the clock, the heartbeat and the watches act on it.
+let isBandCollapsed = false
+let isCollapsedStatusShown = false
+
+async function syncCollapsedStatus($: EngineInterface): Promise<void> {
+  const text = isBandCollapsed ? await collapsedStatusText($) : null
+  if (text === null) {
+    if (isCollapsedStatusShown) $.ui.status(undefined)
+    isCollapsedStatusShown = false
+    return
+  }
+  $.ui.status(text)
+  isCollapsedStatusShown = true
+}
+
+async function collapsedStatusText($: EngineInterface): Promise<string | null> {
+  const lang = await currentLang($)
+  const t = strings(lang, shutdownMode)
+  const at = await $.clock.now()
+  const shutting = await read($, shutdownPhase)
+  const role = await read($, requestRole)
+  const request = await read($, sessionRequest)
+  const other = role === 'foreign' && request !== null ? request : null
+  let main: string | null = null
+  if (shutting === 'countdown') {
+    main = t.shutdownIn(secondsLeft((await read($, shutdownAt)) ?? at, at))
+  } else if (shutting === 'waiting') {
+    main = t.waitingFor(await read($, waitingSessions))
+  } else if (
+    other !== null && other.kind === 'shutdown' && other.state === 'countdown' && other.countdownUntil !== null &&
+    (await read($, shutdownCancelAsked)) !== other.id
+  ) {
+    const tr = strings(lang, other.mode ?? 'shutdown')
+    main = `${tr.shutdownIn(secondsLeft(other.countdownUntil, at))} · ${t.fromSession(other.byTitle ?? other.byFolder)}`
+  } else {
+    const plan = await livePlan($)
+    if (plan !== null) main = strings(lang, plan.mode).shutdownPlanned(clockOf(plan.at))
+  }
+  if (main !== null) return `${main} · ${t.expandToCancel}`
+  if ((await read($, pausePhase)) === 'paused') {
+    return `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)} · ${t.expandToResume}`
+  }
+  return null
 }
 
 // The mod's language: the `language` option, else the locale variables, else the runtime's locale (on Windows the
@@ -1536,6 +1585,7 @@ async function sessionsTick($: EngineInterface): Promise<void> {
   await settleShutdownThatDidNotHappen($)
   await lookAtPlanAndRequest($)
   await refreshSessionsView($)
+  await syncCollapsedStatus($)
 }
 
 // The command ran, and the computer is still on two minutes later: someone cancelled it (shutdown /a) or something held
@@ -1575,6 +1625,7 @@ function watchNearPlan($: EngineInterface): void {
 
 async function followNearPlan($: EngineInterface): Promise<void> {
   await lookAtPlanAndRequest($)
+  await syncCollapsedStatus($)
   const plan = await read($, shutdownPlan)
   const at = await $.clock.now()
   const isNear =
@@ -1803,6 +1854,7 @@ async function followForeignShutdown($: EngineInterface): Promise<void> {
   const request = await readRequest($)
   const at = await $.clock.now()
   await update($, now, () => at)
+  await syncCollapsedStatus($)
   if (known === null || request === null || request.id !== known.id || (await read($, requestRole)) !== 'foreign') {
     stopForeignWatch()
     return
@@ -2002,6 +2054,8 @@ export const register: Register = (on, options) => {
   foreignWatch = null
   nearPlanWatch = null
   isLooking = false
+  isBandCollapsed = false
+  isCollapsedStatusShown = false
   lastCountedAt = 0
   handledRequestId = null
   moduleStartedAt = null
@@ -2438,6 +2492,15 @@ export const register: Register = (on, options) => {
     if (e.props.hasSurvey) return next(e)
     const elements = $.ui.resolve(e)
     const { Box, Text, Button } = elements
+    // Collapsed (2.1.330): nothing of the tree is on screen, so a small one; the status line says what matters.
+    isBandCollapsed = (e.props as { isCollapsed?: boolean }).isCollapsed === true
+    if (isBandCollapsed) {
+      return (
+        <Box key="collapsed">
+          <Text>cache-weather-and-pause-resume</Text>
+        </Box>
+      )
+    }
 
     const at = Math.max(await read($, now), 0)
     const last = await read($, lastResponseAt)

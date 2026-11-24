@@ -133,7 +133,7 @@ describe('the usage windows', () => {
 const BAND = {
   plugin: 'cache-weather-and-pause-resume',
   component: 'AbovePrompt',
-  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 160, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+  props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10, bodyColumns: 160, scroll: { offset: 0, bodyRows: 10 }, view: {} },
 } as const
 
 describe('the cache countdown', () => {

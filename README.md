@@ -62,6 +62,10 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 | **Cache bar** | A line of its own below the band, over its width, coloured as the cache time: in a terminal a line in the middle of the row, in the desktop app a bar a few pixels high. |
 | **Status row** | Under the bar, one row per message and only while there is one, the most pressing first: the shutdown's countdown, the pause being prepared and the tasks still running, how long the session has been paused (`Paused for 12 min`), a usage window from 80 % on (`5-hour limit 84 % · resets at 15:00`, red from 95 %), about how many turns are left until auto-compact from ten on (`Auto-compact in about 6 turns`, yellow from three; from the median growth of the last five turns, once there are three, and only where the session reports its own threshold), why keep-warm waits, the shutdown check a press waits for. |
 
+**Collapsed band** (Claude Code 2.1.330 on, ctrl+x ctrl+a or `[-]`): nothing of it is on screen, so meanwhile the
+status line says what must not go unseen: a shutdown counting down, waited for or planned (“Shutdown in 42 s · expand
+the band to cancel”), or the pause (“Paused for 12 min · expand the band to resume”). Expanded, the line goes.
+
 In the desktop app each button is a one-colour icon with its word: ⇲ Compact, ⧉ Sessions, ⏸ Pause, ▶ Resume,
 ⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, in a row of their own over the readings. A terminal shows the words
 alone, in the readings' row.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1 — unreleased
+
+- **A collapsed band** (Claude Code 2.1.330 lets you collapse it, ctrl+x ctrl+a or `[-]`) hides nothing that matters:
+  meanwhile the status line says a shutdown counting down, waited for or planned, or the pause, with how to get
+  **Cancel** or **Resume** back (“Shutdown in 42 s · expand the band to cancel”). Expanded, the line goes, and a
+  collapsed band draws only a small tree, since nothing of it is on screen.
+- The tests follow Claude Code 2.1.330's types (the band's `isCollapsed`, the test kit's `Engine`).
+
 ## 0.11.0 — 2026-11-13
 
 - **Shutdown at a time.** The shutdown button (or standby, or hibernation) now asks when: Claude puts a dialog to you,

@@ -186,7 +186,7 @@ export function shutdownCommand(os: ShutdownOs, viaLogind: boolean, program: str
 }
 
 /** The system from `uname -s`; null for one the button does not know. */
-export function osFromUname(stdout: string): ShutdownOs | null {
+export function osFromUname(stdout: string): 'linux' | 'macos' | null {
   const name = stdout.trim().toLowerCase()
   if (name === 'linux') return 'linux'
   if (name === 'darwin') return 'macos'
