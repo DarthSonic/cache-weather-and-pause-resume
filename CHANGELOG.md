@@ -1,7 +1,20 @@
 # Changelog
 
-## 0.11.1 — unreleased
+## 0.12.0 — unreleased
 
+- **Task rows** (option `taskProgress`, on by default): while Claude works through a task list (the task tools, or
+  the desktop app's plan), a row under the bar shows how many tasks are done, the one at work and since when
+  (`▰▰▱▱▱ 2/5 done · Writing tests · for 4 min`); only while the session works, and `5/5 done` for ten seconds at the
+  end. A row of its own shows the background run in flight: a bar of the part done where its description says how
+  long it takes (`▰▰▰▱▱ ~63 % · Test suite (~44 min, done ~11:31)`), else since when it runs. A run shows at once as it
+  starts and as it ends (`100 %`, or `✓ … done`, `✗ … stopped`, for ten seconds), the next in flight takes its place,
+  and a foreground command shows once it has run ten seconds.
+- **The “!” in the run row**, where a run carries no estimate: Claude asks you whether and where a line for estimates
+  should go, this project's `CLAUDE.md` or your own, with what each means. Asked once per folder; not for background
+  subagents, and never where a run with an estimate was seen. The README has the line to copy.
+- **Sessions start sooner:** the mod hands a session's start back once its pause and keep-warm are restored, and does
+  the rest (its tools, the state file, the transcript) right after; its part of the start hooks runs alongside your
+  own instead of before them. Measured: about 0.9 s per session before, under 0.2 s now.
 - **A collapsed band** (Claude Code 2.1.330 lets you collapse it, ctrl+x ctrl+a or `[-]`) hides nothing that matters:
   meanwhile the status line says a shutdown counting down, waited for or planned, or the pause, with how to get
   **Cancel** or **Resume** back (“Shutdown in 42 s · expand the band to cancel”). Expanded, the line goes, and a

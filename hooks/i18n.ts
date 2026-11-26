@@ -71,6 +71,15 @@ export type Strings = {
   /** In the status line while the band is collapsed (Claude Code 2.1.330): how to get Cancel and Resume back. */
   expandToCancel: string
   expandToResume: string
+  /** The task row (local test): done of total, since when the task at work runs, what comes next. */
+  tasksDone: (done: number, total: number) => string
+  taskSince: (minutes: number) => string
+  taskNext: (subject: string) => string
+  /** More background runs than the one the task row names. */
+  runsMore: (n: number) => string
+  /** A background run that ended: done, or stopped (failed, killed). */
+  runDone: string
+  runStopped: string
   tasksLeft: (n: number | null) => string
   compactQueued: string
   compactQueueFailed: (error: string) => string
@@ -162,6 +171,12 @@ const DE: Omit<Strings, keyof ModeTexts> = {
   pausedFor: m => `Pausiert seit ${duration(m)}`,
   expandToCancel: 'Leiste aufklappen zum Abbrechen',
   expandToResume: 'Leiste aufklappen für Weiter',
+  tasksDone: (done, total) => `${done}/${total} erledigt`,
+  taskSince: m => `seit ${duration(m)}`,
+  taskNext: subject => `als Nächstes: ${subject}`,
+  runsMore: n => (n === 1 ? ' · +1 weiterer Lauf' : ` · +${n} weitere Läufe`),
+  runDone: 'fertig',
+  runStopped: 'abgebrochen',
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 Task läuft noch' : ` · ${n} Tasks laufen noch`),
   compactQueued: '/compact eingereiht: startet, sobald Claude fertig ist',
   compactQueueFailed: error => `/compact ließ sich nicht einreihen: ${error}`,
@@ -245,6 +260,12 @@ const EN: Omit<Strings, keyof ModeTexts> = {
   pausedFor: m => `Paused for ${duration(m)}`,
   expandToCancel: 'expand the band to cancel',
   expandToResume: 'expand the band to resume',
+  tasksDone: (done, total) => `${done}/${total} done`,
+  taskSince: m => `for ${duration(m)}`,
+  taskNext: subject => `next: ${subject}`,
+  runsMore: n => (n === 1 ? ' · +1 more run' : ` · +${n} more runs`),
+  runDone: 'done',
+  runStopped: 'stopped',
   tasksLeft: n => (n === null || n <= 0 ? '' : n === 1 ? ' · 1 task still running' : ` · ${n} tasks still running`),
   compactQueued: '/compact queued: it starts once Claude is done',
   compactQueueFailed: error => `/compact could not be queued: ${error}`,

@@ -66,6 +66,24 @@ any words (“let's stop here for today”): once paused, Claude tells the band,
 status line says what must not go unseen: a shutdown counting down, waited for or planned (“Shutdown in 42 s · expand
 the band to cancel”), or the pause (“Paused for 12 min · expand the band to resume”). Expanded, the line goes.
 
+**Task rows** (option `taskProgress`): while Claude works through a task list (its task tools, or the desktop app's
+plan), a row under the bar shows how many tasks are done, the one at work and since when (`▰▰▱▱▱ 2/5 done · Writing
+tests · for 4 min`), and `5/5 done` for ten seconds once all are; it follows the list as Claude keeps it. A row of its
+own shows the background run in flight: `⧗ Test suite · for 12 min`, or, where the run's description says how long it
+takes, a bar estimating how far it is (`▰▰▰▱▱ ~63 % · Test suite (~44 min, done ~11:31)`); a run that ended shows so
+for ten seconds, and the next one in flight takes its place. It is redrawn every minute.
+
+> [!TIP]
+> **Progress for background runs.** Claude does not write how long a run takes by itself. Add this line to your
+> project's `CLAUDE.md` (this project only) or to `~/.claude/CLAUDE.md` (all your projects on this computer), and the
+> band shows each run's progress:
+>
+> ```
+> - Every background run (run_in_background, Monitor, a background agent) gives its estimated length and the time it will be done in its `description`, e.g. "Test suite (~20 min, done ~14:35)".
+> ```
+>
+> Or press the **!** at the start of the task row: Claude asks you where the line should go, or whether at all.
+
 In the desktop app each button is a one-colour icon with its word: ⇲ Compact, ⧉ Sessions, ⏸ Pause, ▶ Resume,
 ⏻ Shutdown (⏾ Standby, ❄ Hibernate), ✕ Cancel, in a row of their own over the readings. A terminal shows the words
 alone, in the readings' row.
@@ -343,6 +361,7 @@ A mod installed at the user scope from a terminal also loads in the Claude deskt
 | `keepWarm` | `on` | Whether a new session starts with keep-warm checked; `off` starts it unchecked. |
 | `keepWarmHours` | `8` | How long keep-warm goes on with the 1-hour cache in a session nobody works in: 1 to 18 hours. Up to 18 a refresh costs less than building the cache again (a tenth of the input price or less, on Opus 5.5 a twentieth, against twice); about 16 keeps it warm overnight. The 5-minute cache keeps 45 minutes. |
 | `notifications` | `on` | A notification as the shutdown countdown starts; `off` sends none. |
+| `taskProgress` | `on` | The task rows: Claude's task list or plan, and the background run in flight; `off` shows neither and reads no task or run. |
 | `shutdownMode` | `shutdown` | What the shutdown button does: `shutdown`, `sleep` (standby) or `hibernate`; the button is named after it. |
 
 Set them with `/plugin configure cache-weather-and-pause-resume@darthsonic`, or in `~/.claude/settings.json`:
@@ -399,6 +418,7 @@ the shutdown button (below). What it hands Claude enters the conversation like a
 | an approval turned away | a step of the main conversation that would ask for your approval, from the press of **Pause** or **Shutdown** until the pause is over (or in a session paused from another) | refused with fixed text from [`hooks/sessions.ts`](hooks/sessions.ts): do not run it, note it in the pause state and repeat it after “continue” |
 | a tool Claude can call, `pause_state` | Claude has paused the session, or picks the paused work back up | listed for Claude with a fixed description (in [`hooks/pause.ts`](hooks/pause.ts)); a call changes only the band's pause state and the state file, is answered by the mod and runs nothing else |
 | a prompt in your name | you press **Shutdown** | the question when: fixed text from [`hooks/sessions.ts`](hooks/sessions.ts) |
+| a prompt in your name | you press the **!** in the run row | the question where a line for estimates should go: fixed text from [`hooks/sessions.ts`](hooks/sessions.ts) with the line to add, ask first, commit nothing |
 | a tool Claude can call, `schedule_shutdown` | you answered when, or asked in words to shut down, sleep or hibernate | listed with a fixed description (in [`hooks/sessions.ts`](hooks/sessions.ts)); now: the pause and shutdown as above; at a time: a plan in the state file, the answer fixed text |
 | a note to a session at work, a note added to your prompt | a shutdown is planned | fixed text: the time, start only what finishes before it, ask nothing, save the state; half an hour before, a reminder; at the time, the pause |
 | a question or an approval turned away | from the plan until its time, in every session | refused with fixed text: keep it for after the restart and note it |
@@ -441,7 +461,10 @@ planned shutdown, and `tool.check` does so early where the permission mode surel
 other verdict or allows anything. Every other
 hook only reads and passes its event
 on unchanged: `classic.UserPromptSubmit` (the permission mode and the session's title), `classic.PostToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, its title, time since the last response),
-`classic.Stop` (transcript path, running background tasks), `classic.PostModelSwitch` (the cache lifetime, and
+`classic.Stop` (transcript path, running background tasks and which are subagents), `tool.call` on the task tools
+(`TaskCreate`, `TaskUpdate`, `TaskList`, `TodoWrite`) and the desktop app's plan (`mcp__ccd_turn__update_plan`) for the
+task row, and on Bash and PowerShell for the run row (the description, and whether the result says it runs in the
+background), `prompt.submit` (a background run's notice that it ended, by its text), `classic.PostModelSwitch` (the cache lifetime, and
 whether the model changed), `classic.Notification` (a permission prompt waits for you), `tool.call` otherwise (when a call of the
 conversation has run, and when a question to you is answered), `turn.step` (token counts, the model it names, and when a request reads
 the cache) and `session.measure` (token counts, and the usage windows of a subscription), `turn.start`, `turn.complete`, `session.end`, and `session.compact`,

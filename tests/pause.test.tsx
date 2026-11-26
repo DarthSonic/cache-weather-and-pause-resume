@@ -3,6 +3,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On, PromptSubmitInput } from 'claude-code'
 
 import { langOf, strings } from '../hooks/i18n'
+import { runSpan } from '../hooks/pause'
 import {
   PAUSE_TOOL,
   formatMinutes,
@@ -345,6 +346,185 @@ describe('the pause button', () => {
     expect((await check()).decision).toBe('ask')
     await ui.unmount()
   })
+
+  // Local test (2026-11-25): with no task list, the background run in its place; Claude's own words estimate its part.
+  test('a run’s span is read off its description: a length, an end, or both', () => {
+    const seen = new Date(2026, 10, 25, 10, 47, 0, 0).getTime()
+    const at = (h: number, m: number, day = 25) => new Date(2026, 10, day, h, m, 0, 0).getTime()
+    expect(runSpan('S4 H1 und H2, zwei Laeufe 12 Welten, ca. 44 min, fertig ca. 11:31', seen)).toEqual({ start: at(10, 47), end: at(11, 31) })
+    expect(runSpan('Full suite on SDK 10 (~45 min, fertig ~10:57)', at(10, 20))).toEqual({ start: at(10, 12), end: at(10, 57) })
+    expect(runSpan('Suite, ca. 2 h', seen)).toEqual({ start: seen, end: seen + 2 * 3_600_000 })
+    expect(runSpan('Volle Suite, fertig gegen 01:53', at(23, 40, 24))).toEqual({ start: at(23, 40, 24), end: at(1, 53) })
+    expect(runSpan('Sleep for the pause-mod test', seen)).toBeNull()
+  })
+
+  test('with no task list the task row shows the background run, its part estimated from its description', { options: { language: 'de', taskProgress: 'on' } }, async ($, on) => {
+    mock.store(on)
+    const start = new Date(2026, 10, 25, 10, 0, 0, 0).getTime()
+    const clock = mock.clock(on, { now: start })
+    const files = disk(on)
+    const prompts = engine(on)
+    on('tool.call', { tool: 'Bash' }, () => ({ result: 'started', text: 'Command running in background with ID: b9.' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'r1' })
+    const run = (description: string) => ({ ...stop(undefined, 'r1'), background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description }] })
+    // Without words for its span: since when it runs, and a "!" that has Claude ask where a rule for estimates goes.
+    await $.classic.Stop(run('Sleep for the test'))
+    await clock.advance(3 * 60_000)
+    expect(await ui.find({ type: 'Text', text: /^⧗ Sleep for the test · seit 3 min$/ })).toBeDefined()
+    expect(await ui.find({ key: 'task-estimate' })).toBeDefined()
+    // A background subagent's words are short: no "!" for it (live, 2026-11-25).
+    await $.classic.Stop({ ...stop(undefined, 'r1'), background_tasks: [{ id: 'a1', type: 'subagent', status: 'running', description: 'Review as code-reviewer' }] })
+    expect(await ui.find({ type: 'Text', text: /^⧗ Review as code-reviewer · seit < 1 min$/ })).toBeDefined()
+    expect(await ui.find({ key: 'task-estimate' })).toBeUndefined()
+    await $.classic.Stop(run('Sleep for the test'))
+    await ui.press({ key: 'task-estimate' })
+    const asked = JSON.stringify(prompts.at(-1))
+    expect(asked).toContain('AskUserQuestion')
+    expect(asked).toContain('~/.claude/CLAUDE.md')
+    expect(asked).toContain('Fertig-Uhrzeit, z. B. „Testsuite (ca. 20 min, fertig ca. 14:35)“')
+    // Asked once here: the "!" stands no more, also after a restart (the state file keeps the folder).
+    expect(await ui.find({ key: 'task-estimate' })).toBeUndefined()
+    expect(Object.keys(JSON.parse(files[STATE] ?? '{}').estimateRuleAsked ?? {}).length).toBe(1)
+    // With words for its span: a bar of the part done by its own estimate.
+    await $.classic.Stop(run('Suite, ca. 40 min, fertig ca. 10:43'))
+    await clock.advance(10 * 60_000)
+    expect(await ui.find({ type: 'Text', text: /^▰▱▱▱▱ ~25 % · Suite, ca\. 40 min, fertig ca\. 10:43$/ })).toBeDefined()
+    // Its notice that it ended (handed on as a prompt): the row says so at once, for ten seconds.
+    const notice = (words: string, status: string) =>
+      `<task-notification>
+<task-id>b1</task-id>
+<status>${status}</status>
+<summary>Background command "${words}" ${status} (exit code 0)</summary>
+</task-notification>`
+    await $.prompt.submit({ text: notice('Suite, ca. 40 min, fertig ca. 10:43', 'completed'), wait: false, origin: { kind: 'task-notification' } })
+    expect(await ui.find({ type: 'Text', text: /^▰▰▰▰▰ 100 % · Suite, ca\. 40 min, fertig ca\. 10:43$/ })).toBeDefined()
+    await clock.advance(1_000)
+    await $.classic.Stop(run('Sleep for the test'))
+    // A notice that wakes an idle session may come as the host's own turn: the notice in its text counts.
+    await $.prompt.submit({ text: notice('Sleep for the test', 'completed'), wait: false, origin: { kind: 'sdk' } })
+    expect(await ui.find({ type: 'Text', text: /^✓ Sleep for the test · fertig$/ })).toBeDefined()
+    await clock.advance(1_000)
+    await $.classic.Stop(run('Build'))
+    await $.prompt.submit({ text: notice('Build', 'failed'), wait: false, origin: { kind: 'task-notification' } })
+    expect(await ui.find({ type: 'Text', text: /^✗ Build · abgebrochen$/ })).toBeDefined()
+    // A new run sent to the background shows at once, over the one that ended, not only at the next stop.
+    await $.tool.call({ tool: 'Bash', command: 'sleep 10', description: 'Kurzer Lauf', run_in_background: true } as never)
+    expect(await ui.find({ type: 'Text', text: /^⧗ Kurzer Lauf · seit < 1 min$/ })).toBeDefined()
+    await $.prompt.submit({ text: notice('Kurzer Lauf', 'completed'), wait: false, origin: { kind: 'task-notification' } })
+    expect(await ui.find({ type: 'Text', text: /^✓ Kurzer Lauf · fertig$/ })).toBeDefined()
+    // Ten seconds on, the end goes (a redraw is asked for: the band otherwise redraws once a minute).
+    await clock.advance(9_000)
+    expect(await ui.find({ type: 'Text', text: /^✓ Kurzer Lauf · fertig$/ })).toBeDefined()
+    await clock.advance(2_000)
+    expect(await ui.find({ type: 'Text', text: /Lauf/ })).toBeUndefined()
+    // Three sent to the background at once (live, 2026-11-25: two were lost): all counted; as one ends, the next takes
+    // its place, whether its span is known or not, and the last one's end shows.
+    await Promise.all(
+      ['Lauf A1', 'Lauf A2', 'Lauf A3'].map(description =>
+        $.tool.call({ tool: 'Bash', command: 'sleep 1', description, run_in_background: true } as never),
+      ),
+    )
+    expect(await ui.find({ type: 'Text', text: /^⧗ Lauf A1 · seit < 1 min · \+2 weitere Läufe$/ })).toBeDefined()
+    await $.prompt.submit({ text: notice('Lauf A1', 'completed'), wait: false, origin: { kind: 'task-notification' } })
+    expect(await ui.find({ type: 'Text', text: /^⧗ Lauf A2 · seit < 1 min · \+1 weiterer Lauf$/ })).toBeDefined()
+    await $.prompt.submit({ text: notice('Lauf A2', 'completed'), wait: false, origin: { kind: 'task-notification' } })
+    expect(await ui.find({ type: 'Text', text: /^⧗ Lauf A3 · seit < 1 min$/ })).toBeDefined()
+    await $.prompt.submit({ text: notice('Lauf A3', 'completed'), wait: false, origin: { kind: 'task-notification' } })
+    expect(await ui.find({ type: 'Text', text: /^✓ Lauf A3 · fertig$/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('where a run with an estimate was seen, the folder has the rule: no "!" there, also in a later session', { options: { language: 'de', taskProgress: 'on' } }, async ($, on) => {
+    mock.store(on)
+    const clock = mock.clock(on, { now: new Date(2026, 10, 25, 17, 48, 0, 0).getTime() })
+    const files = disk(on)
+    engine(on)
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'r2' })
+    const run = (description: string) => ({ ...stop(undefined, 'r2'), background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description }] })
+    await $.classic.Stop(run('Digest of the career board (~4 min, fertig ~17:52)'))
+    await clock.advance(60_000)
+    expect(Object.keys(JSON.parse(files[STATE] ?? '{}').estimateSeen ?? {}).length).toBe(1)
+    await $.classic.Stop(run('Some run without words for its span'))
+    expect(await ui.find({ type: 'Text', text: /^⧗ Some run without words for its span/ })).toBeDefined()
+    expect(await ui.find({ key: 'task-estimate' })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  // The desktop app's own plan tool (live, 2026-11-25): its items are the task list there.
+  test('the desktop app’s plan is read as the task list', { options: { language: 'de', taskProgress: 'on' } }, async ($, on) => {
+    mock.store(on)
+    mock.clock(on, { now: 9_000_000 })
+    disk(on)
+    engine(on)
+    on('tool.call', { tool: 'mcp__ccd_turn__update_plan' }, () => ({ result: 'ok', text: 'Plan updated.' }))
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p1' })
+    await $.turn.start({ text: 'weiter', turnId: 't1' })
+    const items = [
+      { content: 'S5 auswerten', status: 'completed' },
+      { content: 'Ergebnis per Dialog vorlegen', status: 'in_progress' },
+      { content: 'S6 Ratifizierung', status: 'pending' },
+      { content: 'Gate 2, Merge', status: 'pending' },
+    ]
+    await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', items, scope: 'continuation' } as never)
+    expect(await ui.find({ type: 'Text', text: /^▰▱▱▱▱ 1\/4 erledigt · Ergebnis per Dialog vorlegen · seit < 1 min$/ })).toBeDefined()
+    // A background run beside it: a row of its own under the plan; once it ended, the plan stays as Claude keeps it.
+    await $.classic.Stop({ ...stop(undefined, 'p1'), background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'Wächter (~2 min)' }] })
+    expect(await ui.find({ type: 'Text', text: /^▱▱▱▱▱ ~0 % · Wächter \(~2 min\)$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /1\/4 erledigt/ })).toBeDefined()
+    // The session done and waiting, nothing in flight: a plan left open says nothing about what goes on (live,
+    // 2026-11-25), so its row goes; a new turn brings it back.
+    await $.classic.Stop(stop(undefined, 'p1'))
+    expect(await ui.find({ type: 'Text', text: /erledigt/ })).toBeUndefined()
+    await $.turn.start({ text: 'weiter', turnId: 't2' })
+    expect(await ui.find({ type: 'Text', text: /1\/4 erledigt/ })).toBeDefined()
+    // The plan emptied by Claude: its row goes.
+    await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', items: [] } as never)
+    expect(await ui.find({ type: 'Text', text: /erledigt/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  // Local test (2026-11-25, option taskProgress): Claude's task list as a row under the bar.
+  for (const isOn of [true, false]) {
+    test(`the task row ${isOn ? 'shows done of total, the task at work and since when' : 'stays off with the option off'}`, { options: { language: 'de', taskProgress: isOn ? 'on' : 'off' } }, async ($, on) => {
+      mock.store(on)
+      const clock = mock.clock(on, { now: 9_000_000 })
+      disk(on)
+      engine(on)
+      let ids = 0
+      on('tool.call', { tool: 'TaskCreate' }, ($, e) => ({ result: { task: { id: String(++ids), subject: (e as { subject: string }).subject } }, text: 'created' }))
+      on('tool.call', { tool: 'TaskUpdate' }, ($, e) => ({ result: { success: true, taskId: (e as { taskId: string }).taskId, updatedFields: ['status'] }, text: 'updated' }))
+      const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+      await $.classic.SessionStart({ source: 'startup', session_id: 't1' })
+      await $.turn.start({ text: 'baue das Feature', turnId: 't1' })
+      const row = () => ui.find({ type: 'Text', text: /erledigt/ })
+      // The texts hold no sign a pattern reads specially.
+      const shows = (text: string) => ui.find({ type: 'Text', text: new RegExp(`^${text}$`) })
+      for (const subject of ['Tests schreiben', 'Doku', 'Release']) {
+        await $.tool.call({ tool: 'TaskCreate', subject, description: subject, activeForm: `${subject} läuft` } as never)
+      }
+      await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'in_progress' } as never)
+      await clock.advance(4 * 60_000)
+      if (!isOn) {
+        expect(await row()).toBeUndefined()
+        await ui.unmount()
+        return
+      }
+      expect(await shows('▱▱▱▱▱ 0/3 erledigt · Tests schreiben läuft · seit 4 min')).toBeDefined()
+      await $.tool.call({ tool: 'TaskUpdate', taskId: '1', status: 'completed' } as never)
+      await clock.advance(60_000)
+      expect(await shows('▰▰▱▱▱ 1/3 erledigt · als Nächstes: Doku')).toBeDefined()
+      await $.tool.call({ tool: 'TaskUpdate', taskId: '3', status: 'deleted' } as never)
+      await $.tool.call({ tool: 'TaskUpdate', taskId: '2', status: 'completed' } as never)
+      expect(await shows('▰▰▰▰▰ 2/2 erledigt')).toBeDefined()
+      // Done: it stands ten seconds, then goes.
+      await clock.advance(11_000)
+      expect(await row()).toBeUndefined()
+      await ui.unmount()
+    })
+  }
 
   // Claude Code 2.1.330: the person can collapse the band, and then nothing of it is on screen. The person's choice:
   // the pause (and a shutdown under way or planned) shows in the status line meanwhile, and leaves it once expanded.

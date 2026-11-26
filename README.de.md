@@ -69,6 +69,25 @@ nennt die Statuszeile von Claude Code solange, was nicht untergehen darf: einen 
 geplant („Shutdown in 42 s · Leiste aufklappen zum Abbrechen“), oder die Pause („Pausiert seit 12 min · Leiste
 aufklappen für Weiter“). Aufgeklappt verschwindet die Zeile.
 
+**Aufgaben-Zeilen** (Option `taskProgress`): Solange Claude eine Aufgabenliste abarbeitet (seine Aufgaben-Werkzeuge
+oder der Plan der Desktop-App), zeigt eine Zeile unter dem Balken, so wie Claude die Liste führt, wie viele Aufgaben
+erledigt sind, welche gerade läuft und seit wann (`▰▰▱▱▱ 2/5 erledigt · Schreibe Tests · seit 4 min`), und `5/5
+erledigt` noch zehn Sekunden, wenn alle fertig sind. Eine eigene Zeile darunter zeigt den laufenden Hintergrundlauf:
+`⧗ Testsuite · seit 12 min`, oder, wo seine Beschreibung die Dauer nennt, einen Balken, wie weit er etwa ist (`▰▰▰▱▱
+~63 % · Testsuite (ca. 44 min, fertig ca. 11:31)`); ein beendeter Lauf steht zehn Sekunden als fertig da, und der
+nächste laufende nimmt seinen Platz ein. Sie rechnet jede Minute neu.
+
+> [!TIP]
+> **Fortschritt für Hintergrundläufe.** Wie lange ein Lauf dauert, schreibt Claude nicht von sich aus dazu. Füge diese
+> Zeile in die `CLAUDE.md` deines Projekts (nur dieses Projekt) oder in `~/.claude/CLAUDE.md` (alle deine Projekte auf
+> diesem Rechner) ein, dann zeigt die Leiste den Fortschritt jedes Laufs:
+>
+> ```
+> - Jeder Hintergrundlauf (run_in_background, Monitor, Hintergrund-Agent) nennt in seiner `description` die geschätzte Dauer und die Fertig-Uhrzeit, z. B. „Testsuite (ca. 20 min, fertig ca. 14:35)“.
+> ```
+>
+> Oder drück das **!** am Anfang der Aufgaben-Zeile: Claude fragt dich, wo die Zeile hin soll, oder ob überhaupt.
+
 In der Desktop-App ist jeder Knopf ein einfarbiges Icon mit seinem Wort: ⇲ Compact, ⧉ Sitzungen, ⏸ Pause, ▶ Weiter,
 ⏻ Shutdown (⏾ Standby, ❄ Ruhezustand), ✕ Abbrechen, in einer eigenen Zeile über den Werten. Ein Terminal zeigt nur die
 Worte, in der Zeile der Werte.
@@ -359,6 +378,7 @@ Zustandsdatei (`~/.claude/cache-wetter/`) wird nicht übernommen und kann weg.
 | `keepWarm` | `on` | Ob eine neue Sitzung mit gesetztem Keep-warm startet; `off` startet ohne. |
 | `keepWarmHours` | `8` | Wie lange Keep-warm beim 1-Stunden-Cache in einer Sitzung weiterläuft, in der niemand arbeitet: 1 bis 18 Stunden. Bis 18 kostet eine Auffrischung weniger als ein Neuaufbau (ein Zehntel des Input-Preises oder weniger, bei Opus 5.5 ein Zwanzigstel, gegen das Doppelte); etwa 16 hält ihn über Nacht warm. Der 5-Minuten-Cache bleibt bei 45 Minuten. |
 | `notifications` | `on` | Eine Benachrichtigung, wenn der Shutdown-Countdown startet; `off` schickt keine. |
+| `taskProgress` | `on` | Die Aufgaben-Zeilen: Claudes Aufgabenliste oder Plan und der laufende Hintergrundlauf; `off` zeigt keine und liest weder Aufgaben noch Läufe. |
 | `shutdownMode` | `shutdown` | Was der Shutdown-Knopf tut: `shutdown`, `sleep` (Standby) oder `hibernate` (Ruhezustand); der Knopf heißt danach. |
 
 Setzen mit `/plugin configure cache-weather-and-pause-resume@darthsonic` oder in `~/.claude/settings.json`:
@@ -418,6 +438,7 @@ Unterhaltung:
 | eine abgewiesene Freigabe | ein Schritt der Hauptunterhaltung, der deine Freigabe bräuchte, vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause (oder in einer Sitzung, die eine andere pausiert hat) | abgelehnt mit festem Text aus [`hooks/sessions.ts`](hooks/sessions.ts): nicht ausführen, im Pausenstand notieren und nach „weitermachen“ wiederholen |
 | ein Werkzeug für Claude, `pause_state` | Claude hat die Sitzung pausiert oder nimmt die pausierte Arbeit wieder auf | für Claude mit fester Beschreibung gelistet (in [`hooks/pause.ts`](hooks/pause.ts)); ein Aufruf ändert nur den Pause-Zustand der Leiste und die Zustandsdatei, der Mod beantwortet ihn selbst, sonst läuft nichts |
 | ein Prompt in deinem Namen | du drückst **Shutdown** | die Frage, wann: fester Text aus [`hooks/sessions.ts`](hooks/sessions.ts) |
+| ein Prompt in deinem Namen | du drückst das **!** in der Lauf-Zeile | die Frage, wo eine Zeile für Schätzungen hin soll: fester Text aus [`hooks/sessions.ts`](hooks/sessions.ts) mit der Zeile, erst fragen, nichts committen |
 | ein Werkzeug für Claude, `schedule_shutdown` | du hast gesagt, wann, oder in Worten um Herunterfahren, Standby oder Ruhezustand gebeten | mit fester Beschreibung gelistet (in [`hooks/sessions.ts`](hooks/sessions.ts)); jetzt: Pause und Shutdown wie oben; zu einem Zeitpunkt: ein Plan in der Zustandsdatei, die Antwort fester Text |
 | ein Hinweis an eine arbeitende Sitzung, ein Hinweis an deinem Prompt | ein Shutdown ist geplant | fester Text: die Uhrzeit, nur beginnen, was vorher fertig wird, nichts fragen, Stand sichern; eine halbe Stunde vorher eine Erinnerung; zum Zeitpunkt die Pause |
 | eine abgewiesene Frage oder Freigabe | vom Plan bis zu seiner Zeit, in jeder Sitzung | abgelehnt mit festem Text: für nach dem Neustart aufheben und notieren |
@@ -461,7 +482,11 @@ einem geplanten Shutdown eine Berechtigungsabfrage ab, und `tool.check` tut das 
 sicher fragt (`default`, `plan`, `acceptEdits`, als Hinweis aus den klassischen Hooks gelesen); beide erfassen auch
 Abfragen von Subagenten, und keiner ändert ein anderes Urteil oder erlaubt etwas. Jeder andere Hook liest nur
 und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` (der Berechtigungsmodus und der Titel der Sitzung), `classic.PostToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, ihr Titel, Zeit seit der letzten
-Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks), `classic.PostModelSwitch` (die
+Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks und welche davon Subagenten sind), `tool.call` auf die
+Aufgaben-Werkzeuge (`TaskCreate`, `TaskUpdate`, `TaskList`, `TodoWrite`) und den Plan der Desktop-App
+(`mcp__ccd_turn__update_plan`) für die Aufgaben-Zeile sowie auf Bash und PowerShell für die Lauf-Zeile (die
+Beschreibung, und ob das Ergebnis sagt, dass er im Hintergrund läuft), `prompt.submit` (die Meldung eines
+Hintergrundlaufs, dass er endete, an ihrem Text), `classic.PostModelSwitch` (die
 Cache-Laufzeit, und ob das Modell wechselte), `classic.Notification` (eine Berechtigungsfrage wartet auf dich),
 `tool.call` sonst (wann ein Aufruf der Unterhaltung gelaufen ist, und wann eine Rückfrage an dich beantwortet ist),
 `turn.step` (Token-Zahlen, das genannte Modell, und wann eine Anfrage den Cache liest) und `session.measure` (Token-Zahlen und die

@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { ClassicResultOf, EngineInterface, Register, Timer } from 'claude-code'
 
 import type {
+  TaskEntry,
   ContextFill,
   KeepWarmNote,
   LiveSession,
@@ -62,6 +63,8 @@ import {
   isPersonOrigin,
   isResume,
   minutesBetween,
+  runSpan,
+  endedRuns,
   pauseRequest,
   pausedMachineNote,
   pausedPersonNote,
@@ -92,6 +95,7 @@ import {
   askWhenPrompt,
   planApprovalRefusal,
   planCancelledNote,
+  estimateRulePrompt,
   planQuestionRefusal,
   planReminder,
   plannedNote,
@@ -133,7 +137,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.11.0'
+const CODE_VERSION = '0.12.0'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -149,6 +153,21 @@ const pausedAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pausedAt
 const pauseDelivered = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pauseDelivered' } as const, true)
 const pauseTasksLeft = atom({ plugin: 'cache-weather-and-pause-resume', key: 'pauseTasksLeft' } as const, null)
 const turnRunning = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnRunning' } as const, false)
+const taskList = atom({ plugin: 'cache-weather-and-pause-resume', key: 'taskList' } as const, [] as TaskEntry[])
+const tasksDoneAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'tasksDoneAt' } as const, null)
+const runsSeenAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'runsSeenAt' } as const, {} as Record<string, number>)
+const estimateRuleAsked = atom({ plugin: 'cache-weather-and-pause-resume', key: 'estimateRuleAsked' } as const, false)
+const agentRuns = atom({ plugin: 'cache-weather-and-pause-resume', key: 'agentRuns' } as const, [] as string[])
+const foregroundRuns = atom(
+  { plugin: 'cache-weather-and-pause-resume', key: 'foregroundRuns' } as const,
+  [] as { id: string; words: string; startedAt: number }[],
+)
+// A foreground command shows in the run row once it has run this long: shorter ones would only flicker.
+const FOREGROUND_SHOWN_AFTER_MS = 10_000
+const runsEnded = atom(
+  { plugin: 'cache-weather-and-pause-resume', key: 'runsEnded' } as const,
+  {} as Record<string, { at: number; isDone: boolean; seenAt: number | null }>,
+)
 const sessionId = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionId' } as const, null)
 const language = atom({ plugin: 'cache-weather-and-pause-resume', key: 'language' } as const, null)
 const keepWarm = atom({ plugin: 'cache-weather-and-pause-resume', key: 'keepWarm' } as const, false)
@@ -217,6 +236,10 @@ type Persisted = {
   liveSessions?: Record<string, LiveSession>
   /** A shutdown planned for a time (0.11.0): any session shows it, cancels it, and fires it should its planner be gone. */
   shutdownPlan?: ShutdownPlan | null
+  /** The folders where the task row's "!" was pressed (local test): asked once, it shows there no more. */
+  estimateRuleAsked?: Record<string, number>
+  /** The folders where a background run with an estimate was seen: the rule is there, no "!" (local test). */
+  estimateSeen?: Record<string, number>
   /** A shutdown under way that a band other than its own asked to cancel (0.11.0): the session that runs it cancels it
    * at its next look, and in any case right before the command. */
   shutdownCancel?: { requestId: string; at: number } | null
@@ -235,6 +258,260 @@ async function tick($: EngineInterface): Promise<void> {
   const at = await $.clock.now()
   await update($, now, () => at)
   await syncCollapsedStatus($)
+}
+
+// Claude's task list, read off the task tools as they run (local test, 2026-11-25): TaskCreate adds one, TaskUpdate
+// changes or deletes one, TaskList and TodoWrite give the whole list. A subagent's calls write the same list.
+async function noteTasks($: EngineInterface, e: { tool: string } & Record<string, unknown>, result: unknown): Promise<void> {
+  const out = ((result as { result?: unknown } | null)?.result ?? {}) as Record<string, unknown>
+  if ((result as { isError?: boolean } | null)?.isError === true || (result as { deny?: unknown } | null)?.deny !== undefined) return
+  const at = await $.clock.now()
+  const str = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null)
+  const before = await read($, taskList)
+  let after: TaskEntry[] = before
+  if (e.tool === 'TaskCreate') {
+    const task = out.task as { id?: unknown; subject?: unknown } | undefined
+    const id = str(task?.id)
+    if (id === null) return
+    after = [...before.filter(t => t.id !== id), { id, subject: str(task?.subject) ?? str(e.subject) ?? id, activeForm: str(e.activeForm), status: 'pending', startedAt: null }]
+  } else if (e.tool === 'TaskUpdate') {
+    const id = str(e.taskId)
+    if (id === null || out.success === false) return
+    const status = e.status
+    if (status === 'deleted') {
+      after = before.filter(t => t.id !== id)
+    } else {
+      after = before.map(t => {
+        if (t.id !== id) return t
+        const next: TaskEntry = { ...t, subject: str(e.subject) ?? t.subject, activeForm: str(e.activeForm) ?? t.activeForm }
+        if (status === 'pending' || status === 'in_progress' || status === 'completed') next.status = status
+        if (status === 'in_progress' && t.status !== 'in_progress') next.startedAt = at
+        return next
+      })
+    }
+  } else if (e.tool === 'TaskList') {
+    const tasks = Array.isArray(out.tasks) ? (out.tasks as { id?: unknown; subject?: unknown; status?: unknown }[]) : null
+    if (tasks === null) return
+    after = tasks.flatMap(task => {
+      const id = str(task.id)
+      if (id === null) return []
+      const known = before.find(t => t.id === id)
+      const status = task.status === 'in_progress' || task.status === 'completed' ? task.status : 'pending'
+      const startedAt = status === 'in_progress' ? (known?.status === 'in_progress' ? known.startedAt : at) : (known?.startedAt ?? null)
+      return [{ id, subject: str(task.subject) ?? known?.subject ?? id, activeForm: known?.activeForm ?? null, status, startedAt }]
+    })
+  } else if (e.tool === 'mcp__ccd_turn__update_plan') {
+    // The desktop app's own plan (live, 2026-11-25): the whole list in its input, no spinner wording.
+    const items = Array.isArray(e.items) ? (e.items as { content?: unknown; status?: unknown }[]) : null
+    if (items === null) return
+    after = items.map((item, index) => {
+      const subject = str(item.content) ?? `${index + 1}`
+      const known = before.find(t => t.subject === subject)
+      const status = item.status === 'in_progress' || item.status === 'completed' ? item.status : 'pending'
+      const startedAt = status === 'in_progress' ? (known?.status === 'in_progress' ? known.startedAt : at) : (known?.startedAt ?? null)
+      return { id: `plan-${index}`, subject, activeForm: null, status, startedAt }
+    })
+  } else if (e.tool === 'TodoWrite') {
+    const todos = Array.isArray(out.newTodos) ? (out.newTodos as { content?: unknown; status?: unknown; activeForm?: unknown }[]) : null
+    if (todos === null) return
+    after = todos.map((todo, index) => {
+      const subject = str(todo.content) ?? `${index + 1}`
+      const known = before.find(t => t.subject === subject)
+      const status = todo.status === 'in_progress' || todo.status === 'completed' ? todo.status : 'pending'
+      const startedAt = status === 'in_progress' ? (known?.status === 'in_progress' ? known.startedAt : at) : (known?.startedAt ?? null)
+      return { id: `todo-${index}`, subject, activeForm: str(todo.activeForm), status, startedAt }
+    })
+  }
+  await update($, taskList, () => after)
+  const isAllDone = after.length > 0 && after.every(t => t.status === 'completed')
+  const doneAt = await read($, tasksDoneAt)
+  if (isAllDone && doneAt === null) {
+    await update($, tasksDoneAt, () => at)
+    $.clock.after(TASKS_DONE_SHOWN_MS + 500, () => void tick($).catch(() => undefined))
+  }
+  if (!isAllDone && doneAt !== null) await update($, tasksDoneAt, () => null)
+}
+
+async function taskRowText($: EngineInterface, t: ReturnType<typeof strings>, at: number): Promise<string | null> {
+  const tasks = await read($, taskList)
+  if (tasks.length === 0) return null
+  // Only while the session works (a turn, or a run in the background): a list Claude left behind when it finished
+  // (live, 2026-11-25: the plan stood at 5/9 after the hand-over) says nothing about what goes on (the person's word).
+  const isAllDone = tasks.every(task => task.status === 'completed')
+  if (!isAllDone && !(await isWorkingNow($))) return null
+  const done = tasks.filter(task => task.status === 'completed').length
+  const cells = Math.min(10, Math.max(5, tasks.length))
+  const filled = Math.round((done / tasks.length) * cells)
+  const bar = `${'▰'.repeat(filled)}${'▱'.repeat(cells - filled)}`
+  const head = `${bar} ${t.tasksDone(done, tasks.length)}`
+  if (done === tasks.length) {
+    const doneAt = await read($, tasksDoneAt)
+    return doneAt !== null && at - doneAt <= TASKS_DONE_SHOWN_MS ? head : null
+  }
+  const current = tasks.find(task => task.status === 'in_progress')
+  if (current !== undefined) {
+    const since = current.startedAt === null ? '' : ` · ${t.taskSince(minutesBetween(current.startedAt, at) ?? 0)}`
+    return `${head} · ${current.activeForm ?? current.subject}${since}`
+  }
+  const next = tasks.find(task => task.status === 'pending')
+  return next === undefined ? head : `${head} · ${t.taskNext(next.subject)}`
+}
+
+// No task list (or one done a while ago): the background run in flight in its place (the person, 2026-11-25). Where
+// Claude's description says how long it takes or when it ends, a bar estimates the part done; else since when it runs.
+// Whether the task row last drawn showed a run without an estimate: where the "!" may stand.
+let lastRowWantsEstimate = false
+
+// The runs list is changed by one change at a time (live, 2026-11-25: of three runs sent to the background at once one
+// was lost, as their changes overlapped): each waits for the one before.
+let runsChain: Promise<unknown> = Promise.resolve()
+function oneAtATime<T>(change: () => Promise<T>): Promise<T> {
+  const done = runsChain.then(change, change)
+  runsChain = done.catch(() => undefined)
+  return done
+}
+
+// The "!" (the person, 2026-11-25): Claude asks where a rule for estimates should go. Asked once per folder.
+// The folder the "!" is asked or settled for: the session's working folder.
+async function estimateFolder($: EngineInterface): Promise<string> {
+  return (await $.session.cwd().catch(() => null)) ?? (await currentFolder($)) ?? '?'
+}
+
+async function askForEstimateRule($: EngineInterface): Promise<void> {
+  const folder = await estimateFolder($)
+  const at = await $.clock.now()
+  await update($, estimateRuleAsked, () => true)
+  await writePersisted($, p => ({ ...p, estimateRuleAsked: { ...(p.estimateRuleAsked ?? {}), [folder]: at } }))
+  await handToModel($, estimateRulePrompt(await currentLang($)))
+}
+
+async function noteEstimateRuleAsked($: EngineInterface): Promise<void> {
+  const folder = await estimateFolder($)
+  const persisted = await readPersisted($)
+  const isKnown = persisted.estimateRuleAsked?.[folder] !== undefined || persisted.estimateSeen?.[folder] !== undefined
+  if (isKnown) await update($, estimateRuleAsked, () => true)
+}
+
+// A foreground shell command starts: noted with its words, and a redraw asked for once it has run 10 seconds.
+async function noteForegroundStart($: EngineInterface, input: Record<string, unknown>): Promise<string> {
+  const at = await $.clock.now()
+  const id = typeof input.tool_use_id === 'string' ? input.tool_use_id : `fg-${at}`
+  const described = typeof input.description === 'string' && input.description.trim() !== '' ? input.description.trim() : null
+  const command = typeof input.command === 'string' ? input.command.trim().split(/\r?\n/)[0] ?? '' : ''
+  const words = described ?? (command.length > 60 ? `${command.slice(0, 59)}…` : command)
+  await update($, foregroundRuns, list => [...list.filter(run => run.id !== id), { id, words, startedAt: at }])
+  $.clock.after(FOREGROUND_SHOWN_AFTER_MS + 500, () => void tick($).catch(() => undefined))
+  return id
+}
+
+async function runRowText($: EngineInterface, t: ReturnType<typeof strings>, at: number): Promise<string | null> {
+  const background = await read($, backgroundRuns)
+  // Foreground commands that have run 10 seconds count beside the background runs, after them.
+  const foreground = (await read($, foregroundRuns)).filter(run => at - run.startedAt >= FOREGROUND_SHOWN_AFTER_MS)
+  if (background.length === 0 && foreground.length > 0) {
+    const first = foreground[0]
+    if (first !== undefined) return foregroundRowText(t, first, at, foreground.length - 1)
+  }
+  const runs = [...background, ...foreground.map(run => run.words)]
+  if (runs.length === 0) return endedRunText($, t, at)
+  const run = runs[0] ?? ''
+  const seenAt = (await read($, runsSeenAt))[run] ?? at
+  const name = run.length > 90 ? `${run.slice(0, 89)}…` : run
+  const more = runs.length > 1 ? t.runsMore(runs.length - 1) : ''
+  const span = runSpan(run, seenAt)
+  if (span === null) {
+    lastRowWantsEstimate = !(await read($, agentRuns)).includes(run)
+    return `⧗ ${name} · ${t.taskSince(minutesBetween(seenAt, at) ?? 0)}${more}`
+  }
+  const share = Math.min(1, Math.max(0, (at - span.start) / (span.end - span.start)))
+  const filled = Math.round(share * 5)
+  return `${'▰'.repeat(filled)}${'▱'.repeat(5 - filled)} ~${Math.round(share * 100)} % · ${name}${more}`
+}
+
+function foregroundRowText(
+  t: ReturnType<typeof strings>,
+  run: { words: string; startedAt: number },
+  at: number,
+  others: number,
+): string {
+  const name = run.words.length > 90 ? `${run.words.slice(0, 89)}…` : run.words
+  const more = others > 0 ? t.runsMore(others) : ''
+  const span = runSpan(run.words, run.startedAt)
+  if (span === null) return `⧗ ${name} · ${t.taskSince(minutesBetween(run.startedAt, at) ?? 0)}${more}`
+  const share = Math.min(1, Math.max(0, (at - span.start) / (span.end - span.start)))
+  const filled = Math.round(share * 5)
+  return `${'▰'.repeat(filled)}${'▱'.repeat(5 - filled)} ~${Math.round(share * 100)} % · ${name}${more}`
+}
+
+// The run that ended last, for five minutes once none is in flight (the person, 2026-11-25): "100 %" where it had a span
+// by its words, else a tick; "stopped" for one that failed or was ended.
+async function endedRunText($: EngineInterface, t: ReturnType<typeof strings>, at: number): Promise<string | null> {
+  // The one that ended last; on a tie the one noted last.
+  const ended = Object.entries(await read($, runsEnded))
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry: [, run] }) => at - run.at <= TASKS_DONE_SHOWN_MS)
+    .sort((a, b) => b.entry[1].at - a.entry[1].at || b.index - a.index)
+    .map(({ entry }) => entry)
+  const last = ended[0]
+  if (last === undefined) return null
+  const [words, run] = last
+  const name = words.length > 90 ? `${words.slice(0, 89)}…` : words
+  if (!run.isDone) return `✗ ${name} · ${t.runStopped}`
+  return runSpan(words, run.seenAt ?? run.at) === null ? `✓ ${name} · ${t.runDone}` : `▰▰▰▰▰ 100 % · ${name}`
+}
+
+// A shell call whose result says it runs in the background now: the task row names it at once, by its description.
+function noteRunStarted($: EngineInterface, e: Record<string, unknown>, result: unknown): Promise<void> {
+  return oneAtATime(() => addStartedRun($, e, result))
+}
+
+async function addStartedRun($: EngineInterface, e: Record<string, unknown>, result: unknown): Promise<void> {
+  const text = (result as { text?: unknown } | null)?.text
+  if (typeof text !== 'string' || !/running in background with ID|moved to the background/i.test(text)) return
+  const described = typeof e.description === 'string' && e.description.trim() !== '' ? e.description.trim() : null
+  const command = typeof e.command === 'string' ? e.command.trim().split(/\r?\n/)[0] ?? '' : ''
+  const run = described ?? (command.length > 60 ? `${command.slice(0, 59)}…` : command)
+  if (run === '') return
+  const at = await $.clock.now()
+  await update($, backgroundRuns, runs => (runs.includes(run) ? runs : [...runs, run]))
+  await update($, runsSeenAt, seen => ({ ...seen, [run]: seen[run] ?? at }))
+  await noteEstimatesSeen($, [run])
+}
+
+// A run whose words carry an estimate: the folder has the rule (by its own words, as the Traumfabrik's CLAUDE.md
+// asks for "(~4 min, fertig ~17:52)"), so no "!" there, now or in later sessions.
+async function noteEstimatesSeen($: EngineInterface, runs: readonly string[]): Promise<void> {
+  if ((await read($, estimateRuleAsked)) || runs.length === 0) return
+  const at = await $.clock.now()
+  if (!runs.some(run => runSpan(run, at) !== null)) return
+  await update($, estimateRuleAsked, () => true)
+  const folder = await estimateFolder($)
+  await writePersisted($, p => ({ ...p, estimateSeen: { ...(p.estimateSeen ?? {}), [folder]: at } }))
+}
+
+// A task notification (Claude Code hands it on as a prompt): the runs it names ended, now, not at the next stop.
+function noteEndedRuns($: EngineInterface, text: string): Promise<void> {
+  return oneAtATime(() => removeEndedRuns($, text))
+}
+
+async function removeEndedRuns($: EngineInterface, text: string): Promise<void> {
+  const ended = endedRuns(text)
+  if (ended.length === 0) return
+  const at = await $.clock.now()
+  const runs = await read($, backgroundRuns)
+  const seen = await read($, runsSeenAt)
+  const gone = new Set<string>()
+  const noted: Record<string, { at: number; isDone: boolean; seenAt: number | null }> = {}
+  for (const { words, isDone } of ended) {
+    const run = runs.find(r => r === words || r.includes(words) || words.includes(r)) ?? words
+    gone.add(run)
+    noted[run] = { at, isDone, seenAt: seen[run] ?? null }
+  }
+  await update($, backgroundRuns, list => list.filter(r => !gone.has(r)))
+  await update($, runsEnded, before =>
+    Object.fromEntries([...Object.entries(before).filter(([, run]) => at - run.at <= TASKS_DONE_SHOWN_MS), ...Object.entries(noted)]),
+  )
+  $.clock.after(TASKS_DONE_SHOWN_MS + 500, () => void tick($).catch(() => undefined))
 }
 
 // The band collapsed by the person (Claude Code 2.1.330): a tree still returns, and nothing of it is on screen. What
@@ -579,6 +856,11 @@ let keepWarmByDefault = true
 // How long keep-warm goes on for the hour's cache in a session nobody works in (option `keepWarmHours`, 0.10.0).
 let keepWarmHours = 8
 let isNotifying = true
+// The task row (local test, 2026-11-25): the option taskProgress.
+let isShowingTasks = true
+// "7/7 erledigt" and a run's end stand this long (the person, 2026-11-25: five minutes were too long); a redraw is
+// asked for just after, as the band otherwise redraws once a minute.
+const TASKS_DONE_SHOWN_MS = 10_000
 // What the button does once the sessions are paused (option `shutdownMode`, 0.9.5).
 let shutdownMode: ShutdownMode = 'shutdown'
 let shutdownCheck: Promise<void> | null = null
@@ -2037,11 +2319,47 @@ async function pauseOnStop(
   return result
 }
 
+// The mod's part of the session start (classic.SessionStart), run alongside the hooks beneath.
+async function noteSessionStart($: EngineInterface, askAbove: number, e: { transcript_path: string; permission_mode?: string; session_title?: string; session_id: string; seconds_since_last_response?: number; prompt_cache_likely_expired?: boolean }): Promise<void> {
+  await update($, transcriptPath, () => e.transcript_path)
+  await notePermissionMode($, e.permission_mode)
+  await noteSessionTitle($, e.session_title)
+  // A resumed session carries its id here even where `$.session.id()` was not bound yet at session.start; after
+  // /clear the id is a new one, whose pause (none) is restored.
+  await update($, sessionId, () => e.session_id)
+  await restorePause($, e.session_id)
+  await restoreKeepWarm($, e.session_id)
+  void checkShutdown($).catch(() => undefined)
+  // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
+  const seconds = e.seconds_since_last_response
+  if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
+    const at = await $.clock.now()
+    await update($, lastResponseAt, () => at - seconds * 1000)
+    await update($, now, () => at)
+  }
+  // And whether the cache likely expired since, which tells the lifetime; else the one last seen. This start comes on
+  // every new start of the session (resume, /compact, /clear), where session.start does not.
+  const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
+  if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
+  await applyRememberedTtl($)
+  startTicker($)
+  startKeepWarm($)
+  startHeartbeat($)
+  await registerPauseTool($, askAbove)
+  await registerSessionsTool($)
+  await registerScheduleTool($)
+  // Once per session start, a little later: what is remembered of deleted sessions goes.
+  $.clock.after(PRUNE_AFTER_MS, () => {
+    void pruneSessions($).catch(() => undefined)
+  })
+}
+
 export const register: Register = (on, options) => {
   const askAbove = askAboveMinutes(options)
   keepWarmByDefault = options.keepWarm !== 'off'
   keepWarmHours = keepWarmHoursOf(options.keepWarmHours)
   isNotifying = options.notifications !== 'off'
+  isShowingTasks = options.taskProgress !== 'off'
   shutdownMode = modeOf(options.shutdownMode)
   shutdownCheck = null
   stopShutdownTimers()
@@ -2054,6 +2372,8 @@ export const register: Register = (on, options) => {
   foreignWatch = null
   nearPlanWatch = null
   isLooking = false
+  lastRowWantsEstimate = false
+  runsChain = Promise.resolve()
   isBandCollapsed = false
   isCollapsedStatusShown = false
   lastCountedAt = 0
@@ -2072,8 +2392,6 @@ export const register: Register = (on, options) => {
     await applyRememberedTtl($)
     await update($, isCompacting, () => false)
     await update($, turnRunning, () => false)
-    await $.store.set('codeVersion', CODE_VERSION)
-    await writePersisted($, p => ({ ...p, codeVersion: CODE_VERSION }))
     const id = await currentSessionId($)
     if (id !== null) {
       await restorePause($, id)
@@ -2081,58 +2399,41 @@ export const register: Register = (on, options) => {
     } else {
       await update($, keepWarm, () => keepWarmByDefault)
     }
-    void checkShutdown($).catch(() => undefined)
-
-    await refreshContext($)
-    await refreshThreshold($)
-    await tick($)
-    await detectFromTranscript($)
-
     startTicker($)
     startKeepWarm($)
     startHeartbeat($)
-    await registerPauseTool($, askAbove)
-    await registerSessionsTool($)
-    await registerScheduleTool($)
+    // The rest right after, unawaited (measured 2026-11-24: about 0.9 s per session that the start waited for): the
+    // state file's version with its second look, the transcript, the tools. The band fills in as each lands.
+    void (async () => {
+      await registerPauseTool($, askAbove)
+      await registerSessionsTool($)
+      await registerScheduleTool($)
+      await $.store.set('codeVersion', CODE_VERSION)
+      await writePersisted($, p => ({ ...p, codeVersion: CODE_VERSION }))
+      void checkShutdown($).catch(() => undefined)
+      await noteEstimateRuleAsked($)
+      await refreshContext($)
+      await refreshThreshold($)
+      await tick($)
+      await detectFromTranscript($)
+    })().catch(() => undefined)
     return started
   })
 
   // The four hooks below only observe: should their own work fail, `.catch` hands on what `next` settled to (or runs
   // it, where it was not called yet), so nothing is refused and nothing runs twice.
   on('classic.SessionStart', async ($, e, next) => {
-    await update($, transcriptPath, () => e.transcript_path)
-    await notePermissionMode($, e.permission_mode)
-    await noteSessionTitle($, e.session_title)
-    // A resumed session carries its id here even where `$.session.id()` was not bound yet at session.start; after
-    // /clear the id is a new one, whose pause (none) is restored.
-    await update($, sessionId, () => e.session_id)
-    await restorePause($, e.session_id)
-    await restoreKeepWarm($, e.session_id)
-    void checkShutdown($).catch(() => undefined)
-    // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
-    const seconds = e.seconds_since_last_response
-    if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
-      const at = await $.clock.now()
-      await update($, lastResponseAt, () => at - seconds * 1000)
-      await update($, now, () => at)
+    // The hooks beneath (the person's own start hooks among them) start at once; the mod's part runs alongside, and
+    // the event settles when both have (it waited for the mod's part before, 2026-11-24).
+    const beneath = next(e)
+    try {
+      await noteSessionStart($, askAbove, e)
+    } catch {
+      // Only observes: the session starts as it would.
     }
-    // And whether the cache likely expired since, which tells the lifetime; else the one last seen. This start comes on
-    // every new start of the session (resume, /compact, /clear), where session.start does not.
-    const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
-    if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
-    await applyRememberedTtl($)
-    startTicker($)
-    startKeepWarm($)
-    startHeartbeat($)
-    await registerPauseTool($, askAbove)
-    await registerSessionsTool($)
-    await registerScheduleTool($)
-    // Once per session start, a little later: what is remembered of deleted sessions goes.
-    $.clock.after(PRUNE_AFTER_MS, () => {
-      void pruneSessions($).catch(() => undefined)
-    })
-    return next(e)
+    return beneath
   }).catch(($, e, next) => next(e))
+
 
   // Each response of the main conversation: the cache was read or written now, and its hit rate. A request that
   // starts after the pause row was appended carries it.
@@ -2202,7 +2503,16 @@ export const register: Register = (on, options) => {
       // The readings wait for the next stop; the pause below must not.
     }
     try {
-      await update($, backgroundRuns, () => runsInFlight(e.background_tasks))
+      const runs = runsInFlight(e.background_tasks)
+      const agents = runsInFlight((e.background_tasks ?? []).filter(task => task.type === 'subagent' || task.type === 'agent'))
+      await oneAtATime(async () => {
+        await update($, agentRuns, () => agents)
+        await update($, backgroundRuns, () => runs)
+        await noteEstimatesSeen($, runs)
+        // When each run was first seen, for the task row (local test).
+        const seenNow = await $.clock.now()
+        await update($, runsSeenAt, seen => Object.fromEntries(runs.map(run => [run, seen[run] ?? seenNow])))
+      })
     } catch {
       // The other sessions read the runs at the next stop.
     }
@@ -2296,7 +2606,27 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: ['Bash', 'PowerShell'] }, async ($, e, next) => {
     const command = (e as { command?: unknown }).command
     if (typeof command === 'string' && isPowerCommand(command)) return { deny: powerRefusal(await currentLang($)) }
-    return next(e)
+    // A foreground command of the main conversation: in the run row while it runs, from 10 seconds on (the desktop app
+    // lists it among its background tasks too; live, 2026-11-25).
+    const input = e as unknown as Record<string, unknown>
+    const foregroundId =
+      isShowingTasks && input.run_in_background !== true && e.agentId === undefined ? await noteForegroundStart($, input) : null
+    let result: Awaited<ReturnType<typeof next>>
+    try {
+      result = await next(e)
+    } finally {
+      if (foregroundId !== null) await update($, foregroundRuns, list => list.filter(run => run.id !== foregroundId)).catch(() => undefined)
+    }
+    // A run sent to the background (by its flag, or moved there while it ran): the task row shows it at once, not at
+    // the next stop (local test, the person, 2026-11-25). Only reads.
+    if (isShowingTasks) {
+      try {
+        await noteRunStarted($, e as unknown as Record<string, unknown>, result)
+      } catch {
+        // The call's result stands.
+      }
+    }
+    return result
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'mcp__cache-weather-and-pause-resume__pause_sessions' }, async ($, e) => {
@@ -2395,8 +2725,31 @@ export const register: Register = (on, options) => {
     return result
   }).catch(($, e, next) => next(e))
 
+  // Claude's task list for the task row (local test): read off the calls after they ran; the call goes on as it would.
+  on('tool.call', { tool: ['TaskCreate', 'TaskUpdate', 'TaskList', 'TodoWrite', 'mcp__ccd_turn__update_plan'] }, async ($, e, next) => {
+    const result = await next(e)
+    if (isShowingTasks) {
+      try {
+        await noteTasks($, e as unknown as { tool: string } & Record<string, unknown>, result)
+      } catch {
+        // Only reads: the call's result stands.
+      }
+    }
+    return result
+  }).catch(($, e, next) => next(e))
+
   // Typed „pausieren“ pauses, „weitermachen“ resumes; while pausing or paused every other prompt carries a note.
   on('prompt.submit', async ($, e, next) => {
+    // A background run's notice that it ended (local test): the task row says so at once. Only reads. Whatever origin it
+    // comes with (live, 2026-11-25: one that woke an idle session in the desktop app was missed; its host hands such a
+    // notice on as its own turn): what counts is the notice in its text, which nobody types.
+    if (isShowingTasks && e.text.includes('<task-notification>')) {
+      try {
+        await noteEndedRuns($, e.text)
+      } catch {
+        // The prompt goes on as it is.
+      }
+    }
     const current = await read($, pausePhase)
     const isPerson = isPersonOrigin(e.origin)
     const lang = await currentLang($)
@@ -2675,7 +3028,7 @@ export const register: Register = (on, options) => {
     // The status rows under the bar, one per message and only while there is one (0.9.3): what lasts stands here
     // rather than among the readings and the buttons, the most pressing first. The shutdown's countdown hides how
     // long the session has been paused, which it then is anyway.
-    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle' }
+    type StatusLine = { key: string; text: string; color?: 'error' | 'warning' | 'subtle'; hasEstimateButton?: boolean }
     const status: StatusLine[] = []
     // A pause another session asked for says where it came from (0.9.4).
     const role = await read($, requestRole)
@@ -2719,6 +3072,18 @@ export const register: Register = (on, options) => {
     } else if (phase === 'paused' && shutting !== 'countdown' && shutting !== 'shutting') {
       status.push({ key: 'pause', text: `${t.pausedFor(minutesBetween(await read($, pausedAt), at) ?? 0)}${pauseFrom}` })
     }
+    // Claude's task list (local test, option taskProgress): a small bar of signs, done of total, the task at work and
+    // since when, or what comes next; once all are done, that for five minutes.
+    // Two rows, each while it has something (the person, 2026-11-25): Claude's task list or plan as Claude keeps it, and
+    // the background run in flight (or the one that just ended) apart from it, as the two can tell different things.
+    lastRowWantsEstimate = false
+    const taskRow = isShowingTasks ? await taskRowText($, t, at) : null
+    const runRow = isShowingTasks ? await runRowText($, t, at) : null
+    // The "!": a run without an estimate, while Claude may ask (no pause, no plan), and not asked here before.
+    const hasEstimateButton =
+      lastRowWantsEstimate && phase === 'running' && !(await read($, questionsClosed)) && plan === null && !(await read($, estimateRuleAsked))
+    if (taskRow !== null) status.push({ key: 'tasks', text: taskRow, color: 'subtle' })
+    if (runRow !== null) status.push({ key: 'runs', text: runRow, color: 'subtle', hasEstimateButton })
     // Usage windows from 80 % on, fullest first: yellow, red from 95 % (0.10.0).
     for (const { reading, tone } of usageToShow(await read($, usageWindows))) {
       status.push({
@@ -2742,11 +3107,20 @@ export const register: Register = (on, options) => {
     const statusRows =
       status.length === 0 ? null : (
         <Box flexDirection="column">
-          {status.map(line => (
-            <Text key={`status-${line.key}`} wrap="truncate-end" {...(line.color === undefined ? {} : { color: line.color })}>
-              {line.text}
-            </Text>
-          ))}
+          {status.map(line => {
+            const text = (
+              <Text key={`status-${line.key}`} wrap="truncate-end" {...(line.color === undefined ? {} : { color: line.color })}>
+                {line.text}
+              </Text>
+            )
+            if (line.hasEstimateButton !== true) return text
+            return (
+              <Box key={`status-${line.key}-row`} flexDirection="row" gap={1}>
+                <Button key="task-estimate" label="!" onPress={() => void askForEstimateRule($)} />
+                {text}
+              </Box>
+            )
+          })}
         </Box>
       )
 

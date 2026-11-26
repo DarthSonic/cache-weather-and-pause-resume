@@ -69,6 +69,17 @@ export type ShutdownPlan = {
   firedAt?: number
 }
 
+/** One task of Claude's task list, as the band shows it (local test, 2026-11-25). */
+export type TaskEntry = {
+  id: string
+  subject: string
+  /** What the spinner says while it runs ("Running tests"); null where Claude gave none. */
+  activeForm: string | null
+  status: 'pending' | 'in_progress' | 'completed'
+  /** When it was last set to in_progress. */
+  startedAt: number | null
+}
+
 /** One session's sign of life in the state file, written by that session alone. */
 export type LiveSession = {
   /** When it was last written: every 15 seconds, and at each change of its pause. */
@@ -150,6 +161,20 @@ declare module 'claude-code' {
       pauseTasksLeft: number | null
       /** Whether a turn of the main conversation runs now. */
       turnRunning: boolean
+      /** Claude's task list as the task tools last left it (TaskCreate, TaskUpdate, TaskList, TodoWrite): local test. */
+      taskList: TaskEntry[]
+      /** Since when every task of the list is done; null while one is open. */
+      tasksDoneAt: number | null
+      /** When each background run in flight was first seen at a stop, by its description (local test). */
+      runsSeenAt: Record<string, number>
+      /** Whether the task row's "!" was pressed in this folder, or a run with an estimate was seen there: no "!". */
+      estimateRuleAsked: boolean
+      /** The background runs in flight that are subagents (by description): no "!" for them, their words are short. */
+      agentRuns: string[]
+      /** Shell commands of the main conversation running in the foreground now: shown from 10 seconds on. */
+      foregroundRuns: { id: string; words: string; startedAt: number }[]
+      /** Runs whose notice said they ended, by description: when, whether they completed, when they were seen first. */
+      runsEnded: Record<string, { at: number; isDone: boolean; seenAt: number | null }>
       /** The session's id, the key its pause is kept under in the state file. */
       sessionId: string | null
       /** The language the band and the pause texts use, once session.start has read the settings. */

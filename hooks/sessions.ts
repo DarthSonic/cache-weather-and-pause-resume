@@ -366,6 +366,33 @@ export function timedPauseRequest(clock: string, lang: Lang, mode: ShutdownMode 
 }
 
 /** A session told of the plan hears that it is off. */
+/** The rule for CLAUDE.md that gives a background run the estimate the task row reads (local test, 2026-11-25). */
+export function estimateRule(lang: Lang): string {
+  return lang === 'de'
+    ? '- Jeder Hintergrundlauf (run_in_background, Monitor, Hintergrund-Agent) nennt in seiner `description` die geschätzte Dauer und die Fertig-Uhrzeit, z. B. „Testsuite (ca. 20 min, fertig ca. 14:35)“.'
+    : '- Every background run (run_in_background, Monitor, a background agent) gives its estimated length and the time it will be done in its `description`, e.g. "Test suite (~20 min, done ~14:35)".'
+}
+
+/** What a press on the task row's "!" hands Claude: ask the person where the rule goes, then add it there. */
+export function estimateRulePrompt(lang: Lang): string {
+  const rule = estimateRule(lang)
+  return lang === 'de'
+    ? `❗ Aufgaben-Zeile: Die Leiste von cache-weather-and-pause-resume kann den Fortschritt eines Hintergrundlaufs nur zeigen, wenn seine Beschreibung Dauer und Fertig-Uhrzeit nennt. Frag den Menschen jetzt in einem Dialog (AskUserQuestion), ob und wo dafür eine Regel stehen soll, je Möglichkeit mit einem Satz zu den Auswirkungen:
+1. Nur in diesem Projekt: in der CLAUDE.md dieses Projekts (gilt nur hier; ist die Datei eingecheckt, bekommen sie alle, die das Repo nutzen).
+2. Für dich allgemein: in ~/.claude/CLAUDE.md (gilt in allen deinen Projekten auf diesem Rechner, für niemanden sonst).
+3. Lieber nicht (nichts ändert sich; die Leiste zeigt weiter, seit wann ein Lauf läuft).
+Bei 1 oder 2 füge genau diese Zeile an passender Stelle hinzu, ohne Bestehendes zu ändern, und sag, wo sie steht:
+${rule}
+Committe nichts ungefragt. Danach mach weiter, wo du warst.`
+    : `❗ Task row: the band of cache-weather-and-pause-resume can show a background run's progress only where its description gives its length and the time it will be done. Ask the person now in one dialog (AskUserQuestion) whether and where a rule for it should go, each choice with one sentence on what it means:
+1. This project only: in this project's CLAUDE.md (applies here only; checked in, everyone using the repository gets it).
+2. For you everywhere: in ~/.claude/CLAUDE.md (applies in all your projects on this computer, for nobody else).
+3. Rather not (nothing changes; the band keeps showing since when a run runs).
+For 1 or 2 add exactly this line in a fitting place, changing nothing else, and say where it is:
+${rule}
+Commit nothing unasked. Then carry on where you were.`
+}
+
 export function planCancelledNote(lang: Lang, mode: ShutdownMode = 'shutdown'): string {
   const w = modeWords(mode, lang)
   return lang === 'de'

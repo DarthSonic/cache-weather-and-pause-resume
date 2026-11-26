@@ -157,6 +157,54 @@ export function runsInFlight(
     .map(t => (t.description ?? t.type ?? '').trim() || '?')
 }
 
+/**
+ * The span a background run takes by Claude's own words in its description (local test, 2026-11-25): a length
+ * ("ca. 44 min", "~2 h", "about 30 minutes") and/or an end ("fertig ca. 11:31", "done ~01:53", "bis 14:00"). The end
+ * is the next such time after the run was first seen; with a length alone the run ends that long after it was seen,
+ * with an end alone it began when seen. Null where the words say neither.
+ */
+export function runSpan(description: string, seenAt: number): { start: number; end: number } | null {
+  const length = /(?:ca\.?|~|etwa|about|approx\.?)\s*(\d+(?:[.,]\d+)?)\s*(min(?:uten|utes)?|h|std|stunden|hours?)\b/i.exec(description)
+  const amount = length?.[1]
+  const unit = length?.[2] ?? ''
+  const lengthMs = amount === undefined ? null : Number(amount.replace(',', '.')) * (/^(h|std|stunden|hours?)$/i.test(unit) ? 3_600_000 : 60_000)
+  const clock = /(?:fertig|done|finished|ready|bis|until|ends?)\s*(?:ca\.?|~|gegen|um|at|by|around)?\s*~?\s*(\d{1,2})[:.](\d{2})\b/i.exec(description)
+  let end: number | null = null
+  if (clock !== null) {
+    const hours = Number(clock[1])
+    const minutes = Number(clock[2])
+    if (hours <= 23 && minutes <= 59) {
+      const day = new Date(seenAt)
+      day.setHours(hours, minutes, 0, 0)
+      // The next such time after it was seen, give or take the length it was already running (seen at a stop).
+      if (day.getTime() < seenAt - (lengthMs ?? 0) - 60_000) day.setDate(day.getDate() + 1)
+      end = day.getTime()
+    }
+  }
+  if (end !== null && lengthMs !== null) return { start: end - lengthMs, end }
+  if (end !== null) return end > seenAt ? { start: seenAt, end } : null
+  if (lengthMs !== null && lengthMs > 0) return { start: seenAt, end: seenAt + lengthMs }
+  return null
+}
+
+/**
+ * The runs a task notification says ended (local test, 2026-11-25): each one's words (the quoted name in its summary,
+ * else the summary) and whether it completed. Claude Code hands the notice on as a prompt.
+ */
+export function endedRuns(text: string): { words: string; isDone: boolean }[] {
+  const ended: { words: string; isDone: boolean }[] = []
+  for (const notice of text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)) {
+    const body = notice[1] ?? ''
+    const status = (/<status>\s*([\w-]+)\s*<\/status>/.exec(body)?.[1] ?? '').toLowerCase()
+    if (status === '' || status === 'running' || status === 'pending') continue
+    const summary = (/<summary>([\s\S]*?)<\/summary>/.exec(body)?.[1] ?? '').trim()
+    const quoted = /"([^"]+)"/.exec(summary)?.[1]
+    const words = (quoted ?? summary).trim()
+    if (words !== '') ended.push({ words, isDone: status === 'completed' })
+  }
+  return ended
+}
+
 export function minutesBetween(from: number | null, to: number): number | null {
   if (from === null || to < from) return null
   return Math.floor((to - from) / 60_000)

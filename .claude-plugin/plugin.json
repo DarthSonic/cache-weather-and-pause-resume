@@ -1,7 +1,7 @@
 {
   "name": "cache-weather-and-pause-resume",
-  "version": "0.11.0",
-  "description": "Pause Claude Code and shut down, sleep or hibernate the computer once running work is done or at a set time, across all sessions. Plus a band above the prompt with the prompt-cache countdown, hit rate and bar, keep-warm (on by default) that refreshes the cache before it runs out and says what that saves, context weather with the auto-compact threshold and a forecast, usage limits, a Compact button and an overview of all sessions. German and English.",
+  "version": "0.12.0",
+  "description": "Pause Claude Code and shut down, sleep or hibernate the computer once running work is done or at a set time, across all sessions. Plus a band above the prompt with the prompt-cache countdown, hit rate and bar, keep-warm (on by default) that refreshes the cache before it runs out and says what that saves, context weather with the auto-compact threshold and a forecast, usage limits, task and background-run progress, a Compact button and an overview of all sessions. German and English.",
   "author": { "name": "Sven Moderow", "url": "https://github.com/DarthSonic" },
   "homepage": "https://github.com/DarthSonic/cache-weather-and-pause-resume",
   "repository": "https://github.com/DarthSonic/cache-weather-and-pause-resume",
@@ -30,6 +30,13 @@
       "title": "Keep-warm: hours for the 1-hour cache",
       "description": "How long keep-warm goes on in a session nobody works in, with the 1-hour cache: 1 to 18 hours (8 by default; up to 18 a refresh costs less than building the cache again, about 16 keeps it warm overnight). The 5-minute cache keeps 45 minutes.",
       "default": 8
+    },
+    "taskProgress": {
+      "type": "string",
+      "title": "Task progress in the band",
+      "description": "on: while Claude works through a task list, a row under the bar shows how many tasks are done, the one at work and since when; off: none.",
+      "default": "on",
+      "options": ["on", "off"]
     },
     "notifications": {
       "type": "string",
