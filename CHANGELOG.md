@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.12.0 — unreleased
+## 0.12.1 — unreleased
+
+- **Fixed:** the task row followed the desktop app's plan only where Claude wrote the whole list anew. The plan is
+  also changed in place (“tick the item at work and start the next”, or ticking and starting items by number), and the
+  row stood still at its first state (`0/6 done`) while the plan moved on. All four forms are read now.
+
+## 0.12.0 — 2026-11-26
 
 - **Task rows** (option `taskProgress`, on by default): while Claude works through a task list (the task tools, or
   the desktop app's plan), a row under the bar shows how many tasks are done, the one at work and since when

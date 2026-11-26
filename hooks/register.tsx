@@ -137,7 +137,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.12.0'
+const CODE_VERSION = '0.12.1'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -299,6 +299,24 @@ async function noteTasks($: EngineInterface, e: { tool: string } & Record<string
       const status = task.status === 'in_progress' || task.status === 'completed' ? task.status : 'pending'
       const startedAt = status === 'in_progress' ? (known?.status === 'in_progress' ? known.startedAt : at) : (known?.startedAt ?? null)
       return [{ id, subject: str(task.subject) ?? known?.subject ?? id, activeForm: known?.activeForm ?? null, status, startedAt }]
+    })
+  } else if (e.tool === 'mcp__ccd_turn__update_plan' && !Array.isArray(e.items)) {
+    // The desktop app's plan changed in place (live, 2026-11-26; its four forms read off the transcripts): `advance`
+    // ticks the item at work and starts the next, `done` ticks items and `start` begins one, by their number from 1.
+    const numbers = (value: unknown): number[] => (Array.isArray(value) ? value.filter((n): n is number => typeof n === 'number') : [])
+    const done = new Set(numbers(e.done).map(n => n - 1))
+    let start = typeof e.start === 'number' ? e.start - 1 : null
+    if (e.advance === true) {
+      const atWork = before.findIndex(t => t.status === 'in_progress')
+      if (atWork >= 0) done.add(atWork)
+      const next = before.findIndex((t, index) => index > atWork && t.status === 'pending')
+      start = next >= 0 ? next : null
+    }
+    if (done.size === 0 && start === null) return
+    after = before.map((task, index): TaskEntry => {
+      if (index === start) return { ...task, status: 'in_progress', startedAt: task.status === 'in_progress' ? task.startedAt : at }
+      if (done.has(index)) return { ...task, status: 'completed' }
+      return task
     })
   } else if (e.tool === 'mcp__ccd_turn__update_plan') {
     // The desktop app's own plan (live, 2026-11-25): the whole list in its input, no spinner wording.

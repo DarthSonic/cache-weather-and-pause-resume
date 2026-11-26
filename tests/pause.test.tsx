@@ -470,6 +470,12 @@ describe('the pause button', () => {
     ]
     await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', items, scope: 'continuation' } as never)
     expect(await ui.find({ type: 'Text', text: /^▰▱▱▱▱ 1\/4 erledigt · Ergebnis per Dialog vorlegen · seit < 1 min$/ })).toBeDefined()
+    // Changed in place (live, 2026-11-26): ticked and begun by number, or moved on by one.
+    await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', done: [2], start: 3 } as never)
+    expect(await ui.find({ type: 'Text', text: /^▰▰▰▱▱ 2\/4 erledigt · S6 Ratifizierung · seit < 1 min$/ })).toBeDefined()
+    await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', advance: true } as never)
+    expect(await ui.find({ type: 'Text', text: /^▰▰▰▰▱ 3\/4 erledigt · Gate 2, Merge · seit < 1 min$/ })).toBeDefined()
+    await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', items } as never)
     // A background run beside it: a row of its own under the plan; once it ended, the plan stays as Claude keeps it.
     await $.classic.Stop({ ...stop(undefined, 'p1'), background_tasks: [{ id: 'b1', type: 'shell', status: 'running', description: 'Wächter (~2 min)' }] })
     expect(await ui.find({ type: 'Text', text: /^▱▱▱▱▱ ~0 % · Wächter \(~2 min\)$/ })).toBeDefined()
