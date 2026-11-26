@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.12.1 — unreleased
+## 0.12.1 — 2026-11-26
 
 - **Fixed:** the task row followed the desktop app's plan only where Claude wrote the whole list anew. The plan is
   also changed in place (“tick the item at work and start the next”, or ticking and starting items by number), and the
