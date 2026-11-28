@@ -2072,10 +2072,10 @@ describe('keep-warm', () => {
     await $.classic.SessionStart({ source: 'startup', session_id: 'f1' })
     await $.classic.Stop(stop(undefined, 'f1'))
     let turn = 0
-    const turnEndingAt = async (tokens: number) => {
+    const turnEndingAt = async (used: number) => {
       turn += 1
       await $.turn.start({ text: `Schritt ${turn}`, turnId: `t${turn}` })
-      await $.session.measure({ context: { window: 200_000, tokens, percent: Math.round(tokens / 2_000) }, rateLimits: [], changed: ['context'] } as never)
+      await $.session.measure({ context: { window: 200_000, tokens: used, percent: Math.round(used / 2_000) }, rateLimits: [], changed: ['context'] } as never)
       await $.turn.complete({ turnId: `t${turn}`, reason: 'answer', answer: 'Erledigt.' } as never)
     }
     await turnEndingAt(60_000)

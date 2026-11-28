@@ -219,7 +219,7 @@ declare module 'claude-code' {
       /** How many tokens the context grew by in each of the last turns that grew it (0.10.0, the forecast). */
       turnGrowths: number[]
       /** The context's tokens when the last turn ended. */
-      lastTurnTokens: number | null
+      lastTurnContext: number | null
       /** The sessions the overview shows (0.10.0): the signs of life alive, this session's first. */
       sessionsView: { id: string; isSelf: boolean; entry: LiveSession }[]
       /** Whether Claude waits for the person: a permission prompt or a question is open. Keep-warm counts it as idle. */

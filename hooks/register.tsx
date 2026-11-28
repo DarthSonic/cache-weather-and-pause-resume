@@ -179,7 +179,7 @@ const keepWarmSpent = atom({ plugin: 'cache-weather-and-pause-resume', key: 'kee
 const cacheGoneAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'cacheGoneAt' } as const, null)
 const mainModel = atom({ plugin: 'cache-weather-and-pause-resume', key: 'mainModel' } as const, null)
 const turnGrowths = atom({ plugin: 'cache-weather-and-pause-resume', key: 'turnGrowths' } as const, [])
-const lastTurnTokens = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnTokens' } as const, null)
+const lastTurnContext = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastTurnContext' } as const, null)
 const sessionsView = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionsView' } as const, [])
 
 // The pane of the sessions overview (0.10.0).
@@ -949,7 +949,7 @@ async function drawBalance(
   if (spent <= 0 || refreshes <= 0 || life === null) return
   const balance = keepWarmBalance({
     spent,
-    readTokens: usage.cache_read_input_tokens,
+    readSize: usage.cache_read_input_tokens,
     readRatio: cacheReadRatio(await sessionModel($)),
     writeRatio: cacheWriteRatio(life.minutes),
   })
@@ -958,7 +958,7 @@ async function drawBalance(
   // What it saved first, a positive note (0.10.1); where it cost more, by how much.
   const saving = savingText(balance)
   $.ui.log(
-    strings(lang, shutdownMode).keepWarmBalanceLog(refreshes, groupDigits(Math.abs(saving.tokens), lang), saving.percent),
+    strings(lang, shutdownMode).keepWarmBalanceLog(refreshes, groupDigits(Math.abs(saving.amount), lang), saving.percent),
   )
 }
 
@@ -1013,14 +1013,14 @@ async function drawMissedSaving(
     gapMs: sentAt - last,
     ttlMinutes: life.minutes,
     hours: keepWarmHours,
-    cachedTokens: usage.cache_creation_input_tokens,
+    cachedSize: usage.cache_creation_input_tokens,
     readRatio: cacheReadRatio(await sessionModel($)),
     writeRatio: cacheWriteRatio(life.minutes),
   })
   if (missed === null) return
   const lang = await currentLang($)
   const saving = savingText(missed)
-  $.ui.log(strings(lang, shutdownMode).keepWarmWouldHaveLog(saving.percent, groupDigits(saving.tokens, lang), missed.refreshes))
+  $.ui.log(strings(lang, shutdownMode).keepWarmWouldHaveLog(saving.percent, groupDigits(saving.amount, lang), missed.refreshes))
 }
 
 async function keepWarmTick($: EngineInterface): Promise<void> {
@@ -1091,7 +1091,7 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
       // What continuing now would save (0.10.1): the next request reads what this one read, instead of writing it.
       const balance = keepWarmBalance({
         spent,
-        readTokens: usage.cache_read_input_tokens,
+        readSize: usage.cache_read_input_tokens,
         readRatio: cacheReadRatio(await sessionModel($)),
         writeRatio: cacheWriteRatio(life?.minutes ?? 60),
       })
@@ -1100,7 +1100,7 @@ async function keepWarmTick($: EngineInterface): Promise<void> {
         t.keepWarmRefreshedLog(
           groupDigits(usage.cache_read_input_tokens, lang),
           groupDigits(usage.output_tokens, lang),
-          saving === null ? null : { percent: saving.percent, tokens: groupDigits(saving.tokens, lang) },
+          saving === null ? null : { percent: saving.percent, amount: groupDigits(saving.amount, lang) },
         ),
       )
     } else if (usage.input_tokens + usage.cache_creation_input_tokens > 0) {
@@ -2556,11 +2556,11 @@ export const register: Register = (on, options) => {
       await update($, isAwaitingApproval, () => false)
       await update($, workingSince, () => null)
       // The forecast's reading (0.10.0): how many tokens this turn added to the context.
-      const tokens = (await read($, context))?.tokens ?? null
-      if (tokens !== null) {
-        const last = await read($, lastTurnTokens)
-        if (last !== null) await update($, turnGrowths, growths => withGrowth(growths, tokens - last))
-        await update($, lastTurnTokens, () => tokens)
+      const used = (await read($, context))?.tokens ?? null
+      if (used !== null) {
+        const last = await read($, lastTurnContext)
+        if (last !== null) await update($, turnGrowths, growths => withGrowth(growths, used - last))
+        await update($, lastTurnContext, () => used)
       }
     }
     return result
@@ -2733,7 +2733,7 @@ export const register: Register = (on, options) => {
       await enterRunning($)
       // A new conversation grows its own way: the forecast starts over.
       await update($, turnGrowths, () => [])
-      await update($, lastTurnTokens, () => null)
+      await update($, lastTurnContext, () => null)
     }
     try {
       await forgetHeartbeat($, e.sessionId)

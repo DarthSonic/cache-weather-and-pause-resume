@@ -73,19 +73,19 @@ describe('keep-warm’s balance', () => {
     const warm = { input_tokens: 30, output_tokens: 2, cache_read_input_tokens: 150_000, cache_creation_input_tokens: 0 }
     expect(refreshCost(warm, 0.05, 2)).toBe(7_540)
     // Three refreshes on Opus 5.5 and the hour's cache, then a request reads 150.000 tokens from the cache.
-    const balance = keepWarmBalance({ spent: 3 * 7_540, readTokens: 150_000, readRatio: 0.05, writeRatio: 2 })
+    const balance = keepWarmBalance({ spent: 3 * 7_540, readSize: 150_000, readRatio: 0.05, writeRatio: 2 })
     expect(balance?.rebuild).toBe(300_000)
     expect(Math.round((balance?.savedShare ?? 0) * 100)).toBe(90)
     // Many refreshes for a small cache cost more than its rebuild: below 0.
-    expect((keepWarmBalance({ spent: 400_000, readTokens: 150_000, readRatio: 0.1, writeRatio: 2 })?.savedShare ?? 0) < 0).toBe(true)
+    expect((keepWarmBalance({ spent: 400_000, readSize: 150_000, readRatio: 0.1, writeRatio: 2 })?.savedShare ?? 0) < 0).toBe(true)
     // A request that read nothing from the cache spared nothing.
-    expect(keepWarmBalance({ spent: 10, readTokens: 0, readRatio: 0.1, writeRatio: 2 })).toBeNull()
+    expect(keepWarmBalance({ spent: 10, readSize: 0, readRatio: 0.1, writeRatio: 2 })).toBeNull()
     // As the band says it (0.10.1): whole percent, the tokens' worth to the hundred.
-    expect(savingText({ saved: 269_880, savedShare: 0.8996 })).toEqual({ percent: 90, tokens: 269_900 })
+    expect(savingText({ saved: 269_880, savedShare: 0.8996 })).toEqual({ percent: 90, amount: 269_900 })
   })
 
   test('what keep-warm would have saved: the refreshes over the gap against the rebuild, within its idle span', async () => {
-    const opus = { cachedTokens: 150_000, readRatio: 0.05, writeRatio: 2, hours: 8 }
+    const opus = { cachedSize: 150_000, readRatio: 0.05, writeRatio: 2, hours: 8 }
     // 182 minutes on the hour's cache: refreshes at 55, 110 and 165 minutes keep it warm till 225.
     // 3 × (150.000 × 0,05 + 40) = 22.620, the read 7.500, against 300.000.
     const hourly = missedKeepWarm({ ...opus, gapMs: 182 * 60_000, ttlMinutes: 60 })
@@ -98,7 +98,7 @@ describe('keep-warm’s balance', () => {
     // The five-minute cache: refreshes every 4 minutes, at 4, 8, 12 and 16, for a gap of 20.
     expect(missedKeepWarm({ ...opus, gapMs: 20 * 60_000, ttlMinutes: 5, writeRatio: 1.25 })?.refreshes).toBe(4)
     // Nothing written again, nothing missed.
-    expect(missedKeepWarm({ ...opus, cachedTokens: 0, gapMs: 182 * 60_000, ttlMinutes: 60 })).toBeNull()
+    expect(missedKeepWarm({ ...opus, cachedSize: 0, gapMs: 182 * 60_000, ttlMinutes: 60 })).toBeNull()
   })
 })
 

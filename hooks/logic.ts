@@ -410,13 +410,13 @@ export function refreshCost(
  */
 export function keepWarmBalance(s: {
   spent: number
-  readTokens: number
+  readSize: number
   readRatio: number
   writeRatio: number
 }): { rebuild: number; spent: number; saved: number; savedShare: number } | null {
-  if (s.readTokens <= 0) return null
-  const rebuild = s.readTokens * s.writeRatio
-  const paid = s.spent + s.readTokens * s.readRatio
+  if (s.readSize <= 0) return null
+  const rebuild = s.readSize * s.writeRatio
+  const paid = s.spent + s.readSize * s.readRatio
   return { rebuild, spent: s.spent, saved: rebuild - paid, savedShare: (rebuild - paid) / rebuild }
 }
 
@@ -430,19 +430,19 @@ export function missedKeepWarm(s: {
   gapMs: number
   ttlMinutes: 5 | 60
   hours: number
-  cachedTokens: number
+  cachedSize: number
   readRatio: number
   writeRatio: number
 }): { refreshes: number; saved: number; savedShare: number } | null {
   const lifetime = s.ttlMinutes * 60_000
-  if (s.cachedTokens <= 0 || s.gapMs <= lifetime) return null
+  if (s.cachedSize <= 0 || s.gapMs <= lifetime) return null
   const every = lifetime - keepWarmLeadMs(s.ttlMinutes)
   const refreshes = Math.floor((s.gapMs - lifetime) / every) + 1
   if (refreshes * every >= keepWarmSpanMs(s.ttlMinutes, s.hours)) return null
-  const refresh = s.cachedTokens * s.readRatio + REFRESH_EXCHANGE_TOKENS
+  const refresh = s.cachedSize * s.readRatio + REFRESH_EXCHANGE_COST
   const balance = keepWarmBalance({
     spent: refreshes * refresh,
-    readTokens: s.cachedTokens,
+    readSize: s.cachedSize,
     readRatio: s.readRatio,
     writeRatio: s.writeRatio,
   })
@@ -451,11 +451,11 @@ export function missedKeepWarm(s: {
 }
 
 /** A refresh's own question and answer beside its read, in input tokens' worth: some 30 in, 2 out at five times. */
-const REFRESH_EXCHANGE_TOKENS = 40
+const REFRESH_EXCHANGE_COST = 40
 
 /** A saving as the band says it (0.10.1): the share in whole percent, the tokens' worth to the hundred. */
-export function savingText(balance: { saved: number; savedShare: number }): { percent: number; tokens: number } {
-  return { percent: Math.round(balance.savedShare * 100), tokens: Math.round(balance.saved / 100) * 100 }
+export function savingText(balance: { saved: number; savedShare: number }): { percent: number; amount: number } {
+  return { percent: Math.round(balance.savedShare * 100), amount: Math.round(balance.saved / 100) * 100 }
 }
 
 // ── The context forecast (0.10.0) ───────────────────────────────────────────────────────────────────────────────
@@ -488,11 +488,11 @@ export function withGrowth(growths: readonly number[], growth: number): number[]
  * growth of the last turns (one large file read moves a median little). Null with fewer than three turns to go by;
  * at least 1, which reads „at the next turn“.
  */
-export function turnsToCompact(tokens: number | null, thresholdTokens: number, growths: readonly number[]): number | null {
-  if (tokens === null || growths.length < FORECAST_MIN_SAMPLES) return null
+export function turnsToCompact(used: number | null, threshold: number, growths: readonly number[]): number | null {
+  if (used === null || growths.length < FORECAST_MIN_SAMPLES) return null
   const typical = median(growths.slice(-FORECAST_SAMPLE))
   if (typical === null || typical <= 0) return null
-  return Math.max(1, Math.ceil((thresholdTokens - tokens) / typical))
+  return Math.max(1, Math.ceil((threshold - used) / typical))
 }
 
 // ── The buttons' icons in the desktop app (0.10.0) ───────────────────────────────────────────────────────────────
