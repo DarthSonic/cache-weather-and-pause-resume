@@ -141,9 +141,8 @@ andere Nachricht in der Pause wird beantwortet, ohne die pausierte Arbeit wieder
 
 **Freigaben.** Vom Druck auf **Pause** oder **Shutdown** bis zum Ende der Pause kommt keine neue Freigabe mehr: Ein
 Schritt, der dich um Erlaubnis fragen würde, wartet auf „weitermachen“, in jedem Berechtigungsmodus. In **Auto**
-entscheidet die Prüfung von Claude Code die meisten Schritte selbst, es warten also weniger; der Mod nimmt den Modus
-nur als Hinweis, denn auch Auto kann fragen (nach Regeln eines Repos oder Hooks in den Einstellungen), und weist jede
-Abfrage ab, die doch kommt (in der Desktop-App blitzt sie dann kurz auf). Die Bitte sagt das Claude, und ein Aufruf, der
+entscheidet die Prüfung von Claude Code die meisten Schritte selbst, es warten also weniger. Der Mod weist jede
+Berechtigungsabfrage ab, die doch kommt, in jedem Modus, sobald sie kommt (in der Desktop-App blitzt sie dann kurz auf). Die Bitte sagt das Claude, und ein Aufruf, der
 trotzdem fragt, wird mit denselben Worten abgewiesen; Claude notiert ihn im Pausenstand und wiederholt ihn nach
 „weitermachen“, wo du wie gewohnt gefragt wirst. Eine Freigabe, die beim Druck auf den Knopf schon offen ist, hält die
 Pause auf, und einen Shutdown mit ihr, bis jemand sie beantwortet: Ein Mod kann sie nicht abbrechen, deshalb sagt die
@@ -495,10 +494,9 @@ Anfrage des Mods fragt danach.
 **Hooks.** Die Hooks auf `prompt.submit` und `classic.Stop` handeln wie in der Tabelle, und `tool.call` beantwortet die
 eigenen Werkzeuge des Mods, weist während einer Pause oder vor einem geplanten Shutdown einen Fragedialog ab und weist
 einen Shell-Befehl ab, der den Rechner ausschaltet; `classic.PermissionRequest` weist während einer Pause oder vor
-einem geplanten Shutdown eine Berechtigungsabfrage ab, und `tool.check` tut das schon früher, wo der Berechtigungsmodus
-sicher fragt (`default`, `plan`, `acceptEdits`, als Hinweis aus den klassischen Hooks gelesen); beide erfassen auch
-Abfragen von Subagenten, und keiner ändert ein anderes Urteil oder erlaubt etwas. Jeder andere Hook liest nur
-und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` (der Berechtigungsmodus und der Titel der Sitzung), `classic.PostToolUse` (der Berechtigungsmodus), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, ihr Titel, Zeit seit der letzten
+einem geplanten Shutdown eine Berechtigungsabfrage ab, auch die eines Subagenten; er ändert keine andere Antwort und
+erlaubt nichts. Jeder andere Hook liest nur
+und reicht sein Ereignis unverändert weiter: `classic.UserPromptSubmit` (der Titel der Sitzung), `classic.SessionStart` (Transkript-Pfad, Sitzungs-ID, ihr Titel, Zeit seit der letzten
 Antwort), `classic.Stop` (Transkript-Pfad, laufende Hintergrund-Tasks und welche davon Subagenten sind), `tool.call` auf die
 Aufgaben-Werkzeuge (`TaskCreate`, `TaskUpdate`, `TaskList`, `TodoWrite`) und den Plan der Desktop-App
 (`mcp__ccd_turn__update_plan`) für die Aufgaben-Zeile sowie auf Bash und PowerShell für die Lauf-Zeile (die
@@ -523,7 +521,7 @@ kostet keine Token.
 
 Sie hält auch das Lebenszeichen jeder Sitzung (`liveSessions`, siehe [Andere Sitzungen](#andere-sitzungen)): alle 15
 Sekunden geschrieben, beim Ende der Sitzung entfernt, eine Stunde nach dem letzten vergessen; mit Ordner, Pause,
-laufender Arbeit, Kontext, Cache, Modell, Berechtigungsmodus und Titel (für die Übersicht und die anderen Sitzungen). Ein
+laufender Arbeit, Kontext, Cache, Modell und Titel (für die Übersicht und die anderen Sitzungen). Ein
 geplanter Shutdown (`shutdownPlan`: Zeit, Modus, die planende Sitzung, ihr Ordner und Titel) steht darin, bis er ausgelöst,
 abgebrochen oder verfallen ist, und ein **Abbrechen** in der Leiste einer anderen Sitzung vermerkt den Shutdown, den es
 absagt (`shutdownCancel`). `request.json` daneben hält die letzte Pause oder den letzten Shutdown über Sitzungen;
@@ -544,7 +542,7 @@ Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit *
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
 
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,
-`classic.Notification`, `classic.PostModelSwitch`, `classic.UserPromptSubmit`, `classic.PostToolUse`, `classic.PermissionRequest` und `session.compact` nur für Plugins, die die Organisation in den
+`classic.Notification`, `classic.PostModelSwitch`, `classic.UserPromptSubmit`, `classic.PermissionRequest` und `session.compact` nur für Plugins, die die Organisation in den
 verwalteten Einstellungen nennt. Eine selbst installierte Kopie sieht dann nie, dass Claude anhält: die Pause bleibt bei
 „Pause wird vorbereitet …“, die Cache-Laufzeit wird nicht aus dem Transkript gelesen, nach `/compact` erscheint keine
 Zusammenfassung, Keep-warm zählt eine offene Berechtigungsfrage als Arbeit und frischt nach einem Compact oder

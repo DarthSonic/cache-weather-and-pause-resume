@@ -137,7 +137,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.12.2'
+const CODE_VERSION = '0.12.3'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -194,7 +194,6 @@ const planTold = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planTold
 const planCancelPending = atom({ plugin: 'cache-weather-and-pause-resume', key: 'planCancelPending' } as const, null)
 const shutdownCancelAsked = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownCancelAsked' } as const, null)
 const sessionTitle = atom({ plugin: 'cache-weather-and-pause-resume', key: 'sessionTitle' } as const, null)
-const permissionMode = atom({ plugin: 'cache-weather-and-pause-resume', key: 'permissionMode' } as const, null)
 const shutdownReadiness = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownReadiness' } as const, null)
 const isCheckingShutdown = atom({ plugin: 'cache-weather-and-pause-resume', key: 'isCheckingShutdown' } as const, false)
 const shutdownPhase = atom({ plugin: 'cache-weather-and-pause-resume', key: 'shutdownPhase' } as const, 'idle')
@@ -1328,20 +1327,6 @@ async function noteSessionTitle($: EngineInterface, title: unknown): Promise<voi
   if (typeof title === 'string' && title.trim() !== '') await update($, sessionTitle, () => title.trim())
 }
 
-async function notePermissionMode($: EngineInterface, mode: unknown): Promise<void> {
-  if (typeof mode === 'string' && mode !== '') await update($, permissionMode, () => mode)
-}
-
-// The modes in which an ask surely comes up as a prompt to the person: there tool.check turns it away early. The mode
-// is a hint only (the person may switch it for the next prompt, and auto mode may still ask, after repository rules or
-// settings hooks): every prompt that does come up is turned away at classic.PermissionRequest, in any mode.
-const ASKING_MODES = new Set(['default', 'plan', 'acceptEdits'])
-
-async function surelyAsks($: EngineInterface): Promise<boolean> {
-  const mode = await read($, permissionMode)
-  return mode !== null && ASKING_MODES.has(mode)
-}
-
 // Why an approval waits, should it now: a shutdown planned (from the plan on, in every session), or a pause asked for
 // or on (from the press on). Null while the session works as usual.
 async function heldApproval($: EngineInterface): Promise<string | null> {
@@ -1843,7 +1828,6 @@ async function overviewFields($: EngineInterface): Promise<Partial<LiveSession>>
     cacheUntil: used === null || life === null ? null : gone !== null ? gone : used + life.minutes * 60_000,
     keepWarm: await read($, keepWarm),
     model: await read($, mainModel),
-    permissionMode: await read($, permissionMode),
     title: await read($, sessionTitle),
   }
 }
@@ -2338,9 +2322,8 @@ async function pauseOnStop(
 }
 
 // The mod's part of the session start (classic.SessionStart), run alongside the hooks beneath.
-async function noteSessionStart($: EngineInterface, askAbove: number, startInput: { transcript_path: string; permission_mode?: string; session_title?: string; session_id: string; seconds_since_last_response?: number; prompt_cache_likely_expired?: boolean }): Promise<void> {
+async function noteSessionStart($: EngineInterface, askAbove: number, startInput: { transcript_path: string; session_title?: string; session_id: string; seconds_since_last_response?: number; prompt_cache_likely_expired?: boolean }): Promise<void> {
   await update($, transcriptPath, () => startInput.transcript_path)
-  await notePermissionMode($, startInput.permission_mode)
   await noteSessionTitle($, startInput.session_title)
   // A resumed session carries its id here even where `$.session.id()` was not bound yet at session.start; after
   // /clear the id is a new one, whose pause (none) is restored.
@@ -2512,7 +2495,6 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.agent_id !== undefined) return result
     await update($, sessionId, () => e.session_id)
-    await notePermissionMode($, e.permission_mode)
     try {
       await update($, transcriptPath, () => e.transcript_path)
       await detectFromTranscript($)
@@ -2570,7 +2552,6 @@ export const register: Register = (on, options) => {
   // after it appeared: Claude waits until the call has run (or was refused). A notification decides nothing.
   on('classic.Notification', async ($, e, next) => {
     const result = await next(e)
-    await notePermissionMode($, e.permission_mode)
     if (WAITING_NOTICES.has(e.notification_type)) {
       await update($, isAwaitingPerson, () => true)
       await update($, isAwaitingApproval, () => true)
@@ -2595,20 +2576,11 @@ export const register: Register = (on, options) => {
   })
 
   // Claude passes on the person's answer about the other sessions: the request stands, and the others pause now.
-  // The permission mode (0.11.0), as each prompt of the person starts a turn (the mode they set for it) and after each
-  // call of the main conversation (a turn may run for hours, and the mode may be switched within it). classic.PreToolUse
-  // carries only the call, no mode. Only reads; whatever happens, the prompt and the call go on as they would.
+  // The session's title as each prompt of the person starts a turn (0.11.0): the bands name the session by it. Only
+  // reads; whatever happens, the prompt goes on as it would.
   on('classic.UserPromptSubmit', async ($, e, next) => {
     const result = await next(e)
-    if (e.agent_id === undefined) {
-      await notePermissionMode($, e.permission_mode)
-      await noteSessionTitle($, e.session_title)
-    }
-    return result
-  }).catch(($, e, next) => next(e))
-  on('classic.PostToolUse', async ($, e, next) => {
-    const result = await next(e)
-    if (e.agent_id === undefined) await notePermissionMode($, e.permission_mode)
+    if (e.agent_id === undefined) await noteSessionTitle($, e.session_title)
     return result
   }).catch(($, e, next) => next(e))
 
@@ -2693,28 +2665,13 @@ export const register: Register = (on, options) => {
     return result
   }).catch(($, e, next) => next(e))
 
-  // From the press of Pause or Shutdown on, a call that would ask the person for approval waits for the resume (0.10.2,
-  // the person's rule; a subagent's too since 0.11.0, so its prompt keeps no turn from ending while nobody is there): the pause request already tells Claude so, and a call that asks
-  // anyway is turned away; Claude notes it in the pause state and repeats it after "continue". Only an ask the person
-  // would answer is turned away: the engine's verdict stands for everything else, and the mod's own tools and questions
-  // to the person go their own ways. An approval already on screen stays: a mod cannot take it back, and the status
-  // row asks the person to answer it.
-  on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
-    if (verdict.decision !== 'ask' || e.approver !== 'person' || e.tool_use_id === undefined) {
-      return verdict
-    }
-    if (e.tool === 'AskUserQuestion' || e.tool.startsWith('mcp__cache-weather-and-pause-resume__')) return verdict
-    // Early only where the mode surely asks (0.11.0): elsewhere Claude Code's own check may settle it without anyone,
-    // and a prompt that still comes up is turned away below.
-    if (!(await surelyAsks($))) return verdict
-    const reason = await heldApproval($)
-    return reason === null ? verdict : { decision: 'deny', reason }
-  }).catch(($, e, next) => next(e))
-
-  // A permission prompt about to come up, in any mode (0.11.0): during a pause and before a planned shutdown it is
-  // turned away with what to do instead, so no prompt waits for someone who is not there, a subagent's included: the
-  // subagent notes the step and can end its run. It never allows anything.
+  // A permission prompt about to come up, in any mode (0.11.0): from the press of Pause or Shutdown until the pause is
+  // over (0.10.2, the person's rule), and before a planned shutdown, it is turned away with what to do instead, so no
+  // prompt waits for someone who is not there, a subagent's included: the subagent notes the step and can end its run.
+  // Claude notes it in the pause state and repeats it after "continue". The mod's own tools and questions to the person
+  // go their own ways; an approval already on screen stays (a mod cannot take it back, and the status row asks the
+  // person to answer it). It never allows anything. Since 0.12.3 this hook alone: an earlier deny at the permission
+  // check, which needed the engine's verdict first, could not take the form the Anthropic directory can read.
   // Decided before the chain beneath: in the desktop app the dialog shows while the hooks run, and the chain beneath
   // answered only once the person had (seen live), so a deny after it came too late. A held approval is turned away
   // at once (the dialog flashes for an instant); anything else goes on untouched.
@@ -2808,7 +2765,6 @@ export const register: Register = (on, options) => {
 
   on('classic.PostModelSwitch', async ($, e, next) => {
     const result = await next(e)
-    await notePermissionMode($, e.permission_mode)
     // Another model has no cache of this conversation: the next request writes it, a refresh would only pay for it.
     // The band shows the cache expired from here on (0.10.3).
     if (e.from_model !== e.to_model) {

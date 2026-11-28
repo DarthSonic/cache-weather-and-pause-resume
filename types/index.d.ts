@@ -104,7 +104,6 @@ export type LiveSession = {
   keepWarm?: boolean
   model?: string | null
   /** The permission mode the classic hooks last reported (0.11.0): a hint, readable from outside. */
-  permissionMode?: string | null
   /** The session's title, where Claude Code reported one (0.11.0). */
   title?: string | null
 }
@@ -213,7 +212,6 @@ declare module 'claude-code' {
       /** The session's title as Claude Code last reported it (session start, each prompt); null where it reports none. */
       sessionTitle: string | null
       /** The session's permission mode, from the classic hooks (0.11.0): whether an ask comes up as a prompt. */
-      permissionMode: string | null
       /** The model the main conversation's last request named: it sets what a cache read costs. */
       mainModel: string | null
       /** How many tokens the context grew by in each of the last turns that grew it (0.10.0, the forecast). */

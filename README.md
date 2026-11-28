@@ -135,8 +135,8 @@ written during the pause is answered without picking the paused work back up.
 
 **Approvals.** From the press of **Pause** or **Shutdown** until the pause is over, no new approval comes up: a step
 that would ask for your permission waits for “continue”, in every permission mode. In **Auto** Claude Code's own
-check settles most steps itself, so fewer of them wait; the mod only takes the mode as a hint, since Auto too may ask
-(after a repository's rules or settings hooks), and turns away every prompt that does come up (in the desktop app it may flash for an instant). The request tells Claude so, and a call that asks anyway is
+check settles most steps itself, so fewer of them wait. The mod turns away every permission prompt that does come up,
+in any mode, as it comes up (in the desktop app it may flash for an instant). The request tells Claude so, and a call that asks anyway is
 turned away with the same words; Claude notes it in the pause state and repeats it after “continue”, where you are
 asked as usual. An approval that is already on screen when you press the button holds the pause up, and a shutdown
 with it, until someone answers it: a mod cannot cancel it, so the status row says so and asks you to answer it (“An
@@ -470,11 +470,9 @@ usage windows come from Claude Code itself, as its status line shows them, and n
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above, and `tool.call` answers the mod's
 own tools, turns a question dialog away during a pause or before a planned shutdown, and turns away a shell command
 that powers the computer off; `classic.PermissionRequest` turns away a permission prompt during a pause or before a
-planned shutdown, and `tool.check` does so early where the permission mode surely asks (`default`, `plan`,
-`acceptEdits`, read from the classic hooks as a hint); both take in a subagent's prompts too, and neither changes any
-other verdict or allows anything. Every other
+planned shutdown, a subagent's too; it changes no other answer and allows nothing. Every other
 hook only reads and passes its event
-on unchanged: `classic.UserPromptSubmit` (the permission mode and the session's title), `classic.PostToolUse` (the permission mode), `classic.SessionStart` (transcript path, session id, its title, time since the last response),
+on unchanged: `classic.UserPromptSubmit` (the session's title), `classic.SessionStart` (transcript path, session id, its title, time since the last response),
 `classic.Stop` (transcript path, running background tasks and which are subagents), `tool.call` on the task tools
 (`TaskCreate`, `TaskUpdate`, `TaskList`, `TodoWrite`) and the desktop app's plan (`mcp__ccd_turn__update_plan`) for the
 task row, and on Bash and PowerShell for the run row (the description, and whether the result says it runs in the
@@ -495,7 +493,7 @@ under `~/.claude/projects/`); when in doubt it drops nothing. Only the mod reads
 
 It also holds each session's sign of life (`liveSessions`, see [Other sessions](#other-sessions)): written every 15
 seconds, taken out when the session ends, forgotten an hour after its last one; with its folder, pause, running work,
-context, cache, model, permission mode and title (for the overview and the other sessions). A planned shutdown
+context, cache, model and title (for the overview and the other sessions). A planned shutdown
 (`shutdownPlan`: time, mode, the planning session, its folder and title) stays in it until it fires, is cancelled or lapses,
 and a **Cancel** pressed in another session's band marks the shutdown it calls off (`shutdownCancel`).
 `request.json` beside it holds the last pause or shutdown across sessions; only the session that made it writes it.
@@ -514,7 +512,7 @@ Claude Code with mods (function-hook plugins), early access, checked with **2.1.
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,
-`classic.Notification`, `classic.PostModelSwitch`, `classic.UserPromptSubmit`, `classic.PostToolUse`, `classic.PermissionRequest` and `session.compact` run only for plugins the organization lists in
+`classic.Notification`, `classic.PostModelSwitch`, `classic.UserPromptSubmit`, `classic.PermissionRequest` and `session.compact` run only for plugins the organization lists in
 managed settings. A self-installed copy then never sees Claude stop, so the pause stays at “Preparing the pause …”, the cache
 lifetime is not read off the transcript, no summary is logged after `/compact`, keep-warm counts an open
 permission prompt as work and goes on after a compaction or a switch of model until a refresh finds the cache cold,

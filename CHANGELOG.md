@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.3 — 2026-11-28
+
+After the Anthropic directory's check of 0.12.2.
+
+- **A permission prompt during a pause or before a planned shutdown is turned away as it comes up, in every mode**
+  (`classic.PermissionRequest`). The earlier deny at Claude Code's permission check (in Manual, Plan and Accept edits,
+  before any dialog showed) is gone: it needed Claude Code's own verdict first, a form the directory cannot confirm
+  leaves the decision with you. In the desktop app such a prompt may now flash for an instant in those modes too, as
+  it did in Auto.
+- **The permission mode is no longer read;** it served only that earlier deny. The hook on `classic.PostToolUse`
+  goes, and a session's sign of life no longer carries the mode.
+- **`network` leaves `plugin.json` again:** the directory does not know the field yet and refused it as a config
+  field outside its list.
+
 ## 0.12.2 — 2026-11-28
 
 For the Anthropic directory's check of 0.12.1; the mod does what it did.

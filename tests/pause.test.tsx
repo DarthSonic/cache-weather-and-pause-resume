@@ -274,16 +274,13 @@ describe('the pause button', () => {
     mock.clock(on, { now: 1_000_000 })
     mock.session(on)
     const prompts = engine(on)
-    // The engine's own verdict beneath: the person would be asked.
-    on('tool.check', () => ({ decision: 'ask' }))
+    on('classic.PermissionRequest', () => ({}))
     on('classic.Notification', () => ({}))
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    // A mode that surely asks (0.11.0: the mode is a hint; an unknown one is turned away at the prompt itself).
-    await $.classic.Notification({ notification_type: 'idle_prompt', message: '', permission_mode: 'default' } as never)
-    const check = (tool: string, extra: Record<string, unknown> = {}) =>
-      $.tool.check({ tool, input: {}, tool_use_id: 'tu1', approver: 'person', ...extra } as never)
-    // Running: an ask goes to the person.
-    expect((await check('Bash')).decision).toBe('ask')
+    const prompt = (tool: string, extra: Record<string, unknown> = {}) =>
+      $.classic.PermissionRequest({ session_id: 's1', tool_name: tool, tool_input: {}, ...extra } as never) as Promise<{ decision?: { behavior: string; message?: string } }>
+    // Running: a permission prompt goes to the person.
+    expect((await prompt('Bash')).decision).toBeUndefined()
     // A permission prompt is on screen as Pause is pressed: a mod cannot cancel it, so the band asks the person to
     // answer it (0.10.2).
     await $.classic.Notification({ notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' } as never)
@@ -291,59 +288,44 @@ describe('the pause button', () => {
     expect(prompts.at(-1)?.text).toContain('Schritte, die eine Freigabe des Menschen bräuchten, führst du nicht mehr aus')
     expect(await ui.find({ type: 'Text', text: /^Eine Freigabe ist offen, und der Mod kann sie nicht abbrechen: Bitte beantworte sie/ })).toBeDefined()
     // From the press on, a new approval waits for the resume.
-    const held = await check('Bash')
-    expect(held.decision).toBe('deny')
-    expect(held.reason).toContain('wiederhole ihn nach „weitermachen“')
+    const held = await prompt('Bash')
+    expect(held.decision?.behavior).toBe('deny')
+    expect(held.decision?.message).toContain('wiederhole ihn nach „weitermachen“')
     // The mod's own tools and questions to the person go their own ways; a subagent's approval waits too (0.11.0), so
     // its prompt keeps no turn from ending.
-    expect((await check('AskUserQuestion')).decision).toBe('ask')
-    expect((await check('mcp__cache-weather-and-pause-resume__pause_state')).decision).toBe('ask')
-    expect((await check('Bash', { agentId: 'a1' })).decision).toBe('deny')
+    expect((await prompt('AskUserQuestion')).decision).toBeUndefined()
+    expect((await prompt('mcp__cache-weather-and-pause-resume__pause_state')).decision).toBeUndefined()
+    expect((await prompt('Bash', { agent_id: 'a1' })).decision?.behavior).toBe('deny')
     // Paused: the hint goes with the turn, and approvals still wait.
     await $.classic.Stop(stop())
     expect(await ui.find({ key: 'resume' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Eine Freigabe ist offen/ })).toBeUndefined()
-    expect((await check('Bash')).decision).toBe('deny')
+    expect((await prompt('Bash')).decision?.behavior).toBe('deny')
     // Resumed: the person answers again.
     await ui.press({ key: 'resume' })
-    expect((await check('Bash')).decision).toBe('ask')
+    expect((await prompt('Bash')).decision).toBeUndefined()
     await ui.unmount()
   })
 
-  test('the mode is a hint: in auto mode Claude Code decides, and a prompt that still comes up waits for the resume', DE, async ($, on) => {
+  test('a held prompt is turned away at once, in any mode, before the chain beneath answers', DE, async ($, on) => {
     mock.store(on)
     mock.clock(on, { now: 1_000_000 })
     mock.session(on)
     engine(on)
-    on('tool.check', () => ({ decision: 'ask' }))
     // What beneath answers only once the person has, in the desktop app: a held prompt must not wait for it.
     let asksBeneath = 0
     on('classic.PermissionRequest', () => { asksBeneath++; return {} })
     on('classic.Notification', () => ({}))
-    on('classic.UserPromptSubmit', () => ({}))
-    on('classic.PostToolUse', () => ({}))
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    const check = () => $.tool.check({ tool: 'Bash', input: {}, tool_use_id: 'tu1', approver: 'person' } as never)
-    const prompt = () => $.classic.PermissionRequest({ session_id: 's1', tool_name: 'Bash', tool_input: {} } as never) as Promise<{ decision?: { behavior: string; message?: string } }>
-    // Auto mode, as the classic hooks report it.
-    await $.classic.Notification({ notification_type: 'idle_prompt', message: '', permission_mode: 'auto' } as never)
+    const prompt = () => $.classic.PermissionRequest({ session_id: 's1', tool_name: 'Bash', tool_input: {}, permission_mode: 'auto' } as never) as Promise<{ decision?: { behavior: string; message?: string } }>
     expect((await prompt()).decision).toBeUndefined()
+    expect(asksBeneath).toBe(1)
     await ui.press({ key: 'pause' })
-    // Claude Code's own check may settle it: the ask goes on.
-    expect((await check()).decision).toBe('ask')
-    // Should it still come up as a prompt, it is turned away with what to do instead.
+    // Turned away with what to do instead; the chain beneath is not asked.
     const held = await prompt()
     expect(held.decision?.behavior).toBe('deny')
     expect(held.decision?.message).toContain('wiederhole ihn nach „weitermachen“')
     expect(asksBeneath).toBe(1)
-    // A mode that surely asks, set for the next prompt or switched within the turn: turned away early already.
-    await $.classic.UserPromptSubmit({ prompt: 'weiter', permission_mode: 'default' } as never)
-    expect((await check()).decision).toBe('deny')
-    await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: {}, tool_response: {}, tool_use_id: 'tu0', permission_mode: 'auto' } as never)
-    expect((await check()).decision).toBe('ask')
-    // A subagent's mode is its own: the main conversation's stays.
-    await $.classic.PostToolUse({ tool_name: 'Bash', tool_input: {}, tool_response: {}, tool_use_id: 'tu2', permission_mode: 'default', agent_id: 'a1' } as never)
-    expect((await check()).decision).toBe('ask')
     await ui.unmount()
   })
 
@@ -1002,8 +984,8 @@ describe('the shutdown button', () => {
   const REQUEST = 'C:/Users/test/.claude/cache-weather-and-pause-resume/request.json'
   const SLOW_DE = { ...DE, timeoutMs: 30_000 }
   const local = (day: number, hours: number, minutes: number) => new Date(2026, 10, day, hours, minutes, 0, 0).getTime()
-  const check = ($: Engine, extra: Record<string, unknown> = {}) =>
-    $.tool.check({ tool: 'Bash', input: {}, tool_use_id: 'tu1', approver: 'person', ...extra } as never)
+  const permissionPrompt = ($: Engine) =>
+    $.classic.PermissionRequest({ session_id: 'p1', tool_name: 'Bash', tool_input: {} } as never) as Promise<{ decision?: { behavior: string; message?: string } }>
 
   test('the button asks when; a plan holds questions and approvals, reminds, fires at its time and counts down a minute', SLOW_DE, async ($, on) => {
     mock.store(on)
@@ -1012,9 +994,9 @@ describe('the shutdown button', () => {
     const prompts = engine(on)
     const session = mock.session(on)
     const host = windows(on)
-    on('tool.check', () => ({ decision: 'ask' }))
+    on('classic.PermissionRequest', () => ({}))
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
-    await $.classic.SessionStart({ source: 'startup', session_id: 'p1', permission_mode: 'default' } as never)
+    await $.classic.SessionStart({ source: 'startup', session_id: 'p1' } as never)
     await clock.settle()
 
     await ui.press({ key: 'shutdown' })
@@ -1028,15 +1010,13 @@ describe('the shutdown button', () => {
     expect(await ui.find({ key: 'plan-cancel' })).toBeDefined()
     expect(await ui.find({ key: 'pause' })).toBeDefined()
 
-    // From the plan on: no question, and no approval where it would come up as a prompt; auto mode works on.
+    // From the plan on: no question, and no permission prompt; what Claude Code settles itself goes on.
     const question = (await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)) as { deny?: string }
     expect(question.deny).toContain('Für 01:00 ist ein Shutdown geplant: Stell jetzt keine Frage')
-    const held = await check($)
-    expect(held.decision).toBe('deny')
-    expect(held.reason).toContain('hol ihn nach dem Neustart nach')
-    await $.classic.Stop({ ...stop(undefined, 'p1'), permission_mode: 'auto' } as never)
-    expect((await check($)).decision).toBe('ask')
-    await $.classic.Stop({ ...stop(undefined, 'p1'), permission_mode: 'default' } as never)
+    const held = await permissionPrompt($)
+    expect(held.decision?.behavior).toBe('deny')
+    expect(held.decision?.message).toContain('hol ihn nach dem Neustart nach')
+    await $.classic.Stop(stop(undefined, 'p1'))
 
     // Half an hour before, a session at work is reminded once; nothing runs before the time.
     await $.turn.start({ text: 'weiter', turnId: 't1' })
