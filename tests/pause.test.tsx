@@ -1348,7 +1348,7 @@ describe('the pause across a restart', () => {
     const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
 
     await $.classic.SessionStart({ source: 'resume', session_id: 'sess-3', seconds_since_last_response: 120 })
-    await $.classic.PostModelSwitch({ cache_ttl: '1h' })
+    await $.classic.PostModelSwitch({ cache_ttl: '1h' } as never)
     expect(await ui.find({ type: 'Text', text: /^Cache noch 58 min/ })).toBeDefined()
     await ui.unmount()
   })
@@ -1865,7 +1865,7 @@ describe('keep-warm', () => {
   // A session resumed `ago` milliseconds after its last response, with the given cache lifetime.
   async function resumed($: Engine, ago: number, ttl: '5m' | '1h'): Promise<void> {
     await $.classic.SessionStart({ source: 'resume', session_id: 'k1', seconds_since_last_response: ago / 1000 })
-    await $.classic.PostModelSwitch({ cache_ttl: ttl })
+    await $.classic.PostModelSwitch({ cache_ttl: ttl } as never)
   }
 
   test('the checkbox is the person’s alone: switched by a press, kept on disk for this session (option off)', DE_COLD, async ($, on) => {
@@ -1992,7 +1992,7 @@ describe('keep-warm', () => {
     disk(on, { [STATE]: JSON.stringify({ keepWarmSessions: { k1: 1 } }) })
     engine(on)
     const asked = forks(on)
-    on('turn.step', async function* ($, e) {
+    on('turn.step', async function* (_: unknown, e: { turnId: string; index: number }) {
       return {
         turnId: e.turnId,
         index: e.index,
@@ -2026,7 +2026,7 @@ describe('keep-warm', () => {
     disk(on)
     engine(on)
     const asked = forks(on)
-    on('turn.step', async function* ($, e) {
+    on('turn.step', async function* (_: unknown, e: { turnId: string; index: number }) {
       return {
         turnId: e.turnId,
         index: e.index,
@@ -2064,7 +2064,7 @@ describe('keep-warm', () => {
     on('session.usage', () => ({
       value: {
         startedAt: 0,
-        context: { window: 200_000, percent: 50, tokens: 100_000, breakdown: { isAutoCompactEnabled: true, autoCompactThreshold: 160_000 } },
+        context: { window: 200_000, percent: 50, tokens: 100_000, breakdown: { isAutoCompactEnabled: true, autoCompactThreshold: 160_000 } as never },
         rateLimits: [],
       },
     }))
@@ -2184,7 +2184,7 @@ describe('keep-warm', () => {
     const asked = forks(on)
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
     await resumed($, 2 * MIN, '1h')
-    await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' })
+    await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' } as never)
     // The new model has no cache of the conversation: expired at once, and the status row says why (0.10.3).
     expect(await ui.find({ type: 'Text', text: /^Cache abgelaufen/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache$/ })).toBeDefined()
@@ -2195,10 +2195,10 @@ describe('keep-warm', () => {
     await ui.unmount()
   })
 
-  const SUMMARY = [{ role: 'user', text: 'Zusammenfassung der Arbeit bis hier.', toolUses: [] }]
+  const SUMMARY = [{ role: 'user', text: 'Zusammenfassung der Arbeit bis hier.', toolUses: [] }] as never
   const compacted = ($: Engine) => $.session.compact({ trigger: 'manual', messages: SUMMARY } as never)
   const answered = (on: On, usage: Record<string, number>) =>
-    on('turn.step', async function* ($, e) {
+    on('turn.step', async function* (_: unknown, e: { turnId: string; index: number }) {
       return { turnId: e.turnId, index: e.index, answer: 'Weiter.', toolUses: [], stopReason: 'end_turn', usage }
     } as never)
   const ask = async ($: Engine, turnId: string) => {
@@ -2268,7 +2268,7 @@ describe('keep-warm', () => {
     await resumed($, 2 * MIN, '1h')
     expect(await ui.find({ type: 'Text', text: /^(Pausiert|Keep-warm:|Pause wird)/ })).toBeUndefined()
 
-    await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' })
+    await $.classic.PostModelSwitch({ cache_ttl: '1h', from_model: 'claude-opus-5-5', to_model: 'claude-sonnet-5-5' } as never)
     expect(await ui.find({ type: 'Text', text: /^Keep-warm: wartet auf die nächste Anfrage, denn nach dem Modellwechsel gibt es noch keinen Cache$/ })).toBeDefined()
     await ui.press({ key: 'pause' })
     expect(await ui.find({ type: 'Text', text: /^❚❚ Pause wird vorbereitet …$/ })).toBeDefined()

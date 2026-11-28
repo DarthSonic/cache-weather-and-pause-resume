@@ -375,7 +375,7 @@ describe('the band', () => {
     mock.store(on)
     on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
       const { Box, Text, Button } = $.ui.resolve(e)
-      return h(Box, {}, h(Text, {}, 'Fortschritt 3/7'), h(Button, { key: 'savvy-agents', label: '×2', onPress: () => {} }))
+      return h(Box, {}, h(Text, {}, 'Fortschritt 3/7'), h(Button, { key: 'savvy-agents', label: '×2', onPress: () => {} })) as never
     })
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ ...BAND, surface })
