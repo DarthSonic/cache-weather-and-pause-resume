@@ -453,25 +453,42 @@ oder einen Shutdown über Sitzungen, `request.json` daneben (unten), und keine a
 Hooks oder Build-Dateien. Er liest diese, das Transkript der Sitzung, wenn es höchstens 3,5 MiB groß ist (für
 Cache-Laufzeit und Zeitpunkt der letzten Antwort), und die Dateinamen und -zeiten — nicht die Inhalte — in
 `~/.claude/projects/*/`, um die Pausen gelöschter Sitzungen zu streichen und während eines Shutdowns die arbeitenden
-Sitzungen ohne den Mod zu zählen.
+Sitzungen ohne den Mod zu zählen. Die Pfade beginnen mit deinem Benutzerordner, gelesen aus `USERPROFILE` oder `HOME`,
+und sind deshalb im Code kein fester Text; der Rest jedes Pfads ist es.
 
 **Programme.** Bei jedem Sitzungsstart (und bei einem Klick auf **Shutdown**, der keine Antwort vorfindet) prüft er,
-ob der Shutdown-Knopf funktionieren kann: `whoami /priv` unter Windows;
-sonst `uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und
-nichts ausführt; für Standby oder Ruhezustand `powercfg /a` oder `reg query` unter Windows, `loginctl can-suspend` oder
-`can-hibernate` unter Linux, die alle nur lesen. Erst wenn du den Knopf gedrückt hast, die Sitzungen pausiert sind und
-der 5-Minuten-Countdown abgelaufen ist, startet er den Befehl aus den Tabellen oben. Andere Programme startet er nicht, und jedes über seinen
-vollen Pfad in den Ordnern des Systems (`%SystemRoot%\System32` unter Windows, sonst `/usr/bin` oder `/bin`), mit
-diesem Ordner als Arbeitsordner: Ein gleichnamiges Programm im Ordner der Sitzung oder auf deinem PATH läuft nie.
+ob der Shutdown-Knopf funktionieren kann, mit Befehlen, die nur lesen: unter Windows `whoami /priv`, für Standby
+`powercfg /a`, für den Ruhezustand `reg query HKLM\SYSTEM\CurrentControlSet\Control\Power /v HibernateEnabled`; sonst
+`uname -s`, dann `loginctl can-power-off` (Linux) und `sudo -n -l shutdown`, das nach keinem Passwort fragt und nichts
+ausführt, für Standby oder Ruhezustand `loginctl can-suspend` oder `can-hibernate` (Linux). Erst wenn du den Knopf
+gedrückt hast (oder eine geplante Zeit gekommen ist), die Sitzungen pausiert sind und der Countdown abgelaufen ist
+(5 Minuten, beim geplanten Shutdown eine Minute), startet er den einen Befehl für dein System und die Option
+`shutdownMode`:
+
+| System | `shutdown` | `sleep` | `hibernate` |
+| --- | --- | --- | --- |
+| Windows | `shutdown /s /f /t 10 /d p:0:0 /c "cache-weather-and-pause-resume: the session is paused, shut down from the band"` | `powershell -NoProfile -NonInteractive -Command "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"` | `shutdown /h` |
+| Linux | `systemctl poweroff`, sonst `sudo -n shutdown -h now` | `systemctl suspend` | `systemctl hibernate` |
+| macOS | `sudo -n shutdown -h now` | `pmset sleepnow` | (keiner) |
+
+Andere Programme startet er nicht, und jedes über seinen vollen Pfad in den Ordnern des Systems
+(`%SystemRoot%\System32` unter Windows, gelesen aus der Umgebungsvariable `SystemRoot`, daher ist dieser Pfad im Code
+kein fester Text; sonst `/usr/bin` oder `/bin`), mit diesem Ordner als Arbeitsordner: Ein gleichnamiges Programm im
+Ordner der Sitzung oder auf deinem PATH läuft nie. **Nichts, was der Mod liest, geht an ein Programm:** Jedes Argument
+ist der feste Text oben, geschrieben in [`hooks/shutdown.ts`](hooks/shutdown.ts) und
+[`hooks/register.tsx`](hooks/register.tsx); kein Dateiinhalt, kein Transkript, kein Prompt und keine Einstellung
+gelangt in eine Befehlszeile. Die Ausgabe eines Programms wird nur für seine Antwort gelesen (ob der Knopf
+funktionieren kann), und die erste Zeile eines Fehlers erscheint in der Leiste und ihrem Log, sonst nirgends.
 
 **Benachrichtigungen.** Startet der Shutdown-Countdown, schickt der Mod eine Benachrichtigung über Claude Codes eigenen
-Weg, den deine Einstellung `preferredNotifChannel` nennt: „Shutdown in 5 min“ und den Ordnernamen der Sitzung, sonst
-fester Text. Terminals, die Benachrichtigungen zeigen (iTerm2, kitty, Ghostty), zeigen sie; anderswo ist es höchstens
+Weg, den deine Einstellung `preferredNotifChannel` nennt: „Shutdown in 5 min“ („in 1 min“ beim geplanten Shutdown) und den
+Ordnernamen der Sitzung, sonst fester Text. Terminals, die Benachrichtigungen zeigen (iTerm2, kitty, Ghostty), zeigen sie; anderswo ist es höchstens
 die Glocke. Die Desktop-App hat kein Terminal: Dort kommt nichts an, und die App meldet die Pause selbst, und mit ihr
 startet der Countdown. Der Mod startet dafür kein Programm; die Option `notifications` schaltet sie ab.
 
 **Umgebung und Einstellungen.** Er liest `USERPROFILE` / `HOME` (wo der Benutzerordner liegt), `LC_ALL` /
-`LC_MESSAGES` / `LANG` (die Sprache) und `OS` (ob er unter Windows läuft). Er liest keine Einstellungen von Claude Code
+`LC_MESSAGES` / `LANG` (die Sprache), `OS` (ob er unter Windows läuft) und `SystemRoot` (wo Windows' eigene Programme
+liegen). Er liest keine Einstellungen von Claude Code
 und keine Zugangsdaten; die Nutzungsfenster kommen von Claude Code selbst, so wie seine Statuszeile sie zeigt, und keine
 Anfrage des Mods fragt danach.
 

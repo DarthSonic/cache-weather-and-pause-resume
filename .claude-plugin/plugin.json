@@ -1,6 +1,6 @@
 {
   "name": "cache-weather-and-pause-resume",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "Pause Claude Code and shut down, sleep or hibernate the computer once running work is done or at a set time, across all sessions. Plus a band above the prompt with the prompt-cache countdown, hit rate and bar, keep-warm (on by default) that refreshes the cache before it runs out and says what that saves, context weather with the auto-compact threshold and a forecast, usage limits, task and background-run progress, a Compact button and an overview of all sessions. German and English.",
   "author": { "name": "Sven Moderow", "url": "https://github.com/DarthSonic" },
   "homepage": "https://github.com/DarthSonic/cache-weather-and-pause-resume",
@@ -10,6 +10,7 @@
   "documentationUrl": "https://github.com/DarthSonic/cache-weather-and-pause-resume#readme",
   "supportUrl": "https://github.com/DarthSonic/cache-weather-and-pause-resume/issues",
   "keywords": ["mod", "prompt-cache", "context", "compact", "pause"],
+  "network": { "hosts": [] },
   "userConfig": {
     "language": {
       "type": "string",

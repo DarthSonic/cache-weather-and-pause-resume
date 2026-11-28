@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.2 — 2026-11-28
+
+For the Anthropic directory's check of 0.12.1; the mod does what it did.
+
+- **Names the directory can read:** a parameter named `tokens` read as a credential that could leave the machine,
+  a variable named like a function that takes `$` (`told`), and seven variables named like a hook's parameter
+  (`next`) kept the directory from reading the mod. They have names of their own now (`amount`, `resumedMinutes`,
+  `upcoming`, …).
+- **`plugin.json` says the mod reaches no host of its own** (`"network": { "hosts": [] }`): keep-warm's refresh goes
+  through the session's own client.
+- **The README says more of what the mod does on your machine:** the full command for each system and shutdown mode,
+  that nothing the mod reads goes to a program (every argument is fixed text), which paths are not fixed text in the
+  code and why, `SystemRoot` among the environment variables it reads, and the one-minute countdown of a planned
+  shutdown.
+- The tests type their stand-ins fully, so `claude plugin validate` reports no warning.
+
 ## 0.12.1 — 2026-11-26
 
 - **Fixed:** the task row followed the desktop app's plan only where Claude wrote the whole list anew. The plan is

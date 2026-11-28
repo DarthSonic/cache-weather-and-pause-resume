@@ -432,25 +432,39 @@ session sends with every request anyway, to the same API.
 shutdown across sessions, `request.json` beside it (below), and no other: no settings, instructions, hooks or build
 files. It reads those, the session's transcript when it is at most 3.5 MiB (for the cache lifetime and the time of the
 last response), and the file names and times — not the contents — in `~/.claude/projects/*/`, to drop the pauses of
-deleted sessions and, during a shutdown, to count the sessions at work without the mod.
+deleted sessions and, during a shutdown, to count the sessions at work without the mod. The paths start with your
+home folder, read from `USERPROFILE` or `HOME`, so they are not fixed text in the code; the rest of each path is.
 
 **Programs.** At each session start (and at a press of **Shutdown** that finds no answer) it checks whether the
-shutdown button can work: `whoami /priv` on Windows;
-elsewhere `uname -s`, then `loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and
-runs nothing; for standby or hibernation `powercfg /a` or `reg query` on Windows, `loginctl can-suspend` or
-`can-hibernate` on Linux, all of which only read. Only once you pressed the button, the sessions are paused and the
-5-minute countdown has run out does it run the command from the tables above. It starts no other program, and each one by its full path in the
-system's own folders (`%SystemRoot%\System32` on Windows, `/usr/bin` or `/bin` elsewhere) with that folder as the
-working folder: a program of the same name in the session's folder or on your PATH is never run.
+shutdown button can work, with commands that only read: on Windows `whoami /priv`, for standby `powercfg /a`, for
+hibernation `reg query HKLM\SYSTEM\CurrentControlSet\Control\Power /v HibernateEnabled`; elsewhere `uname -s`, then
+`loginctl can-power-off` (Linux) and `sudo -n -l shutdown`, which asks for no password and runs nothing, for standby
+or hibernation `loginctl can-suspend` or `can-hibernate` (Linux). Only once you pressed the button (or a planned time
+came), the sessions are paused and the countdown has run out (5 minutes, one minute for a planned shutdown) does it
+run the one command for your system and the option `shutdownMode`:
+
+| System | `shutdown` | `sleep` | `hibernate` |
+| --- | --- | --- | --- |
+| Windows | `shutdown /s /f /t 10 /d p:0:0 /c "cache-weather-and-pause-resume: the session is paused, shut down from the band"` | `powershell -NoProfile -NonInteractive -Command "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"` | `shutdown /h` |
+| Linux | `systemctl poweroff`, else `sudo -n shutdown -h now` | `systemctl suspend` | `systemctl hibernate` |
+| macOS | `sudo -n shutdown -h now` | `pmset sleepnow` | (none) |
+
+It starts no other program, and each one by its full path in the system's own folders (`%SystemRoot%\System32` on
+Windows, read from the environment variable `SystemRoot`, so that path is not fixed text in the code; `/usr/bin` or
+`/bin` elsewhere) with that folder as the working folder: a program of the same name in the session's folder or on
+your PATH is never run. **Nothing the mod reads goes to a program:** every argument is the fixed text above, written
+in [`hooks/shutdown.ts`](hooks/shutdown.ts) and [`hooks/register.tsx`](hooks/register.tsx); no file content,
+transcript text, prompt or setting reaches a command line. A program's output is read only for its answer (whether
+the button can work), and the first line of an error is shown in the band and its log, nowhere else.
 
 **Notifications.** As the shutdown countdown starts, the mod raises one notification through Claude Code's own
-channel, the one your `preferredNotifChannel` setting names: “Shutdown in 5 min” and the session's folder name, fixed
-text otherwise. Terminals that show notifications (iTerm2, kitty, Ghostty) show it; elsewhere it is at most the bell.
+channel, the one your `preferredNotifChannel` setting names: “Shutdown in 5 min” (“in 1 min” for a planned shutdown)
+and the session's folder name, fixed text otherwise. Terminals that show notifications (iTerm2, kitty, Ghostty) show it; elsewhere it is at most the bell.
 The desktop app draws no terminal: there nothing comes, and the app reports the pause itself, which is when the
 countdown starts. The mod starts no program for it; the option `notifications` turns it off.
 
 **Environment and settings.** It reads `USERPROFILE` / `HOME` (where the home folder is), `LC_ALL` / `LC_MESSAGES` /
-`LANG` (the language) and `OS` (whether it runs on Windows). It reads no Claude Code settings and no credentials; the
+`LANG` (the language), `OS` (whether it runs on Windows) and `SystemRoot` (where Windows' own programs are). It reads no Claude Code settings and no credentials; the
 usage windows come from Claude Code itself, as its status line shows them, and no request of the mod's asks for them.
 
 **Hooks.** The `prompt.submit` and `classic.Stop` hooks act as in the table above, and `tool.call` answers the mod's
