@@ -137,7 +137,7 @@ import {
 } from './shutdown'
 
 // Written at every load: which code a session runs, read off the state file on disk.
-const CODE_VERSION = '0.12.3'
+const CODE_VERSION = '0.12.4'
 
 const lastResponseAt = atom({ plugin: 'cache-weather-and-pause-resume', key: 'lastResponseAt' } as const, null)
 const ttl = atom({ plugin: 'cache-weather-and-pause-resume', key: 'ttl' } as const, null)
@@ -2675,13 +2675,15 @@ export const register: Register = (on, options) => {
   // Decided before the chain beneath: in the desktop app the dialog shows while the hooks run, and the chain beneath
   // answered only once the person had (seen live), so a deny after it came too late. A held approval is turned away
   // at once (the dialog flashes for an instant); anything else goes on untouched.
-  on('classic.PermissionRequest', async ($, e, next) => {
-    const tool = (e as { tool_name?: unknown }).tool_name
+  // Its parameters have names used nowhere else in the file, so the Anthropic directory can follow that the hook
+  // passes its own event on or answers a fixed deny (0.12.4; `$`, `e` and `next` are every other hook's names).
+  on('classic.PermissionRequest', async (permissionEngine, permissionAsk, permissionNext) => {
+    const tool = permissionAsk.tool_name
     const isOwn = tool === 'AskUserQuestion' || (typeof tool === 'string' && tool.startsWith('mcp__cache-weather-and-pause-resume__'))
-    const reason = isOwn ? null : await heldApproval($)
+    const reason = isOwn ? null : await heldApproval(permissionEngine)
     if (reason !== null) return { decision: { behavior: 'deny', message: reason } }
-    return next(e)
-  }).catch(($, e, next) => next(e))
+    return permissionNext(permissionAsk)
+  }).catch((fallbackEngine, fallbackAsk, fallbackNext) => fallbackNext(fallbackAsk))
 
   // After /clear the conversation the pause belonged to is gone. An ended session leaves no sign of life behind.
   on('session.end', async ($, e, next) => {

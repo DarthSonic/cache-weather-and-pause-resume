@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.4 — 2026-11-28
+
+After the Anthropic directory's check of 0.12.3; the mod does what it did.
+
+- **The hook that turns a held permission prompt away has parameter names of its own** (`classic.PermissionRequest`):
+  the directory could not confirm that it leaves the decision with you, and its rule asks for parameter names used
+  for nothing else in the file, where every other hook is written with `$`, `e` and `next`. It also reads the tool's
+  name without a cast now.
+- **README:** what Claude Code's Projects (beta) mean for the mod: their threads run in the cloud by default and do
+  not load it.
+
 ## 0.12.3 — 2026-11-28
 
 After the Anthropic directory's check of 0.12.2.
