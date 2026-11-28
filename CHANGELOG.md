@@ -4,10 +4,10 @@
 
 For the Anthropic directory's check of 0.12.1; the mod does what it did.
 
-- **Names the directory can read:** a parameter named `tokens` read as a credential that could leave the machine,
-  a variable named like a function that takes `$` (`told`), and seven variables named like a hook's parameter
-  (`next`) kept the directory from reading the mod. They have names of their own now (`amount`, `resumedMinutes`,
-  `upcoming`, …).
+- **Names the directory can read:** a parameter named `tokens` read to it as a credential that could leave the
+  machine; a variable named `told`, like a function that takes `$`, kept it from reading three calls; and variables
+  and parameters named `next` or `e`, like a hook's parameters, are a cause its finding gives for not confirming the
+  `tool.check` hook. All have names of their own now (`amount`, `resumedMinutes`, `upcoming`, `call`, …).
 - **`plugin.json` says the mod reaches no host of its own** (`"network": { "hosts": [] }`): keep-warm's refresh goes
   through the session's own client.
 - **The README says more of what the mod does on your machine:** the full command for each system and shutdown mode,

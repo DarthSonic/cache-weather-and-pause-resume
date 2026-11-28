@@ -262,34 +262,34 @@ async function tick($: EngineInterface): Promise<void> {
 
 // Claude's task list, read off the task tools as they run (local test, 2026-11-25): TaskCreate adds one, TaskUpdate
 // changes or deletes one, TaskList and TodoWrite give the whole list. A subagent's calls write the same list.
-async function noteTasks($: EngineInterface, e: { tool: string } & Record<string, unknown>, result: unknown): Promise<void> {
+async function noteTasks($: EngineInterface, call: { tool: string } & Record<string, unknown>, result: unknown): Promise<void> {
   const out = ((result as { result?: unknown } | null)?.result ?? {}) as Record<string, unknown>
   if ((result as { isError?: boolean } | null)?.isError === true || (result as { deny?: unknown } | null)?.deny !== undefined) return
   const at = await $.clock.now()
   const str = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null)
   const before = await read($, taskList)
   let after: TaskEntry[] = before
-  if (e.tool === 'TaskCreate') {
+  if (call.tool === 'TaskCreate') {
     const task = out.task as { id?: unknown; subject?: unknown } | undefined
     const id = str(task?.id)
     if (id === null) return
-    after = [...before.filter(t => t.id !== id), { id, subject: str(task?.subject) ?? str(e.subject) ?? id, activeForm: str(e.activeForm), status: 'pending', startedAt: null }]
-  } else if (e.tool === 'TaskUpdate') {
-    const id = str(e.taskId)
+    after = [...before.filter(t => t.id !== id), { id, subject: str(task?.subject) ?? str(call.subject) ?? id, activeForm: str(call.activeForm), status: 'pending', startedAt: null }]
+  } else if (call.tool === 'TaskUpdate') {
+    const id = str(call.taskId)
     if (id === null || out.success === false) return
-    const status = e.status
+    const status = call.status
     if (status === 'deleted') {
       after = before.filter(t => t.id !== id)
     } else {
       after = before.map(t => {
         if (t.id !== id) return t
-        const updated: TaskEntry = { ...t, subject: str(e.subject) ?? t.subject, activeForm: str(e.activeForm) ?? t.activeForm }
+        const updated: TaskEntry = { ...t, subject: str(call.subject) ?? t.subject, activeForm: str(call.activeForm) ?? t.activeForm }
         if (status === 'pending' || status === 'in_progress' || status === 'completed') updated.status = status
         if (status === 'in_progress' && t.status !== 'in_progress') updated.startedAt = at
         return updated
       })
     }
-  } else if (e.tool === 'TaskList') {
+  } else if (call.tool === 'TaskList') {
     const tasks = Array.isArray(out.tasks) ? (out.tasks as { id?: unknown; subject?: unknown; status?: unknown }[]) : null
     if (tasks === null) return
     after = tasks.flatMap(task => {
@@ -300,13 +300,13 @@ async function noteTasks($: EngineInterface, e: { tool: string } & Record<string
       const startedAt = status === 'in_progress' ? (known?.status === 'in_progress' ? known.startedAt : at) : (known?.startedAt ?? null)
       return [{ id, subject: str(task.subject) ?? known?.subject ?? id, activeForm: known?.activeForm ?? null, status, startedAt }]
     })
-  } else if (e.tool === 'mcp__ccd_turn__update_plan' && !Array.isArray(e.items)) {
+  } else if (call.tool === 'mcp__ccd_turn__update_plan' && !Array.isArray(call.items)) {
     // The desktop app's plan changed in place (live, 2026-11-26; its four forms read off the transcripts): `advance`
     // ticks the item at work and starts the next, `done` ticks items and `start` begins one, by their number from 1.
     const numbers = (value: unknown): number[] => (Array.isArray(value) ? value.filter((n): n is number => typeof n === 'number') : [])
-    const done = new Set(numbers(e.done).map(n => n - 1))
-    let start = typeof e.start === 'number' ? e.start - 1 : null
-    if (e.advance === true) {
+    const done = new Set(numbers(call.done).map(n => n - 1))
+    let start = typeof call.start === 'number' ? call.start - 1 : null
+    if (call.advance === true) {
       const atWork = before.findIndex(t => t.status === 'in_progress')
       if (atWork >= 0) done.add(atWork)
       const upcoming = before.findIndex((t, index) => index > atWork && t.status === 'pending')
@@ -318,9 +318,9 @@ async function noteTasks($: EngineInterface, e: { tool: string } & Record<string
       if (done.has(index)) return { ...task, status: 'completed' }
       return task
     })
-  } else if (e.tool === 'mcp__ccd_turn__update_plan') {
+  } else if (call.tool === 'mcp__ccd_turn__update_plan') {
     // The desktop app's own plan (live, 2026-11-25): the whole list in its input, no spinner wording.
-    const items = Array.isArray(e.items) ? (e.items as { content?: unknown; status?: unknown }[]) : null
+    const items = Array.isArray(call.items) ? (call.items as { content?: unknown; status?: unknown }[]) : null
     if (items === null) return
     after = items.map((item, index) => {
       const subject = str(item.content) ?? `${index + 1}`
@@ -329,7 +329,7 @@ async function noteTasks($: EngineInterface, e: { tool: string } & Record<string
       const startedAt = status === 'in_progress' ? (known?.status === 'in_progress' ? known.startedAt : at) : (known?.startedAt ?? null)
       return { id: `plan-${index}`, subject, activeForm: null, status, startedAt }
     })
-  } else if (e.tool === 'TodoWrite') {
+  } else if (call.tool === 'TodoWrite') {
     const todos = Array.isArray(out.newTodos) ? (out.newTodos as { content?: unknown; status?: unknown; activeForm?: unknown }[]) : null
     if (todos === null) return
     after = todos.map((todo, index) => {
@@ -479,15 +479,15 @@ async function endedRunText($: EngineInterface, t: ReturnType<typeof strings>, a
 }
 
 // A shell call whose result says it runs in the background now: the task row names it at once, by its description.
-function noteRunStarted($: EngineInterface, e: Record<string, unknown>, result: unknown): Promise<void> {
-  return oneAtATime(() => addStartedRun($, e, result))
+function noteRunStarted($: EngineInterface, call: Record<string, unknown>, result: unknown): Promise<void> {
+  return oneAtATime(() => addStartedRun($, call, result))
 }
 
-async function addStartedRun($: EngineInterface, e: Record<string, unknown>, result: unknown): Promise<void> {
+async function addStartedRun($: EngineInterface, call: Record<string, unknown>, result: unknown): Promise<void> {
   const text = (result as { text?: unknown } | null)?.text
   if (typeof text !== 'string' || !/running in background with ID|moved to the background/i.test(text)) return
-  const described = typeof e.description === 'string' && e.description.trim() !== '' ? e.description.trim() : null
-  const command = typeof e.command === 'string' ? e.command.trim().split(/\r?\n/)[0] ?? '' : ''
+  const described = typeof call.description === 'string' && call.description.trim() !== '' ? call.description.trim() : null
+  const command = typeof call.command === 'string' ? call.command.trim().split(/\r?\n/)[0] ?? '' : ''
   const run = described ?? (command.length > 60 ? `${command.slice(0, 59)}…` : command)
   if (run === '') return
   const at = await $.clock.now()
@@ -2214,8 +2214,8 @@ async function restorePause($: EngineInterface, id: string): Promise<void> {
   await setPausePhase($, 'paused')
 }
 
-async function setPausePhase($: EngineInterface, next: PausePhase): Promise<void> {
-  await update($, pausePhase, () => next)
+async function setPausePhase($: EngineInterface, phase: PausePhase): Promise<void> {
+  await update($, pausePhase, () => phase)
 }
 
 async function enterPausing($: EngineInterface, isDelivered: boolean): Promise<void> {
@@ -2338,18 +2338,18 @@ async function pauseOnStop(
 }
 
 // The mod's part of the session start (classic.SessionStart), run alongside the hooks beneath.
-async function noteSessionStart($: EngineInterface, askAbove: number, e: { transcript_path: string; permission_mode?: string; session_title?: string; session_id: string; seconds_since_last_response?: number; prompt_cache_likely_expired?: boolean }): Promise<void> {
-  await update($, transcriptPath, () => e.transcript_path)
-  await notePermissionMode($, e.permission_mode)
-  await noteSessionTitle($, e.session_title)
+async function noteSessionStart($: EngineInterface, askAbove: number, startInput: { transcript_path: string; permission_mode?: string; session_title?: string; session_id: string; seconds_since_last_response?: number; prompt_cache_likely_expired?: boolean }): Promise<void> {
+  await update($, transcriptPath, () => startInput.transcript_path)
+  await notePermissionMode($, startInput.permission_mode)
+  await noteSessionTitle($, startInput.session_title)
   // A resumed session carries its id here even where `$.session.id()` was not bound yet at session.start; after
   // /clear the id is a new one, whose pause (none) is restored.
-  await update($, sessionId, () => e.session_id)
-  await restorePause($, e.session_id)
-  await restoreKeepWarm($, e.session_id)
+  await update($, sessionId, () => startInput.session_id)
+  await restorePause($, startInput.session_id)
+  await restoreKeepWarm($, startInput.session_id)
   void checkShutdown($).catch(() => undefined)
   // A resumed session says how long ago its last response was: the countdown needs no transcript for it.
-  const seconds = e.seconds_since_last_response
+  const seconds = startInput.seconds_since_last_response
   if (typeof seconds === 'number' && (await read($, lastResponseAt)) === null) {
     const at = await $.clock.now()
     await update($, lastResponseAt, () => at - seconds * 1000)
@@ -2357,7 +2357,7 @@ async function noteSessionStart($: EngineInterface, askAbove: number, e: { trans
   }
   // And whether the cache likely expired since, which tells the lifetime; else the one last seen. This start comes on
   // every new start of the session (resume, /compact, /clear), where session.start does not.
-  const resumedMinutes = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
+  const resumedMinutes = lifetimeFromResume(seconds, startInput.prompt_cache_likely_expired)
   if (resumedMinutes !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: resumedMinutes, source: 'session-start' })
   await applyRememberedTtl($)
   startTicker($)
