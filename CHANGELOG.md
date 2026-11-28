@@ -15,6 +15,7 @@ For the Anthropic directory's check of 0.12.1; the mod does what it did.
   code and why, `SystemRoot` among the environment variables it reads, and the one-minute countdown of a planned
   shutdown.
 - The tests type their stand-ins fully, so `claude plugin validate` reports no warning.
+- CI against Claude Code 2.1.332 (`network` in `plugin.json` needs 2.1.328 or later).
 
 ## 0.12.1 — 2026-11-26
 

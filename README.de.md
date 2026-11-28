@@ -540,7 +540,7 @@ Der Mod funktioniert ohne, läuft aber im Berechtigungsmodus **Auto** deutlich s
 vor einem geplanten Shutdown weist er jede Berechtigungsabfrage ab, und in Auto entscheidet die Prüfung von Claude Code
 die meisten Schritte selbst, es warten also weniger.
 
-Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.317** (Desktop-App) und **2.1.319** (CLI). Die
+Claude Code mit Mods (Plugins mit Funktions-Hooks), Early Access, geprüft mit **2.1.317** (Desktop-App) und **2.1.332** (CLI). Die
 Mod-Schnittstelle ändert sich zwischen Releases; die CI prüft und testet gegen eine festgeschriebene Version.
 
 Wo eine Organisation Claude Code verwaltet, laufen die Hooks auf `classic.SessionStart`, `classic.Stop`,

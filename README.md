@@ -510,7 +510,7 @@ The mod works without it, but with far fewer interruptions in the permission mod
 a planned shutdown it turns away every permission prompt, and in Auto Claude Code's own check settles most steps
 itself, so fewer of them wait.
 
-Claude Code with mods (function-hook plugins), early access, checked with **2.1.317** (desktop app) and **2.1.319** (CLI). The mod API
+Claude Code with mods (function-hook plugins), early access, checked with **2.1.317** (desktop app) and **2.1.332** (CLI). The mod API
 moves between releases; the CI runs validation and the tests against a pinned version.
 
 Where an organization manages Claude Code, the hooks on `classic.SessionStart`, `classic.Stop`,
