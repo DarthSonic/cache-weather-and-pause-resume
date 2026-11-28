@@ -549,6 +549,13 @@ Zusammenfassung, Keep-warm zählt eine offene Berechtigungsfrage als Arbeit und 
 Modellwechsel weiter auf, bis eine Auffrischung den Cache kalt vorfindet, und eine Berechtigungsabfrage während einer
 Pause oder vor einem geplanten Shutdown wird nicht abgewiesen.
 
+**Projekte** (Beta, in der Desktop-App und unter claude.ai/code) starten ihre Threads standardmäßig als Cloud-Sitzungen,
+und die laden keine Plugins, die auf deinem Rechner installiert sind
+([Projects](https://code.claude.com/docs/en/claude-projects)): Dort gibt es keine Leiste, keine Pause und kein
+Keep-warm, und ein Shutdown wartet weder auf sie noch pausiert er sie (sie laufen in der Cloud weiter). Ein Thread, den
+Claude auf deinem Rechner ausführt (**Work locally**), nutzt, was dort installiert ist, und sollte den Mod laden; das ist
+noch nicht getestet.
+
 ## Entwicklung
 
 ```

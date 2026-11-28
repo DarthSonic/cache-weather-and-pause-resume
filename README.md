@@ -518,6 +518,12 @@ lifetime is not read off the transcript, no summary is logged after `/compact`, 
 permission prompt as work and goes on after a compaction or a switch of model until a refresh finds the cache cold,
 and a permission prompt during a pause or before a planned shutdown is not turned away.
 
+**Projects** (beta in the desktop app and at claude.ai/code) start their threads as cloud sessions by default, and
+those do not load plugins installed on your computer
+([Projects](https://code.claude.com/docs/en/claude-projects)): there is no band, no pause and no keep-warm, and a
+shutdown neither waits for them nor pauses them (they run on in the cloud). A thread you have Claude run on your
+computer (**Work locally**) uses what is installed there and should load the mod; that is not tested yet.
+
 ## Development
 
 ```
