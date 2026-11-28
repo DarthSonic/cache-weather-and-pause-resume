@@ -283,10 +283,10 @@ async function noteTasks($: EngineInterface, e: { tool: string } & Record<string
     } else {
       after = before.map(t => {
         if (t.id !== id) return t
-        const next: TaskEntry = { ...t, subject: str(e.subject) ?? t.subject, activeForm: str(e.activeForm) ?? t.activeForm }
-        if (status === 'pending' || status === 'in_progress' || status === 'completed') next.status = status
-        if (status === 'in_progress' && t.status !== 'in_progress') next.startedAt = at
-        return next
+        const updated: TaskEntry = { ...t, subject: str(e.subject) ?? t.subject, activeForm: str(e.activeForm) ?? t.activeForm }
+        if (status === 'pending' || status === 'in_progress' || status === 'completed') updated.status = status
+        if (status === 'in_progress' && t.status !== 'in_progress') updated.startedAt = at
+        return updated
       })
     }
   } else if (e.tool === 'TaskList') {
@@ -309,8 +309,8 @@ async function noteTasks($: EngineInterface, e: { tool: string } & Record<string
     if (e.advance === true) {
       const atWork = before.findIndex(t => t.status === 'in_progress')
       if (atWork >= 0) done.add(atWork)
-      const next = before.findIndex((t, index) => index > atWork && t.status === 'pending')
-      start = next >= 0 ? next : null
+      const upcoming = before.findIndex((t, index) => index > atWork && t.status === 'pending')
+      start = upcoming >= 0 ? upcoming : null
     }
     if (done.size === 0 && start === null) return
     after = before.map((task, index): TaskEntry => {
@@ -371,8 +371,8 @@ async function taskRowText($: EngineInterface, t: ReturnType<typeof strings>, at
     const since = current.startedAt === null ? '' : ` · ${t.taskSince(minutesBetween(current.startedAt, at) ?? 0)}`
     return `${head} · ${current.activeForm ?? current.subject}${since}`
   }
-  const next = tasks.find(task => task.status === 'pending')
-  return next === undefined ? head : `${head} · ${t.taskNext(next.subject)}`
+  const upcoming = tasks.find(task => task.status === 'pending')
+  return upcoming === undefined ? head : `${head} · ${t.taskNext(upcoming.subject)}`
 }
 
 // No task list (or one done a while ago): the background run in flight in its place (the person, 2026-11-25). Where
@@ -618,16 +618,16 @@ function usageOf(windows: readonly { kind: string; percentUsed: number; resetsAt
 
 // The session's own auto-compact threshold (a local estimate, no API request); 83 % when it gives none.
 async function refreshThreshold($: EngineInterface): Promise<void> {
-  let next: Threshold = { percent: FALLBACK_THRESHOLD_PERCENT, isFallback: true }
+  let found: Threshold = { percent: FALLBACK_THRESHOLD_PERCENT, isFallback: true }
   try {
     const usage = await $.session.usage({ breakdown: 'summary' })
     const b = usage.context.breakdown
     const percent = b?.isAutoCompactEnabled ? thresholdPercent(b.autoCompactThreshold, usage.context.window) : null
-    if (percent !== null) next = { percent, isFallback: false }
+    if (percent !== null) found = { percent, isFallback: false }
   } catch {
     // No session bound yet: keep the fallback and try again after the next turn.
   }
-  await update($, threshold, () => next)
+  await update($, threshold, () => found)
 }
 
 // The session's transcript, when small enough for one read.
@@ -708,10 +708,10 @@ async function homeDir($: EngineInterface): Promise<string | null> {
 
 // A map of session ids to times with one session set (a time) or taken out (null); the latest SESSIONS_KEEP stay.
 function withSession(all: Record<string, number> | undefined, id: string, at: number | null): Record<string, number> {
-  const next = { ...(all ?? {}) }
-  if (at === null) delete next[id]
-  else next[id] = at
-  const kept = Object.entries(next)
+  const merged = { ...(all ?? {}) }
+  if (at === null) delete merged[id]
+  else merged[id] = at
+  const kept = Object.entries(merged)
     .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
     .sort((a, b) => b[1] - a[1])
     .slice(0, SESSIONS_KEEP)
@@ -799,9 +799,9 @@ const DEAD_KEYS = ['isCollapsed', 'keepAliveSessions']
 const stateText = (value: Persisted): string => `${JSON.stringify(value, null, 2)}\n`
 
 function withoutDeadKeys(value: Persisted): Persisted {
-  const next: Record<string, unknown> = { ...value }
-  for (const key of DEAD_KEYS) delete next[key]
-  return next as Persisted
+  const kept: Record<string, unknown> = { ...value }
+  for (const key of DEAD_KEYS) delete kept[key]
+  return kept as Persisted
 }
 
 async function writePersisted($: EngineInterface, change: (p: Persisted) => Persisted): Promise<void> {
@@ -1966,8 +1966,8 @@ async function changeOwnRequest($: EngineInterface, change: (r: SessionRequest) 
   if ((await read($, requestRole)) !== 'own') return
   const request = await read($, sessionRequest)
   if (request === null) return
-  const next = change(request)
-  if (next !== null) await writeRequest($, next)
+  const changed = change(request)
+  if (changed !== null) await writeRequest($, changed)
 }
 
 // Before a pause or shutdown request goes to Claude: the other sessions alive with work running. A shutdown always
@@ -2357,8 +2357,8 @@ async function noteSessionStart($: EngineInterface, askAbove: number, e: { trans
   }
   // And whether the cache likely expired since, which tells the lifetime; else the one last seen. This start comes on
   // every new start of the session (resume, /compact, /clear), where session.start does not.
-  const told = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
-  if (told !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: told, source: 'session-start' })
+  const resumedMinutes = lifetimeFromResume(seconds, e.prompt_cache_likely_expired)
+  if (resumedMinutes !== null && isCarriedOver(await read($, ttl))) await settleTtl($, { minutes: resumedMinutes, source: 'session-start' })
   await applyRememberedTtl($)
   startTicker($)
   startKeepWarm($)
